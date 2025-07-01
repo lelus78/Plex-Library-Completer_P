@@ -269,8 +269,12 @@ def force_playlist_scan_and_missing_detection():
         logger.error(f"Error during forced playlist scan: {e}", exc_info=True)
 
 
-def run_downloader_only():
-    """Reads missing tracks from DB, searches for links in parallel and starts download."""
+def run_downloader_only(source: str = "Deezer"):
+    """Reads missing tracks from DB, searches for links in parallel and starts download.
+
+    Args:
+        source: origin of the download (for logs).
+    """
     logger.info("--- Starting automatic search and download for missing tracks from DB ---")
     missing_tracks_from_db = get_missing_tracks()
     
@@ -307,13 +311,13 @@ def run_downloader_only():
         # Download each unique link and update all associated tracks
         for link, track_ids in unique_links.items():
             try:
-                logger.info(f"Starting download: {link} (for {len(track_ids)} tracks)")
-                download_single_track_with_streamrip(link)
+                logger.info(f"Starting download from {source}: {link} (for {len(track_ids)} tracks)")
+                download_single_track_with_streamrip(link, source=source)
                 
                 # Update status of all tracks associated with this link
                 for track_id in track_ids:
-                    update_track_status(track_id, 'downloaded')
-                    logger.info(f"Status updated to 'downloaded' for track ID {track_id}")
+                    update_track_status(track_id, 'downloaded', source=source)
+                    logger.info(f"Status updated to 'downloaded' from {source} for track ID {track_id}")
                     
             except Exception as e:
                 logger.error(f"Error during download of {link}: {e}")
@@ -476,7 +480,7 @@ def run_full_sync_cycle():
         logger.info(f"Found {current_missing_count} missing tracks in existing DB.")
     
     if RUN_DOWNLOADER:
-        download_attempted = run_downloader_only()
+        download_attempted = run_downloader_only(source="Deezer")
         if download_attempted:
             wait_time = int(os.getenv("PLEX_SCAN_WAIT_TIME", "300"))
             logger.info(f"Waiting {wait_time} seconds to give Plex time to index...")
