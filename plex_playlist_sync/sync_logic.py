@@ -16,6 +16,7 @@ from .utils.deezer import deezer_playlist_sync
 from .utils.helperClasses import UserInputs, Playlist as PlexPlaylist, Track as PlexTrack
 from .utils.spotify import spotify_playlist_sync
 from .utils.downloader import download_single_track_with_streamrip, DeezerLinkFinder
+from .utils.soulseek import queue_search, is_enabled as soulseek_enabled
 from .utils.gemini_ai import configure_gemini, get_plex_favorites_by_id, generate_playlist_prompt, get_gemini_playlist_data
 from .utils.weekly_ai_manager import manage_weekly_ai_playlist
 from .utils.plex import update_or_create_plex_playlist, search_plex_track
@@ -280,6 +281,7 @@ def run_downloader_only():
 
     logger.info(f"Found {len(missing_tracks_from_db)} missing tracks. Starting parallel link search...")
     tracks_with_links = []  # Lista di (track_id, link) per mantenere associazione
+    tracks_without_links = []
     
     # Use ThreadPoolExecutor to parallelize network requests
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
@@ -293,6 +295,8 @@ def run_downloader_only():
                 track_id = track[0]  # ID della traccia dal database
                 tracks_with_links.append((track_id, link))
                 logger.info(f"Link found for '{track[1]}' by '{track[2]}': {link}")
+            else:
+                tracks_without_links.append(track)
 
     if tracks_with_links:
         logger.info(f"Found {len(tracks_with_links)} links to download.")
@@ -322,9 +326,19 @@ def run_downloader_only():
                     logger.warning(f"Download failed for track ID {track_id}")
         
         return True
-    else:
-        logger.info("No download links found for missing tracks.")
-        return False
+
+    if tracks_without_links and soulseek_enabled():
+        logger.info(f"Queueing {len(tracks_without_links)} tracks on Soulseek")
+        for track in tracks_without_links:
+            query = f"{track[2]} {track[1]}"  # artist title
+            if queue_search(query):
+                update_track_status(track[0], 'queued')
+    elif tracks_without_links:
+        logger.info("Soulseek disabled or token missing; skipping queue")
+
+    if tracks_with_links:
+        return True
+    return False
 
 
 def rescan_and_update_missing():
