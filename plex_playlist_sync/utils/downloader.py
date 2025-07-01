@@ -6,6 +6,7 @@ import subprocess
 from typing import List, Dict
 import time
 import unicodedata
+from .soulseek import SoulseekClient
 
 def clean_url(url: str) -> str:
     """
@@ -402,3 +403,20 @@ def download_single_track_with_streamrip(link: str, source: str = "Deezer"):
         if os.path.exists(temp_links_file):
             os.remove(temp_links_file)
             logging.info(f"File temporaneo di download rimosso: {temp_links_file}")
+
+
+def download_track_with_fallback(track_info: dict) -> bool:
+    """Download track using Deezer link or Soulseek as fallback."""
+    link = DeezerLinkFinder.find_track_link(track_info)
+    if link:
+        logging.info(f"Downloading '{track_info.get('title')}' from Deezer")
+        download_single_track_with_streamrip(link)
+        return True
+
+    slsk_client = SoulseekClient()
+    if slsk_client.search_and_download(track_info.get('artist', ''), track_info.get('title', '')):
+        logging.info(f"Downloading '{track_info.get('title')}' from Soulseek")
+        return True
+
+    logging.warning(f"No source found for '{track_info.get('title')}'")
+    return False

@@ -17,7 +17,7 @@ A Python script, executed via Docker, to keep Plex music playlists synchronized 
 - **Multi-User Management**: Supports synchronization for multiple Plex users, each with their own playlists and configurations.
 - **Weekly AI Playlists**: Uses the **Google Gemini** API to analyze a user's taste (based on a "favorites" playlist) and generate a new personalized playlist every week.
 - **Automatic Completion**: Identifies playlist tracks that are missing from your Plex library.
-- **Automatic Download**: Uses **`streamrip`** to automatically search and download albums containing missing tracks from Deezer, effectively completing your library.
+- **Automatic Download**: Uses **`streamrip`** (and optionally **Soulseek**) to automatically grab missing tracks, completing your library.
 - **Scheduled Cleanup**: Automatically removes old playlists to keep the library organized.
 - **Background Execution**: Designed to run 24/7 in a Docker container, with customizable synchronization cycles.
 - **Fast Statistics**: Charts are generated from the favorite tracks playlist, speeding up processing even on very large libraries.
@@ -180,8 +180,13 @@ If you want to modify the code or build locally:
     
     **Note**: If neither option is configured, the application will still work but will skip automatic downloads and only show links for manual download.
 
-4.  **Verify Volume Paths**
-    Edit `docker-compose.yml` and set the `MUSIC_PATH` variable:
+4.  **Optional Soulseek Integration**
+    If you run a [slskd](https://github.com/slskd/slskd) instance you can set `USE_SOULSEEK=1` and configure `SLSKD_URL`/`SLSKD_TOKEN` in `.env`.
+    Missing tracks will then be searched on Soulseek when not found on Deezer.
+
+5.  **Verify Volume Paths**
+    Edit `docker-compose.yml` and update the music library path:
+
     ```yaml
     volumes:
       - ${MUSIC_PATH}:/music
@@ -204,8 +209,8 @@ If you're using Portainer for Docker management:
     - Choose "Upload" method
     - Upload your `docker-compose.yml` file
     - In the "Environment variables" section, either:
-      - Upload your `.env` file, OR
-      - Manually add each environment variable
+    - Upload your `.env` file, OR
+    - Manually add each environment variable
 
 3.  **Configure Volumes**
     In the docker-compose.yml, ensure paths are correct for your server:
@@ -307,9 +312,10 @@ This is the complete list of variables to configure in the `.env` file.
 | `RUN_GEMINI_PLAYLIST_CREATION`  | Set to `1` to enable weekly AI playlist creation.                                                     | `1` (enabled)                                 |
 | `DOWNLOAD_MAX_RETRIES`          | Number of attempts before abandoning a failed download.                                               | `3`                                           |
 | `DEEZER_ARL`                    | Deezer ARL cookie for downloading tracks (optional). Leave empty to skip downloads.                  | `your_arl_cookie_here`                        |
-| `USE_SOULSEEK`                  | Enable queueing missing tracks on Soulseek via slskd.                                             | `false`                                       |
-| `SLSKD_URL`                     | Base URL of your slskd service.                                                                     | `http://localhost:5030`                       |
-| `SLSKD_TOKEN`                   | Authentication token for slskd API.                                                                 | `<token>`                                     |
+| `USE_SOULSEEK`                  | Enable fallback downloads via Soulseek when Deezer fails.                                            | `0` |
+| `SLSKD_URL`                     | Base URL of your slskd instance.                                                                    | `http://localhost:5030` |
+| `SLSKD_TOKEN`                   | API token for slskd (if required).                                                                  | `my_slskd_token` |
+
 
 ## Project Structure
 
