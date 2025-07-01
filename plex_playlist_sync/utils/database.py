@@ -479,14 +479,21 @@ def get_missing_track_by_id(track_id: int) -> Optional[Dict]:
         logging.error(f"Errore nel recuperare la traccia mancante ID {track_id}: {e}")
         return None
 
-def update_track_status(track_id: int, new_status: str):
-    """Aggiorna lo stato di una traccia nel database."""
+def update_track_status(track_id: int, new_status: str, source: str | None = None):
+    """Aggiorna lo stato di una traccia nel database.
+
+    Args:
+        track_id: ID della traccia nel DB.
+        new_status: Nuovo stato da impostare.
+        source: Origine dell'azione, per i log.
+    """
     try:
         with sqlite3.connect(DB_PATH) as con:
             cur = con.cursor()
             cur.execute("UPDATE missing_tracks SET status = ? WHERE id = ?", (new_status, track_id))
             con.commit()
-        logging.info(f"Stato della traccia ID {track_id} aggiornato a '{new_status}'.")
+        suffix = f" da {source}" if source else ""
+        logging.info(f"Stato della traccia ID {track_id} aggiornato a '{new_status}'{suffix}.")
     except Exception as e:
         logging.error(f"Errore nell'aggiornare lo stato della traccia ID {track_id}: {e}")
 
