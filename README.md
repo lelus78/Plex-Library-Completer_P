@@ -307,6 +307,9 @@ This is the complete list of variables to configure in the `.env` file.
 | `RUN_GEMINI_PLAYLIST_CREATION`  | Set to `1` to enable weekly AI playlist creation.                                                     | `1` (enabled)                                 |
 | `DOWNLOAD_MAX_RETRIES`          | Number of attempts before abandoning a failed download.                                               | `3`                                           |
 | `DEEZER_ARL`                    | Deezer ARL cookie for downloading tracks (optional). Leave empty to skip downloads.                  | `your_arl_cookie_here`                        |
+| `USE_SOULSEEK`                  | Enable queueing missing tracks on Soulseek via slskd.                                             | `false`                                       |
+| `SLSKD_URL`                     | Base URL of your slskd service.                                                                     | `http://localhost:5030`                       |
+| `SLSKD_TOKEN`                   | Authentication token for slskd API.                                                                 | `<token>`                                     |
 
 ## Project Structure
 
