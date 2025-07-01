@@ -811,7 +811,7 @@ $(document).ready(function() {
                         const item = $(`
                             <div class="search-result-item d-flex justify-content-between align-items-center">
                                 <div class="d-flex align-items-center">
-                                    <img src="${result.album.cover_medium}" width="50" height="50" class="me-3 rounded" style="border-radius: var(--radius-sm);">
+                                    <img src="${result.album.cover_medium}" alt="${result.album.title}" width="50" height="50" class="me-3 rounded" style="border-radius: var(--radius-sm);">
                                     <div>
                                         <div class="fw-medium">${result.title}</div>
                                         <small class="text-secondary">${result.artist.name} - ${result.album.title}</small>
