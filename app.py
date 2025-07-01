@@ -57,6 +57,9 @@ init_i18n_for_app(app)
 
 app_state = { "status": "In attesa", "last_sync": "Mai eseguito", "is_running": False }
 
+# Numero massimo di tentativi per il download di una traccia
+MAX_DOWNLOAD_RETRIES = int(os.getenv("DOWNLOAD_MAX_RETRIES", 3))
+
 # Coda per i download e ThreadPoolExecutor per l'esecuzione parallela
 download_queue = queue.Queue()
 download_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2) # Ridotto a 2 per evitare sovraccarico
@@ -64,17 +67,47 @@ download_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2) # Ridot
 def download_worker():
     while True:
         track_info = download_queue.get()
-        if track_info is None: # Sentinella per terminare il worker
+        if track_info is None:  # Sentinella per terminare il worker
             break
-        link, track_id = track_info
-        try:
-            source = "Deezer"
-            log.info(f"Starting download from {source} for {link} (Track ID: {track_id})")
-            download_single_track_with_streamrip(link, source=source)
-            update_track_status(track_id, 'downloaded', source=source)
-            log.info(f"Download completed from {source} for {link} (Track ID: {track_id})")
+
+        # Gestisce sia tuple a 2 che a 3 elementi per retrocompatibilità
+        if len(track_info) == 3:
+            link, track_id, attempts = track_info
+        else:
+            link, track_id = track_info
+            attempts = 0
+
+try:
+    source = "Deezer"
+    log.info(
+        f"Starting download attempt {attempts + 1}/{MAX_DOWNLOAD_RETRIES} "
+        f"from {source} for {link} (Track ID: {track_id})"
+    )
+
+    # passa 'source' alla funzione di download
+    download_single_track_with_streamrip(link, source=source)
+
+    # aggiorna lo stato
+    update_track_status(track_id, "downloaded", source=source)
+
+    log.info(
+        f"Download completed from {source} for {link} (Track ID: {track_id})"
+    )
+
         except Exception as e:
-            log.error(f"Error downloading {link} (Track ID: {track_id}): {e}", exc_info=True)
+            attempts += 1
+            if attempts < MAX_DOWNLOAD_RETRIES:
+                log.error(
+                    f"Error downloading {link} (Track ID: {track_id}) attempt {attempts}: {e} - requeuing",
+                    exc_info=True,
+                )
+                download_queue.put((link, track_id, attempts))
+            else:
+                log.error(
+                    f"Failed to download {link} (Track ID: {track_id}) after {attempts} attempts: {e}",
+                    exc_info=True,
+                )
+                update_track_status(track_id, "failed")
         finally:
             download_queue.task_done()
 
@@ -512,7 +545,7 @@ def find_and_download_missing_tracks_auto():
         if links_found:
             log.info(f"Aggiungo {len(links_found)} link alla coda di download.")
             for link, track_id in links_found:
-                download_queue.put((link, track_id))
+                download_queue.put((link, track_id, 0))
         else:
             log.info("Nessun link di download trovato per le tracce rimanenti.")
 
@@ -537,7 +570,7 @@ def download_selected_tracks():
         track_id = track_data.get('track_id')
         album_url = track_data.get('album_url')
         if track_id and album_url:
-            download_queue.put((album_url, track_id))
+            download_queue.put((album_url, track_id, 0))
             log.info(f"Traccia {track_id} con URL {album_url} aggiunta alla coda di download (selezione multipla).")
 
     return jsonify({"success": True, "message": f"{len(tracks_to_download)} download aggiunti alla coda."})
@@ -763,7 +796,7 @@ def download_track():
     if not track_id or not album_url: return jsonify({"success": False, "error": "Dati incompleti."}), 400
     
     # Aggiungi il download alla coda, non bloccare l'UI
-    download_queue.put((album_url, track_id))
+    download_queue.put((album_url, track_id, 0))
     log.info(f"Traccia {track_id} con URL {album_url} aggiunta alla coda di download.")
     return jsonify({"success": True, "message": "Download aggiunto alla coda."})
 
