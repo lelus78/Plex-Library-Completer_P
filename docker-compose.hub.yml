@@ -2,8 +2,7 @@ version: "3.9"
 
 services:
   completer:
-    build: .
-    image: lelus78/plex-library-completer:dev   # tag locale
+    image: lelus78/plex-library-completer:latest
     container_name: plex-library-completer
     env_file:
       - .env
@@ -16,6 +15,6 @@ services:
       - ./templates:/app/templates
       - ./plex_playlist_sync:/app/plex_playlist_sync
       - ./app.py:/app/app.py
-      - M:/Organizzata:/music         # ↩️ percorsa musicale locale (modifica se necessario)
+      - M:/Organizzata:/music
       - ./config.toml:/root/.config/streamrip/config.toml
     restart: on-failure
