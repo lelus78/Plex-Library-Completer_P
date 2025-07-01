@@ -302,6 +302,7 @@ This is the complete list of variables to configure in the `.env` file.
 | `FORCE_DELETE_OLD_PLAYLISTS`    | Set to `1` to enable automatic deletion of old playlists.                                             | `0` (disabled)                                |
 | `RUN_DOWNLOADER`                | Set to `1` to enable automatic download of missing tracks.                                            | `1` (enabled)                                 |
 | `RUN_GEMINI_PLAYLIST_CREATION`  | Set to `1` to enable weekly AI playlist creation.                                                     | `1` (enabled)                                 |
+| `DOWNLOAD_MAX_RETRIES`          | Number of attempts before abandoning a failed download.                                               | `3`                                           |
 | `DEEZER_ARL`                    | Deezer ARL cookie for downloading tracks (optional). Leave empty to skip downloads.                  | `your_arl_cookie_here`                        |
 
 ## Project Structure
