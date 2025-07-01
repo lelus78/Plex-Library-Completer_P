@@ -16,6 +16,7 @@ from .utils.deezer import deezer_playlist_sync
 from .utils.helperClasses import UserInputs, Playlist as PlexPlaylist, Track as PlexTrack
 from .utils.spotify import spotify_playlist_sync
 from .utils.downloader import download_single_track_with_streamrip, DeezerLinkFinder
+from .utils.soulseek import queue_search, SoulseekClient, is_enabled as soulseek_enabled
 from .utils.gemini_ai import configure_gemini, get_plex_favorites_by_id, generate_playlist_prompt, get_gemini_playlist_data
 from .utils.weekly_ai_manager import manage_weekly_ai_playlist
 from .utils.plex import update_or_create_plex_playlist, search_plex_track
@@ -270,7 +271,8 @@ def force_playlist_scan_and_missing_detection():
 
 
 def run_downloader_only():
-    """Reads missing tracks from DB, searches for links in parallel and starts download."""
+    """Reads missing tracks from DB and tries to download them."""
+
     logger.info("--- Starting automatic search and download for missing tracks from DB ---")
     missing_tracks_from_db = get_missing_tracks()
     
@@ -279,7 +281,9 @@ def run_downloader_only():
         return False
 
     logger.info(f"Found {len(missing_tracks_from_db)} missing tracks. Starting parallel link search...")
-    tracks_with_links = []  # Lista di (track_id, link) per mantenere associazione
+    tracks_with_links = []  # (track_id, link)
+    unresolved_tracks = []  # tracks without Deezer link
+
     
     # Use ThreadPoolExecutor to parallelize network requests
     with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
@@ -290,9 +294,12 @@ def run_downloader_only():
             track = future_to_track[future]
             link = future.result()
             if link:
-                track_id = track[0]  # ID della traccia dal database
+                track_id = track[0]
                 tracks_with_links.append((track_id, link))
-                logger.info(f"Link found for '{track[1]}' by '{track[2]}': {link}")
+                logger.info(f"Link found for '{track[1]}' by '{track[2]}' via Deezer: {link}")
+            else:
+                unresolved_tracks.append(track)
+
 
     if tracks_with_links:
         logger.info(f"Found {len(tracks_with_links)} links to download.")
@@ -307,24 +314,29 @@ def run_downloader_only():
         # Download each unique link and update all associated tracks
         for link, track_ids in unique_links.items():
             try:
-                logger.info(f"Starting download: {link} (for {len(track_ids)} tracks)")
+                logger.info(f"Starting download from Deezer: {link} (for {len(track_ids)} tracks)")
                 download_single_track_with_streamrip(link)
-                
-                # Update status of all tracks associated with this link
                 for track_id in track_ids:
                     update_track_status(track_id, 'downloaded')
                     logger.info(f"Status updated to 'downloaded' for track ID {track_id}")
-                    
+
             except Exception as e:
                 logger.error(f"Error during download of {link}: {e}")
-                # Mark tracks as error instead of downloaded
                 for track_id in track_ids:
                     logger.warning(f"Download failed for track ID {track_id}")
-        
-        return True
-    else:
-        logger.info("No download links found for missing tracks.")
-        return False
+
+    # Process unresolved tracks with Soulseek if enabled
+    slsk_client = SoulseekClient()
+    for track in unresolved_tracks:
+        track_id, title, artist = track[0], track[1], track[2]
+        if slsk_client.search_and_download(artist, title):
+            update_track_status(track_id, 'downloaded')
+            logger.info(f"Track '{title}' by '{artist}' sourced from Soulseek")
+        else:
+            logger.warning(f"No source found for '{title}' by '{artist}'")
+
+    return bool(tracks_with_links or unresolved_tracks)
+
 
 
 def rescan_and_update_missing():
@@ -476,7 +488,7 @@ def run_full_sync_cycle():
         logger.info(f"Found {current_missing_count} missing tracks in existing DB.")
     
     if RUN_DOWNLOADER:
-        download_attempted = run_downloader_only()
+        download_attempted = run_downloader_only(source="Deezer")
         if download_attempted:
             wait_time = int(os.getenv("PLEX_SCAN_WAIT_TIME", "300"))
             logger.info(f"Waiting {wait_time} seconds to give Plex time to index...")
