@@ -106,3 +106,4 @@ class SoulseekClient:
             wait *= 2
         logger.warning(f"Download of '{file['filename']}' from {username} still queued")
         return True
+

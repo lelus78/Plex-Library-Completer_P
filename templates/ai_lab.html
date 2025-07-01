@@ -65,7 +65,8 @@
 .chat-container {
     background: var(--bg-secondary);
     border-radius: var(--radius-lg);
-    height: 400px;
+    height: 50vh;
+    min-height: 18rem;
     overflow-y: auto;
     padding: 1rem;
     border: 1px solid rgba(255,255,255,0.1);
@@ -110,7 +111,7 @@
     background: var(--bg-card);
     border: 1px solid rgba(255,255,255,0.1);
     border-radius: var(--radius-md);
-    max-height: 200px;
+    max-height: 50vh;
     overflow-y: auto;
     z-index: 1000;
     display: none;
@@ -189,7 +190,7 @@
                 <i data-lucide="user" class="me-2" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
                 <label for="user-select" class="form-label mb-0 fw-medium">{{ _('ai_lab.generate_for') }}:</label>
             </div>
-            <select name="user" id="user-select" class="form-select" style="max-width: 200px;" onchange="this.form.submit()">
+            <select name="user" id="user-select" class="form-select" style="max-width: 12rem;" onchange="this.form.submit()">
                 <option value="main" {% if selected_user == 'main' %}selected{% endif %}>{{ aliases.main }}</option>
                 <option value="secondary" {% if selected_user == 'secondary' %}selected{% endif %}>{{ aliases.secondary }}</option>
             </select>
