@@ -30,6 +30,14 @@ RUN mkdir -p /app/state_data /app/logs && \
     chown -R app:app /app && \
     chmod -R 755 /app
 
+# Create entrypoint script for runtime permission fix
+RUN echo '#!/bin/bash\n\
+mkdir -p /app/state_data /app/logs\n\
+chmod 755 /app/state_data /app/logs\n\
+python app.py' > /app/entrypoint.sh && \
+    chmod +x /app/entrypoint.sh && \
+    chown app:app /app/entrypoint.sh
+
 USER app
 EXPOSE 5000
-ENTRYPOINT ["python", "app.py"]
+ENTRYPOINT ["/app/entrypoint.sh"]
