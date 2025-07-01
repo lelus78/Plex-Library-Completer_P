@@ -305,6 +305,7 @@ This is the complete list of variables to configure in the `.env` file.
 | `RUN_DOWNLOADER`                | Set to `1` to enable automatic download of missing tracks.                                            | `1` (enabled)                                 |
 | `MUSIC_PATH`                    | Local path where your music is stored. Use Windows-style paths like `M:\Organizzata` or Unix-style paths like `/mnt/music`. | `M:\Organizzata` |
 | `RUN_GEMINI_PLAYLIST_CREATION`  | Set to `1` to enable weekly AI playlist creation.                                                     | `1` (enabled)                                 |
+| `DOWNLOAD_MAX_RETRIES`          | Number of attempts before abandoning a failed download.                                               | `3`                                           |
 | `DEEZER_ARL`                    | Deezer ARL cookie for downloading tracks (optional). Leave empty to skip downloads.                  | `your_arl_cookie_here`                        |
 
 ## Project Structure
