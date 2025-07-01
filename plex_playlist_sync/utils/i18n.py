@@ -43,27 +43,32 @@ class I18nService:
                 self.translations[lang] = {}
     
     def get_language(self) -> str:
-        """Ottiene la lingua corrente dell'utente"""
-        # 1. Controlla la sessione Flask
-        if 'language' in session:
-            lang = session['language']
-            if lang in self.supported_languages:
-                return lang
-        
-        # 2. Controlla i parametri della query
-        if request and hasattr(request, 'args'):
-            lang = request.args.get('lang')
-            if lang in self.supported_languages:
-                return lang
-        
-        # 3. Controlla l'header Accept-Language del browser
-        if request and hasattr(request, 'headers'):
-            accept_language = request.headers.get('Accept-Language', '')
-            for lang in self.supported_languages:
-                if lang in accept_language.lower():
+        """Ottiene la lingua corrente dell'utente (safe per background tasks)"""
+        try:
+            # 1. Controlla la sessione Flask (solo se nel contesto request)
+            from flask import has_request_context
+            if has_request_context() and 'language' in session:
+                lang = session['language']
+                if lang in self.supported_languages:
                     return lang
+            
+            # 2. Controlla i parametri della query (solo se nel contesto request)
+            if has_request_context() and request and hasattr(request, 'args'):
+                lang = request.args.get('lang')
+                if lang in self.supported_languages:
+                    return lang
+            
+            # 3. Controlla l'header Accept-Language del browser (solo se nel contesto request)
+            if has_request_context() and request and hasattr(request, 'headers'):
+                accept_language = request.headers.get('Accept-Language', '')
+                for lang in self.supported_languages:
+                    if lang in accept_language.lower():
+                        return lang
+        except RuntimeError:
+            # Working outside request context - usa lingua predefinita
+            pass
         
-        # 4. Ritorna la lingua predefinita
+        # 4. Ritorna la lingua predefinita (safe fallback)
         return self.default_language
     
     def set_language(self, language: str) -> bool:

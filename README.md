@@ -158,12 +158,26 @@ If you want to modify the code or build locally:
     ```
     Edit `.env` with your preferred text editor and fill in all the required values according to the Environment Variables table below.
 
-3.  **Configure Streamrip**
+3.  **Configure Deezer Downloads (Optional)**
+    To enable automatic track downloads from Deezer, you have two options:
+    
+    **Option A: Environment Variable (Recommended for Docker)**
+    Add your ARL cookie to the `.env` file:
+    ```bash
+    DEEZER_ARL=your_arl_cookie_here
+    ```
+    
+    **Option B: Configuration File (Legacy method)**
     Copy and customize the streamrip configuration:
     ```bash
     cp config.example.toml config.toml
     ```
     Edit `config.toml` and add your Deezer ARL token.
+    
+    To find your Deezer ARL cookie, follow the instructions at:
+    https://github.com/nathom/streamrip/wiki/Finding-your-Deezer-ARL-Cookie
+    
+    **Note**: If neither option is configured, the application will still work but will skip automatic downloads and only show links for manual download.
 
 4.  **Verify Volume Paths**
     Edit `docker-compose.yml` and update the music library path:
@@ -288,6 +302,7 @@ This is the complete list of variables to configure in the `.env` file.
 | `FORCE_DELETE_OLD_PLAYLISTS`    | Set to `1` to enable automatic deletion of old playlists.                                             | `0` (disabled)                                |
 | `RUN_DOWNLOADER`                | Set to `1` to enable automatic download of missing tracks.                                            | `1` (enabled)                                 |
 | `RUN_GEMINI_PLAYLIST_CREATION`  | Set to `1` to enable weekly AI playlist creation.                                                     | `1` (enabled)                                 |
+| `DEEZER_ARL`                    | Deezer ARL cookie for downloading tracks (optional). Leave empty to skip downloads.                  | `your_arl_cookie_here`                        |
 
 ## Project Structure
 

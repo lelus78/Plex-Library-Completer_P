@@ -15,6 +15,6 @@ services:
       - ./templates:/app/templates
       - ./plex_playlist_sync:/app/plex_playlist_sync
       - ./app.py:/app/app.py
-      - M:/Organizzata:/music
+      - /mnt/e/Music:/music
       - ./config.toml:/root/.config/streamrip/config.toml
     restart: on-failure

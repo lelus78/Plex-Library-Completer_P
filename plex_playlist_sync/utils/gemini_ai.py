@@ -60,8 +60,9 @@ IMPORTANT FORMATTING RULES:
 2. Include a creative, catchy title 
 3. Add a brief description (2-3 sentences)
 4. List exactly 25 tracks with artist and title
-5. Ensure variety in genres, eras, and moods
+5. If a specific genre/style is requested, PRIORITIZE that above all else
 6. Prioritize tracks that are likely to exist in a music library
+7. When given a specific user request, fulfill it EXACTLY - ignore trends that don't match
 
 JSON Format:
 {
@@ -80,8 +81,9 @@ REGOLE DI FORMATTAZIONE IMPORTANTI:
 2. Includi un titolo creativo e accattivante
 3. Aggiungi una breve descrizione (2-3 frasi)
 4. Elenca esattamente 25 brani con artista e titolo
-5. Assicura varietà di generi, epoche e atmosfere
+5. Se viene richiesto un genere/stile specifico, PRIORITIZZA quello sopra tutto
 6. Prioritizza brani che probabilmente esistono in una libreria musicale
+7. Quando ricevi una richiesta specifica, soddisfala ESATTAMENTE - ignora tendenze che non corrispondono
 
 Formato JSON:
 {
@@ -159,11 +161,11 @@ def generate_playlist_prompt(
             
             if charts_info:
                 charts_section = f"""
-DATI MUSICALI AGGIORNATI (utilizza questi per ispirazione e per includere brani attuali):
+DATI MUSICALI AGGIORNATI (usa solo come ispirazione secondaria se compatibile con la richiesta utente):
 ---
 {chr(10).join(charts_info)}
 ---
-ISTRUZIONE: Usa questi dati per includere brani attuali e di tendenza nella playlist, bilanciandoli con i gusti dell'utente.
+ISTRUZIONE: Usa questi dati SOLO se compatibili con la richiesta specifica dell'utente. Non includere tracce dalle classifiche se non si allineano perfettamente con il genere/stile richiesto.
 """
             logger.info("Dati musicali aggiornati integrati nel prompt con successo")
         except Exception as e:
@@ -187,38 +189,62 @@ ISTRUZIONE SPECIALE: Per creare una "storia musicale", includi nella nuova playl
         else:
             previous_week_section = ""
 
+    # Usa lingua predefinita se non specificata (safe per background tasks)
+    lang = language or 'en'  # Default a inglese per background tasks
     # Ottieni il prompt base localizzato
-    base_prompt = get_localized_prompt_base(language)
-    lang = language or i18n.get_language()
+    base_prompt = get_localized_prompt_base(lang)
     
-    # Sezioni tradotte
+    # Sezioni tradotte con priorità alle richieste utente
     if lang == 'en':
         favorites_header = "FAVORITE TRACKS (for reference on general tastes):"
-        charts_header = "UPDATED MUSIC DATA (use for inspiration and to include current tracks):"
+        charts_header = "CURRENT MUSIC TRENDS (use sparingly for inspiration only):"
         previous_header = "PREVIOUS WEEK TRACKS (for continuity):"
         instruction_text = "INSTRUCTION: To create a \"musical story\", include 5-10 tracks from the previous week's list that best connect with the new songs you choose."
-        balance_note = "IMPORTANT: Skillfully balance the user's personal tastes with current trends to create a modern and personalized playlist."
+        if custom_prompt:
+            balance_note = "CRITICAL: The user's specific request takes ABSOLUTE PRIORITY. Chart data should only be used for minor inspiration if it aligns with the user's request. Focus entirely on fulfilling the user's exact musical preferences and genre requirements."
+        else:
+            balance_note = "IMPORTANT: Skillfully balance the user's personal tastes with current trends to create a modern and personalized playlist."
     else:
         favorites_header = "LISTA TRACCE PREFERITE (per riferimento sui gusti generali):"
-        charts_header = "DATI MUSICALI AGGIORNATI (utilizza questi per ispirazione e per includere brani attuali):"
+        charts_header = "TENDENZE MUSICALI ATTUALI (usa solo per ispirazione minima):"
         previous_header = "LISTA TRACCE SETTIMANA PRECEDENTE (per continuità):"
         instruction_text = "ISTRUZIONE SPECIALE: Per creare una \"storia musicale\", includi nella nuova playlist tra i 5 e i 10 brani dalla lista della settimana precedente che si legano meglio con le nuove canzoni che sceglierai."
-        balance_note = "IMPORTANTE: Bilancia sapientemente i gusti personali dell'utente con le tendenze attuali per creare una playlist moderna e personalizzata."
+        if custom_prompt:
+            balance_note = "CRITICO: La richiesta specifica dell'utente ha PRIORITÀ ASSOLUTA. I dati delle classifiche dovrebbero essere usati solo per ispirazione minima se allineati con la richiesta dell'utente. Concentrati interamente nel soddisfare le esatte preferenze musicali e requisiti di genere dell'utente."
+        else:
+            balance_note = "IMPORTANTE: Bilancia sapientemente i gusti personali dell'utente con le tendenze attuali per creare una playlist moderna e personalizzata."
 
     # Aggiorna le sezioni charts per la lingua
     if charts_section and lang == 'en':
-        charts_section = charts_section.replace("DATI MUSICALI AGGIORNATI", "UPDATED MUSIC DATA")
+        charts_section = charts_section.replace("DATI MUSICALI AGGIORNATI", "CURRENT MUSIC TRENDS")
         charts_section = charts_section.replace("TENDENZE", "TRENDS")
-        charts_section = charts_section.replace("utilizza questi per ispirazione", "use for inspiration")
-        charts_section = charts_section.replace("ISTRUZIONE: Usa questi dati", "INSTRUCTION: Use this data")
+        charts_section = charts_section.replace("utilizza questi per ispirazione", "use sparingly for inspiration only")
+        charts_section = charts_section.replace("ISTRUZIONE: Usa questi dati", "INSTRUCTION: Use this data sparingly")
     
     if previous_week_section and lang == 'en':
         previous_week_section = previous_week_section.replace("LISTA TRACCE SETTIMANA PRECEDENTE", "PREVIOUS WEEK TRACKS")
         previous_week_section = previous_week_section.replace("ISTRUZIONE SPECIALE", "SPECIAL INSTRUCTION")
 
-    prompt = f"""{base_prompt}
+    # Riordina prompt per dare priorità alla richiesta utente
+    if custom_prompt:
+        prompt = f"""{base_prompt}
 
-{i18n.get_translation('ai.prompts.weekly_playlist' if not custom_prompt else 'custom', language, week=1, year=2025) if not custom_prompt else custom_prompt}
+CUSTOM USER REQUEST (THIS IS THE PRIMARY GOAL):
+{custom_prompt}
+
+{favorites_header}
+---
+{tracks_str}
+---
+{previous_week_section}
+{charts_section}
+
+{balance_note}
+"""
+    else:
+        prompt = f"""{base_prompt}
+
+{i18n.get_translation('ai.prompts.weekly_playlist', language, week=1, year=2025)}
 
 {favorites_header}
 ---
@@ -236,19 +262,55 @@ def get_gemini_playlist_data(model: genai.GenerativeModel, prompt: str) -> Optio
     logger.info("Invio richiesta a Gemini per la creazione della playlist...")
     try:
         response = model.generate_content(prompt)
+        if not response or not response.text:
+            logger.error("Gemini ha restituito una risposta vuota")
+            return None
+            
         cleaned_text = response.text.strip()
+        logger.info(f"Risposta Gemini (primi 500 char): {cleaned_text[:500]}...")
+        
         start_index = cleaned_text.find('{')
         end_index = cleaned_text.rfind('}') + 1
         if start_index == -1 or end_index == 0:
-            raise ValueError("Nessun oggetto JSON valido trovato nella risposta.")
+            logger.error("Nessun oggetto JSON trovato nella risposta")
+            logger.error(f"Risposta completa:\n{cleaned_text}")
+            return None
         
         json_str = cleaned_text[start_index:end_index]
+        logger.info(f"JSON estratto: {json_str[:200]}...")
+        
         playlist_data = json.loads(json_str)
-        logger.info(f"Playlist generata da Gemini: '{playlist_data.get('playlist_name')}'.")
-        return playlist_data
+        
+        # Verifica campi essenziali
+        title = playlist_data.get('title') or playlist_data.get('playlist_name') or playlist_data.get('name')
+        tracks = playlist_data.get('tracks', [])
+        
+        if not title:
+            logger.error(f"Playlist senza titolo. Chiavi disponibili: {list(playlist_data.keys())}")
+            return None
+            
+        if not tracks:
+            logger.error(f"Playlist senza tracce. Dati: {playlist_data}")
+            return None
+        
+        # Normalizza i nomi dei campi
+        normalized_data = {
+            'playlist_name': title,
+            'tracks': tracks,
+            'description': playlist_data.get('description', ''),
+            'title': title
+        }
+        
+        logger.info(f"Playlist generata da Gemini: '{title}' con {len(tracks)} tracce")
+        return normalized_data
+        
+    except json.JSONDecodeError as e:
+        logger.error(f"Errore parsing JSON: {e}")
+        logger.error(f"JSON che ha causato l'errore:\n{json_str if 'json_str' in locals() else 'Non disponibile'}")
+        return None
     except Exception as e:
         logger.error(f"Errore nel parsing della risposta di Gemini: {e}")
-        logger.error(f"Risposta ricevuta che ha causato l'errore:\n{response.text if 'response' in locals() else 'Nessuna risposta ricevuta'}")
+        logger.error(f"Risposta ricevuta:\n{response.text if 'response' in locals() else 'Nessuna risposta ricevuta'}")
         return None
 
 def list_ai_playlists(plex: PlexServer) -> List[Dict]:
@@ -275,7 +337,12 @@ def generate_on_demand_playlist(
     favorite_tracks = get_plex_favorites_by_id(plex, favorites_playlist_id)
     if not favorite_tracks: return False
 
-    prompt = generate_playlist_prompt(favorite_tracks, custom_prompt, include_charts_data=include_charts_data)
+    # Per richieste specifiche, riduci l'influenza dei chart data
+    if custom_prompt and any(keyword in custom_prompt.lower() for keyword in ['anime', 'giapponesi', 'japanese', 'k-pop', 'metal', 'classical', 'jazz', 'blues']):
+        logger.info("Detected specific genre request - minimizing chart data influence")
+        include_charts_data = False
+
+    prompt = generate_playlist_prompt(favorite_tracks, custom_prompt, language='en', include_charts_data=include_charts_data)
     playlist_data = get_gemini_playlist_data(model, prompt)
 
     if not (playlist_data and playlist_data.get("tracks") and playlist_data.get("playlist_name")):

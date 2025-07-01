@@ -190,8 +190,12 @@ def create_new_weekly_playlist(
         logger.error("❌ Unable to read favorites playlist for taste analysis")
         return None
     
-    # Get current language
-    current_language = i18n.get_language()
+    # Get current language (default to 'en' for background tasks)
+    try:
+        current_language = i18n.get_language()
+    except RuntimeError:
+        # Working outside request context
+        current_language = 'en'
     
     # Generate localized prompt for new weekly playlist
     if current_language == 'en':

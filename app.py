@@ -44,7 +44,7 @@ from plex_playlist_sync.utils.database import (
     delete_all_missing_tracks, delete_missing_track, check_track_in_index, comprehensive_track_verification, get_library_index_stats,
     clean_tv_content_from_missing_tracks, clean_resolved_missing_tracks
 )
-from plex_playlist_sync.utils.downloader import DeezerLinkFinder, download_single_track_with_streamrip
+from plex_playlist_sync.utils.downloader import DeezerLinkFinder, download_single_track_with_streamrip, find_potential_tracks, find_tracks_free_search
 from plex_playlist_sync.utils.i18n import init_i18n_for_app, translate_status
 
 initialize_db()
@@ -701,23 +701,43 @@ def search_plex_manual():
 
 @app.route('/associate_track', methods=['POST'])
 def associate_track():
+    log.info(f"Associate track endpoint called - Content-Type: {request.content_type}")
+    log.info(f"Request data: {request.get_data(as_text=True)}")
     data = request.json
+    log.info(f"Parsed JSON data: {data}")
     missing_track_id, plex_track_rating_key, user_key = data.get('missing_track_id'), data.get('plex_track_rating_key'), data.get('user_key', 'main')
     if not all([missing_track_id, plex_track_rating_key, user_key]): return jsonify({"success": False, "error": "Dati incompleti."}), 400
     user_token, plex_url = (os.getenv('PLEX_TOKEN'), os.getenv('PLEX_URL')) if user_key == 'main' else (os.getenv('PLEX_TOKEN_USERS'), os.getenv('PLEX_URL'))
     if not (user_token and plex_url): return jsonify({"success": False, "error": "Credenziali Plex non trovate."}), 500
     try:
+        log.info(f"Connecting to Plex server...")
         plex = PlexServer(plex_url, user_token)
+        log.info(f"Getting missing track info for ID: {missing_track_id}")
         missing_track_info = get_missing_track_by_id(missing_track_id)
-        if not missing_track_info: return jsonify({"success": False, "error": "Traccia mancante non trovata nel DB."}), 404
+        if not missing_track_info: 
+            log.error(f"Missing track ID {missing_track_id} not found in database")
+            return jsonify({"success": False, "error": "Traccia mancante non trovata nel DB."}), 404
         playlist_id = missing_track_info['source_playlist_id']
-        playlist_to_update = plex.fetchItem(playlist_id)
+        log.info(f"Getting Plex track with rating key: {plex_track_rating_key}")
         track_to_add = plex.fetchItem(int(plex_track_rating_key))
-        log.info(f"Associazione: Aggiunta di '{track_to_add.title}' alla playlist '{playlist_to_update.title}'.")
-        playlist_to_update.addItems([track_to_add])
+        
+        # Try to add to playlist if it still exists, but don't fail if playlist is gone
+        try:
+            log.info(f"Getting playlist with ID: {playlist_id}")
+            playlist_to_update = plex.fetchItem(playlist_id)
+            log.info(f"Associazione: Aggiunta di '{track_to_add.title}' alla playlist '{playlist_to_update.title}'.")
+            playlist_to_update.addItems([track_to_add])
+            success_message = f"Traccia '{track_to_add.title}' associata e aggiunta alla playlist '{playlist_to_update.title}'."
+        except NotFound:
+            log.warning(f"Playlist {playlist_id} no longer exists, marking track as found without adding to playlist")
+            success_message = f"Traccia '{track_to_add.title}' trovata e marcata come risolta (playlist originale non più disponibile)."
+        
         update_track_status(missing_track_id, 'resolved_manual')
-        return jsonify({"success": True, "message": "Traccia associata e aggiunta alla playlist."})
-    except NotFound: return jsonify({"success": False, "error": f"Playlist con ID '{playlist_id}' non trovata."}), 404
+        log.info(f"Association completed successfully")
+        return jsonify({"success": True, "message": success_message})
+    except NotFound as e: 
+        log.error(f"Playlist o traccia non trovata: {e}")
+        return jsonify({"success": False, "error": "Playlist o traccia non trovata."}), 404
     except Exception as e:
         log.error(f"Errore associazione traccia: {e}")
         return jsonify({"success": False, "error": "Errore server durante l'associazione."}), 500
@@ -726,7 +746,14 @@ def associate_track():
 def search_deezer_manual():
     title, artist = request.args.get('title'), request.args.get('artist')
     if not title or not artist: return jsonify({"error": "Titolo e artista richiesti"}), 400
-    return jsonify(DeezerLinkFinder.find_potential_tracks(title, artist))
+    return jsonify(find_potential_tracks(title, artist))
+
+@app.route('/search_deezer_free')
+def search_deezer_free():
+    """Ricerca libera su Deezer con campo di testo personalizzato"""
+    query = request.args.get('query')
+    if not query: return jsonify({"error": "Query di ricerca richiesta"}), 400
+    return jsonify(find_tracks_free_search(query))
 
 @app.route('/download_track', methods=['POST'])
 def download_track():
@@ -738,6 +765,7 @@ def download_track():
     download_queue.put((album_url, track_id))
     log.info(f"Traccia {track_id} con URL {album_url} aggiunta alla coda di download.")
     return jsonify({"success": True, "message": "Download aggiunto alla coda."})
+
 
 @app.route('/get_logs')
 def get_logs():

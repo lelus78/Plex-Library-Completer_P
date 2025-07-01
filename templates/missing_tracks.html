@@ -891,6 +891,81 @@ $(document).ready(function() {
             }
         });
     });
+
+    // Ricerca Libera su Deezer
+    $('#freeSearchBtn').on('click', function() {
+        const query = $('#freeSearchQuery').val().trim();
+        if (!query) {
+            showNotification('Inserisci un termine di ricerca', 'warning');
+            return;
+        }
+
+        const button = $(this);
+        const originalHtml = button.html();
+        button.prop('disabled', true).html('<i data-lucide="loader" class="me-2" style="width: 16px; height: 16px;"></i>Cercando...');
+
+        const freeSearchUrl = "{{ url_for('search_deezer_free') }}";
+        $.get(`${freeSearchUrl}?query=${encodeURIComponent(query)}`)
+            .done(function(results) {
+                displayFreeSearchResults(results);
+            })
+            .fail(function(jqXHR, textStatus, errorThrown) {
+                $('#freeSearchResults').html('<div class="alert alert-danger">Errore ricerca: ' + textStatus + '</div>');
+            })
+            .always(function() {
+                button.prop('disabled', false).html(originalHtml);
+                lucide.createIcons();
+            });
+    });
+
+    // Enter key support for free search
+    $('#freeSearchQuery').on('keypress', function(e) {
+        if (e.which === 13) {
+            $('#freeSearchBtn').click();
+        }
+    });
+
+    function displayFreeSearchResults(results) {
+        const container = $('#freeSearchResults');
+        
+        if (results.length === 0) {
+            container.html('<div class="alert alert-info">Nessun risultato trovato per questa ricerca</div>');
+            return;
+        }
+
+        let html = `<div class="alert alert-success">Trovati ${results.length} risultati (ricerca libera - senza filtri)</div>`;
+        html += '<div class="list-group">';
+        
+        results.forEach(track => {
+            const albumUrl = `https://www.deezer.com/album/${track.album.id}`;
+            html += `
+                <div class="list-group-item" style="background: var(--bg-primary); border: 1px solid rgba(255,255,255,0.1);">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div class="flex-grow-1">
+                            <div class="fw-bold">${track.title}</div>
+                            <div class="text-secondary">${track.artist.name}</div>
+                            <small class="text-muted">Album: ${track.album.title}</small>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <a href="${albumUrl}" target="_blank" class="btn btn-outline-info btn-sm">
+                                <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                                Apri
+                            </a>
+                            <button class="btn btn-warning btn-sm download-btn" data-album-url="${albumUrl}">
+                                <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                Download
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += '</div>';
+        container.html(html);
+        lucide.createIcons();
+    }
+
     // Gestione checkbox "Seleziona Tutto"
     $('#selectAllTracks').on('change', function() {
         $('.track-checkbox').prop('checked', $(this).prop('checked'));

@@ -33,7 +33,8 @@ RUN mkdir -p /app/state_data /app/logs && \
 # Create entrypoint script for runtime permission fix
 RUN echo '#!/bin/bash\n\
 mkdir -p /app/state_data /app/logs\n\
-chmod 755 /app/state_data /app/logs\n\
+# Try to set permissions but ignore errors if directories are owned by root\n\
+chmod 755 /app/state_data /app/logs 2>/dev/null || true\n\
 python app.py' > /app/entrypoint.sh && \
     chmod +x /app/entrypoint.sh && \
     chown app:app /app/entrypoint.sh

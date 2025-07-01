@@ -41,37 +41,277 @@ class DeezerLinkFinder:
             if not title or not artist:
                 return None
 
-            search_url = f'https://api.deezer.com/search?q=track:"{title}" artist:"{artist}"&limit=1'
-            response = requests.get(search_url)
-            response.raise_for_status()
-            deezer_data = response.json()
+            # Multiple search strategies for better results
+            search_strategies = [
+                # Strategy 1: Exact match with quotes
+                f'track:"{title}" artist:"{artist}"',
+                # Strategy 2: Clean titles (remove anime references)
+                f'track:"{DeezerLinkFinder._clean_anime_title(title)}" artist:"{artist}"',
+                # Strategy 3: Simple search without quotes
+                f'{title} {artist}',
+                # Strategy 4: Artist only search
+                f'artist:"{artist}"'
+            ]
 
-            if deezer_data.get("data"):
-                album_id = deezer_data["data"][0].get("album", {}).get("id")
-                if album_id:
-                    album_link = f'https://www.deezer.com/album/{album_id}'
-                    # Non logghiamo qui per non intasare i log durante i cicli automatici
-                    return album_link
+            for strategy in search_strategies:
+                try:
+                    search_url = f'https://api.deezer.com/search?q={strategy}&limit=5'
+                    # Add delay to avoid rate limiting
+                    time.sleep(0.5)
+                    response = requests.get(search_url, timeout=10)
+                    
+                    # Skip 403 errors and try next strategy
+                    if response.status_code == 403:
+                        continue
+                        
+                    response.raise_for_status()
+                    deezer_data = response.json()
+
+                    if deezer_data.get("data"):
+                        # Validazione risultati per evitare match errati (MODALITÀ RESTRITTIVA per download automatico)
+                        for track in deezer_data["data"]:
+                            if _is_valid_match(title, artist, track, strict_mode=True):
+                                album_id = track.get("album", {}).get("id")
+                                if album_id:
+                                    album_link = f'https://www.deezer.com/album/{album_id}'
+                                    return album_link
+                except:
+                    continue
+                    
             return None
         except Exception:
-            # Silenziamo gli errori qui perché è un tentativo "best-effort"
             return None
-
+            
     @staticmethod
-    def find_potential_tracks(title: str, artist: str) -> List[Dict]:
-        """
-        Cerca su Deezer e restituisce una lista di potenziali tracce per la ricerca manuale.
-        """
+    def _clean_anime_title(title: str) -> str:
+        """Clean anime-specific references from title for better search results"""
+        import re
+        
+        # Remove common anime opening/ending references
+        patterns = [
+            r'\s*\([^)]*Opening[^)]*\)',
+            r'\s*\([^)]*Ending[^)]*\)', 
+            r'\s*\([^)]*Theme[^)]*\)',
+            r'\s*\([^)]*OP[^)]*\)',
+            r'\s*\([^)]*ED[^)]*\)',
+            r'\s*\([^)]*OST[^)]*\)',
+            r'\s*\([^)]*Soundtrack[^)]*\)'
+        ]
+        
+        cleaned = title
+        for pattern in patterns:
+            cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+        
+        return cleaned.strip()
+
+def _is_valid_match(original_title: str, original_artist: str, deezer_track: dict, strict_mode: bool = True) -> bool:
+    """Valida se un risultato di Deezer è effettivamente pertinente alla ricerca originale
+    
+    Args:
+        strict_mode: True per download automatico (restrittivo), False per ricerca manuale (permissivo)
+    """
+    import difflib
+    
+    deezer_title = deezer_track.get("title", "").lower().strip()
+    deezer_artist = deezer_track.get("artist", {}).get("name", "").lower().strip()
+    
+    original_title_clean = original_title.lower().strip()
+    original_artist_clean = original_artist.lower().strip()
+    
+    # Gestione caso speciale "Various Artists"
+    is_various_artists = any(va in original_artist_clean for va in ["various artists", "various", "compilation", "soundtrack"])
+    
+    # Pulizia per confronto
+    def clean_for_comparison(text):
+        import re
+        # Rimuovi caratteri speciali, parentesi, e spazi extra
+        text = re.sub(r'[^\w\s]', ' ', text)
+        text = re.sub(r'\s+', ' ', text).strip()
+        return text
+    
+    title_clean = clean_for_comparison(original_title_clean)
+    artist_clean = clean_for_comparison(original_artist_clean)
+    deezer_title_clean = clean_for_comparison(deezer_title)
+    deezer_artist_clean = clean_for_comparison(deezer_artist)
+    
+    # Calcola similarità
+    title_similarity = difflib.SequenceMatcher(None, title_clean, deezer_title_clean).ratio()
+    artist_similarity = difflib.SequenceMatcher(None, artist_clean, deezer_artist_clean).ratio()
+    
+    # Criteri di validazione differenziati
+    if strict_mode:
+        # SISTEMA AUTOMATICO: Molto restrittivo per evitare download sbagliati
+        if is_various_artists:
+            # Per "Various Artists", richiedi titolo molto simile
+            is_valid = title_similarity >= 0.85
+        else:
+            # Criteri restrittivi: entrambi devono essere buoni
+            is_valid = (
+                title_similarity >= 0.8 and artist_similarity >= 0.8
+            )
+    else:
+        # SISTEMA MANUALE: Più permissivo per dare opzioni all'utente
+        if is_various_artists:
+            # Per "Various Artists", focus sul titolo ma meno restrittivo
+            is_valid = title_similarity >= 0.6
+        else:
+            # Criteri permissivi: una delle due può essere più bassa
+            is_valid = (
+                (title_similarity >= 0.5 and artist_similarity >= 0.6) or
+                title_similarity >= 0.7 or 
+                artist_similarity >= 0.7
+            )
+    
+    # Log per debug
+    mode_str = "[AUTOMATICO]" if strict_mode else "[MANUALE]"
+    if not is_valid:
+        logging.debug(f"❌ {mode_str} Risultato Deezer scartato: '{deezer_title}' by '{deezer_artist}' "
+                     f"(title: {title_similarity:.2f}, artist: {artist_similarity:.2f}) "
+                     f"{'[Various Artists mode]' if is_various_artists else ''}")
+    else:
+        logging.debug(f"✅ {mode_str} Risultato Deezer accettato: '{deezer_title}' by '{deezer_artist}' "
+                     f"(title: {title_similarity:.2f}, artist: {artist_similarity:.2f}) "
+                     f"{'[Various Artists mode]' if is_various_artists else ''}")
+    
+    return is_valid
+
+def find_potential_tracks(title: str, artist: str) -> List[Dict]:
+    """
+    Cerca su Deezer e restituisce una lista di potenziali tracce per la ricerca manuale.
+    """
+    # Multiple search strategies for better results
+    search_strategies = [
+        # Strategy 1: Exact match with quotes
+        f'track:"{title}" artist:"{artist}"',
+        # Strategy 2: Clean titles (remove anime references)
+        f'track:"{_clean_anime_title(title)}" artist:"{artist}"',
+        # Strategy 3: Simple search without quotes
+        f'{title} {artist}',
+        # Strategy 4: Just the cleaned title
+        f'{_clean_anime_title(title)}',
+        # Strategy 5: Artist only search
+        f'artist:"{artist}"'
+    ]
+
+    for i, strategy in enumerate(search_strategies):
         try:
-            search_url = f'https://api.deezer.com/search?q=track:"{title}" artist:"{artist}"&limit=10'
-            response = requests.get(search_url)
+            search_url = f'https://api.deezer.com/search?q={strategy}&limit=10'
+            # Add delay to avoid rate limiting
+            time.sleep(0.5)
+            response = requests.get(search_url, timeout=10)
+            
+            # Skip 403 errors and try next strategy
+            if response.status_code == 403:
+                if i == 0:  # Only log on first attempt
+                    logging.warning(f"Deezer API returned 403 for '{title} - {artist}', trying alternative search strategies...")
+                continue
+                
             response.raise_for_status()
             deezer_data = response.json()
-            logging.info(f"Ricerca manuale per '{title} - {artist}' ha restituito {len(deezer_data.get('data', []))} risultati.")
-            return deezer_data.get("data", [])
+            
+            if deezer_data.get("data"):
+                # Filtra risultati per validità (MODALITÀ PERMISSIVA per ricerca manuale)
+                valid_results = []
+                for track in deezer_data.get("data", []):
+                    if _is_valid_match(title, artist, track, strict_mode=False):
+                        valid_results.append(track)
+                
+                total_results = len(deezer_data.get("data", []))
+                valid_count = len(valid_results)
+                
+                if valid_results:
+                    logging.info(f"Ricerca manuale per '{title} - {artist}' ha restituito {valid_count}/{total_results} risultati validi (strategia {i+1}).")
+                    return valid_results
+                else:
+                    logging.debug(f"Tutti i {total_results} risultati della strategia {i+1} sono stati scartati per bassa similarità.")
+                
         except Exception as e:
-            logging.error(f"Errore durante la ricerca manuale su Deezer per '{title} - {artist}': {e}")
+            if i == 0:  # Only log detailed error on first attempt
+                logging.error(f"Errore durante la ricerca manuale su Deezer per '{title} - {artist}': {e}")
+            continue
+    
+    logging.info(f"Nessun risultato trovato per '{title} - {artist}' dopo tutte le strategie di ricerca.")
+    return []
+
+def _clean_anime_title(title: str) -> str:
+    """Clean anime-specific references from title for better search results"""
+    import re
+    
+    # Remove common anime opening/ending references
+    patterns = [
+        r'\s*\([^)]*Opening[^)]*\)',
+        r'\s*\([^)]*Ending[^)]*\)', 
+        r'\s*\([^)]*Theme[^)]*\)',
+        r'\s*\([^)]*OP[^)]*\)',
+        r'\s*\([^)]*ED[^)]*\)',
+        r'\s*\([^)]*OST[^)]*\)',
+        r'\s*\([^)]*Soundtrack[^)]*\)'
+    ]
+    
+    cleaned = title
+    for pattern in patterns:
+        cleaned = re.sub(pattern, '', cleaned, flags=re.IGNORECASE)
+    
+    return cleaned.strip()
+
+def find_tracks_free_search(search_query: str) -> List[Dict]:
+    """
+    Ricerca completamente libera su Deezer con campo di testo personalizzato
+    Per ricerca manuale senza filtri di validazione
+    """
+    try:
+        # Ricerca diretta senza filtri
+        search_url = f'https://api.deezer.com/search?q={search_query}&limit=20'
+        time.sleep(0.5)  # Rate limiting
+        response = requests.get(search_url, timeout=10)
+        
+        if response.status_code == 403:
+            logging.warning(f"Deezer API returned 403 for free search: '{search_query}'")
             return []
+            
+        response.raise_for_status()
+        deezer_data = response.json()
+        
+        results = deezer_data.get("data", [])
+        logging.info(f"Ricerca libera per '{search_query}' ha restituito {len(results)} risultati (senza filtri).")
+        return results
+        
+    except Exception as e:
+        logging.error(f"Errore durante la ricerca libera su Deezer per '{search_query}': {e}")
+        return []
+
+def _create_streamrip_config(config_path: str, deezer_arl: str):
+    """Crea un file di configurazione base per streamrip con ARL di Deezer"""
+    config_content = f"""[downloads]
+folder = "/app/Downloads"
+source_subdirectories = true
+
+[downloads.artwork]
+save_artwork = false
+max_crop_size = 10000
+
+[cli]
+text_output = true
+progress_bars = false
+
+[conversion]
+enabled = false
+
+[deezer]
+arl = "{deezer_arl}"
+quality = 2
+track_url_validity = 300
+
+[misc]
+version = "2.0"
+"""
+    
+    try:
+        with open(config_path, 'w', encoding='utf-8') as f:
+            f.write(config_content)
+        logging.info(f"✅ File di configurazione streamrip creato: {config_path}")
+    except Exception as e:
+        logging.error(f"❌ Errore nella creazione del file di configurazione streamrip: {e}")
 
 def download_single_track_with_streamrip(link: str):
     """
@@ -104,7 +344,41 @@ def download_single_track_with_streamrip(link: str):
             f.write(f"{cleaned_link}\n")
         
         logging.info(f"Avvio del download con streamrip per il link: {cleaned_link}")
-        config_path = "/root/.config/streamrip/config.toml"
+        
+        # Configura il path per streamrip basato sull'utente corrente
+        home_dir = os.path.expanduser("~")
+        config_dir = os.path.join(home_dir, ".config", "streamrip")
+        config_path = os.path.join(config_dir, "config.toml")
+        
+        # Crea la directory di config se non esiste
+        os.makedirs(config_dir, exist_ok=True)
+        
+        # Crea la directory Downloads se non esiste
+        downloads_dir = "/app/Downloads"
+        os.makedirs(downloads_dir, exist_ok=True)
+        
+        # Controlla se esiste già un config.toml (backward compatibility)
+        legacy_config_path = "/app/config.toml"
+        if os.path.exists(legacy_config_path):
+            logging.info(f"✅ Utilizzando configurazione streamrip esistente: {legacy_config_path}")
+            config_path = legacy_config_path
+        elif os.path.exists(config_path):
+            logging.info(f"✅ Utilizzando configurazione streamrip esistente: {config_path}")
+        else:
+            # Nessun config esistente, controlla se abbiamo l'ARL nella variabile d'ambiente
+            deezer_arl = os.getenv("DEEZER_ARL", "").strip()
+            
+            if not deezer_arl:
+                logging.warning(f"⚠️ Nessuna configurazione Deezer trovata - saltando download: {cleaned_link}")
+                logging.info("💡 Opzioni per abilitare i download da Deezer:")
+                logging.info("   1. Aggiungi DEEZER_ARL=your_arl_cookie nel file .env, oppure")
+                logging.info("   2. Usa il file config.toml nella directory principale")
+                logging.info("📖 Istruzioni ARL: https://github.com/nathom/streamrip/wiki/Finding-your-Deezer-ARL-Cookie")
+                return
+            
+            # Crea file di configurazione streamrip con l'ARL dal .env
+            _create_streamrip_config(config_path, deezer_arl)
+        
         command = ["rip", "--config-path", config_path, "file", temp_links_file]
         
         # Aggiungiamo un timeout per evitare che il processo si blocchi all'infinito
