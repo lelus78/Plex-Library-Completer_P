@@ -325,6 +325,15 @@ Plex-Library-Completer/
         └── ...
 ```
 
+## 🦖 Running Tests
+
+Install dependencies and run the test suite with `pytest`:
+
+```bash
+pip install -r requirements.txt pytest
+pytest
+```
+
 ## 🔧 Troubleshooting Configuration
 
 ### Common Configuration Issues
