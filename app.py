@@ -68,10 +68,11 @@ def download_worker():
             break
         link, track_id = track_info
         try:
-            log.info(f"Starting download for {link} (Track ID: {track_id})")
-            download_single_track_with_streamrip(link) # Ora accetta un singolo link
-            update_track_status(track_id, 'downloaded')
-            log.info(f"Download completed for {link} (Track ID: {track_id})")
+            source = "Deezer"
+            log.info(f"Starting download from {source} for {link} (Track ID: {track_id})")
+            download_single_track_with_streamrip(link, source=source)
+            update_track_status(track_id, 'downloaded', source=source)
+            log.info(f"Download completed from {source} for {link} (Track ID: {track_id})")
         except Exception as e:
             log.error(f"Error downloading {link} (Track ID: {track_id}): {e}", exc_info=True)
         finally:
@@ -290,8 +291,8 @@ def ai_lab():
         def generate_and_download_task(plex, user_inputs, fav_id, prompt, user_key):
             log.info("PHASE 1: On-demand AI playlist generation...")
             generate_on_demand_playlist(plex, user_inputs, fav_id, prompt, user_key, include_charts_data=include_charts)
-            log.info("PHASE 2: Starting automatic download...")
-            download_attempted = run_downloader_only()
+            log.info("PHASE 2: Starting automatic download from Deezer...")
+            download_attempted = run_downloader_only(source="Deezer")
             
             if download_attempted:
                 log.info("PHASE 3: Waiting for Plex scan and track verification...")

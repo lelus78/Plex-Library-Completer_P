@@ -313,9 +313,12 @@ version = "2.0"
     except Exception as e:
         logging.error(f"❌ Errore nella creazione del file di configurazione streamrip: {e}")
 
-def download_single_track_with_streamrip(link: str):
-    """
-    Lancia streamrip per scaricare un singolo URL.
+def download_single_track_with_streamrip(link: str, source: str = "Deezer"):
+    """Lancia streamrip per scaricare un singolo URL.
+
+    Args:
+        link:  URL Deezer da scaricare.
+        source: Nome della sorgente per i log.
     """
     if not link:
         logging.info("Nessun link da scaricare fornito.")
@@ -343,7 +346,7 @@ def download_single_track_with_streamrip(link: str):
         with open(temp_links_file, "w", encoding="utf-8") as f:
             f.write(f"{cleaned_link}\n")
         
-        logging.info(f"Avvio del download con streamrip per il link: {cleaned_link}")
+        logging.info(f"Avvio del download da {source} per il link: {cleaned_link}")
         
         # Configura il path per streamrip basato sull'utente corrente
         home_dir = os.path.expanduser("~")
@@ -383,7 +386,7 @@ def download_single_track_with_streamrip(link: str):
         
         # Aggiungiamo un timeout per evitare che il processo si blocchi all'infinito
         process = subprocess.run(command, capture_output=True, text=True, check=True, encoding='utf-8', timeout=1800)
-        logging.info(f"Download di {cleaned_link} completato con successo.")
+        logging.info(f"Download di {cleaned_link} da {source} completato con successo.")
         if process.stdout:
              logging.debug(f"Output di streamrip per {cleaned_link}:\n{process.stdout}")
         if process.stderr:
