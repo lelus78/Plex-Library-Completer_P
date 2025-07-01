@@ -25,6 +25,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ---- Application ----
 COPY . .
 
+# Create directories with correct permissions
+RUN mkdir -p /app/state_data /app/logs && \
+    chown -R app:app /app && \
+    chmod -R 755 /app
+
 USER app
 EXPOSE 5000
 ENTRYPOINT ["python", "app.py"]

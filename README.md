@@ -5,6 +5,10 @@
 ![Plex](https://img.shields.io/badge/Plex-Media%20Server-orange?style=for-the-badge&logo=plex)
 ![Gemini](https://img.shields.io/badge/Google%20Gemini-AI%20Playlists-purple?style=for-the-badge&logo=google)
 
+![Docker Pulls](https://img.shields.io/docker/pulls/lelus78/plex-library-completer)
+![Docker Image Size](https://img.shields.io/docker/image-size/lelus78/plex-library-completer)
+![Build Status](https://github.com/lelus78/Plex-Library-Completer_P/actions/workflows/docker-image.yml/badge.svg)
+
 A Python script, executed via Docker, to keep Plex music playlists synchronized with streaming services like Spotify and Deezer. Includes advanced features such as weekly AI playlist creation with Google Gemini and automatic download of missing tracks via `streamrip`.
 
 ## ✨ Key Features
@@ -100,7 +104,46 @@ arl = "your_deezer_arl_token_here"
 
 Choose your preferred installation method:
 
-#### Method 1: Docker Compose (Command Line)
+#### 🐳 Quick Start with Docker Hub (Recommended)
+
+Use the pre-built image from Docker Hub for fastest setup:
+
+```bash
+# Simple run with basic configuration
+docker run -d \
+  --name plex-completer \
+  -p 5000:5000 \
+  -v /path/to/your/music:/music \
+  -v /path/to/your/config:/app/config \
+  -e PLEX_URL=http://your-plex-server:32400 \
+  -e PLEX_TOKEN=your_plex_token \
+  -e SPOTIFY_CLIENT_ID=your_spotify_id \
+  -e SPOTIFY_CLIENT_SECRET=your_spotify_secret \
+  -e GEMINI_API_KEY=your_gemini_key \
+  lelus78/plex-library-completer:latest
+```
+
+**Docker Compose with Hub Image:**
+```yaml
+version: '3.8'
+services:
+  plex-completer:
+    image: lelus78/plex-library-completer:latest
+    container_name: plex-completer
+    ports:
+      - "5000:5000"
+    volumes:
+      - /path/to/your/music:/music
+      - ./state_data:/app/state_data
+      - ./config.toml:/root/.config/streamrip/config.toml
+    env_file:
+      - .env
+    restart: unless-stopped
+```
+
+#### 🔧 Build from Source (Development)
+
+If you want to modify the code or build locally:
 
 1.  **Clone the Repository**
     ```bash
