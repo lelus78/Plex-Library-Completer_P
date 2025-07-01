@@ -293,7 +293,7 @@
                 </div>
                 
                 <!-- Playlist Info -->
-                <div class="me-3" style="min-width: 120px;">
+                <div class="me-3" style="min-width: 7.5rem;">
                     <small class="text-secondary">Da playlist:</small>
                     <div class="fw-medium" style="color: var(--text-primary); font-size: 0.85rem;">{{ track[4] }}</div>
                 </div>
@@ -656,8 +656,8 @@ $(document).ready(function() {
                           type === 'warning' ? 'alert-warning' : 'alert-info';
         
         const notification = $(`
-            <div class="alert ${alertClass} alert-dismissible fade show position-fixed" 
-                 style="top: 20px; right: 20px; z-index: 1050; min-width: 300px;">
+            <div class="alert ${alertClass} alert-dismissible fade show position-fixed"
+                 style="top: 1rem; right: 1rem; z-index: 1050; min-width: 15rem; max-width: 90vw;">
                 ${message}
                 <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
             </div>
