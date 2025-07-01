@@ -40,28 +40,18 @@ class DatabasePool:
             check_same_thread=False  # Permetti uso cross-thread
         )
         
-        # Ottimizzazioni performance SQLite - applicale solo se non in transazione
+        # Ottimizzazioni SQLite sicure (solo pragmas che non causano transaction errors)
         try:
-            # Controlla se siamo in una transazione
-            conn.execute("BEGIN IMMEDIATE")
-            conn.execute("ROLLBACK")
-            
-            # Safe pragmas che non causano problemi in transazione
+            # Solo impostazioni sicure che non cambiano journal mode
             conn.execute("PRAGMA synchronous=NORMAL") 
             conn.execute("PRAGMA cache_size=50000")
             conn.execute("PRAGMA temp_store=MEMORY")
             conn.execute("PRAGMA busy_timeout=30000")   # 30s busy timeout
             
-            # Journal mode solo se necessario e sicuro
-            current_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
-            if current_mode != "wal":
-                conn.execute("PRAGMA journal_mode=WAL")
-            
-            # mmap_size solo su filesystem locali (problematico su network shares)
-            if not self.db_path.startswith(('/mnt/', '/media/', '//')) and os.path.exists(self.db_path):
-                conn.execute("PRAGMA mmap_size=268435456")  # 256MB
+            # Non toccare journal_mode o mmap_size per evitare transaction conflicts
+            logging.debug("✅ SQLite ottimizzazioni di base applicate")
         except sqlite3.Error as e:
-            logging.warning(f"⚠️ Impossibile applicare alcune ottimizzazioni SQLite: {e}")
+            logging.warning(f"⚠️ Errore durante ottimizzazioni SQLite: {e}")
             # Continua comunque con connessione di base
         
         # Row factory per dict results
@@ -853,10 +843,7 @@ def bulk_add_tracks_to_index(tracks, chunk_size=1000):
             with get_db_connection() as con:
                 cur = con.cursor()
                 
-                # Ottimizzazioni temporanee per bulk insert
-                cur.execute("PRAGMA synchronous=OFF")
-                cur.execute("PRAGMA journal_mode=MEMORY")
-                
+                # Inserimento bulk senza PRAGMA problematici
                 cur.executemany(
                     """INSERT OR IGNORE INTO plex_library_index (title_clean, artist_clean, album_clean, year, added_at)
                        VALUES (?, ?, ?, ?, ?)""",
@@ -864,10 +851,6 @@ def bulk_add_tracks_to_index(tracks, chunk_size=1000):
                 )
                 chunk_inserts = cur.rowcount
                 total_successful += chunk_inserts
-                
-                # Ripristina impostazioni normali
-                cur.execute("PRAGMA synchronous=NORMAL")
-                cur.execute("PRAGMA journal_mode=WAL")
                 
             elapsed_chunk = time.time() - insert_start
             avg_time_per_chunk = elapsed_chunk / chunk_num
