@@ -113,7 +113,7 @@ Use the pre-built image from Docker Hub for fastest setup:
 docker run -d \
   --name plex-completer \
   -p 5000:5000 \
-  -v /path/to/your/music:/music \
+  -v "$MUSIC_PATH":/music \
   -v /path/to/your/config:/app/config \
   -e PLEX_URL=http://your-plex-server:32400 \
   -e PLEX_TOKEN=your_plex_token \
@@ -122,6 +122,7 @@ docker run -d \
   -e GEMINI_API_KEY=your_gemini_key \
   lelus78/plex-library-completer:latest
 ```
+Set the `MUSIC_PATH` environment variable to the location of your music library before running the command.
 
 **Docker Compose with Hub Image:**
 ```yaml
@@ -133,7 +134,7 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - /path/to/your/music:/music
+      - ${MUSIC_PATH}:/music
       - ./state_data:/app/state_data
       - ./config.toml:/root/.config/streamrip/config.toml
     env_file:
@@ -180,12 +181,13 @@ If you want to modify the code or build locally:
     **Note**: If neither option is configured, the application will still work but will skip automatic downloads and only show links for manual download.
 
 4.  **Verify Volume Paths**
-    Edit `docker-compose.yml` and update the music library path:
+    Edit `docker-compose.yml` and set the `MUSIC_PATH` variable:
     ```yaml
     volumes:
-      - /path/to/your/music:/music # <-- Update this path
+      - ${MUSIC_PATH}:/music
       # ... other volumes
     ```
+    Then define `MUSIC_PATH` in your `.env` file using the correct path for your OS (e.g., `M:\Organizzata` on Windows or `/mnt/music` on Linux).
 
 #### Method 2: Portainer Installation
 
@@ -211,7 +213,7 @@ If you're using Portainer for Docker management:
     volumes:
       - /opt/plex-completer/.env:/app/.env
       - /opt/plex-completer/config.toml:/root/.config/streamrip/config.toml
-      - /path/to/your/music:/music
+      - ${MUSIC_PATH}:/music
       - ./state_data:/app/state_data
     ```
 
@@ -301,6 +303,7 @@ This is the complete list of variables to configure in the `.env` file.
 | `PRESERVE_TAG`                  | If this text is in a playlist title, it will not be deleted.                                          | `NO_DELETE`                                   |
 | `FORCE_DELETE_OLD_PLAYLISTS`    | Set to `1` to enable automatic deletion of old playlists.                                             | `0` (disabled)                                |
 | `RUN_DOWNLOADER`                | Set to `1` to enable automatic download of missing tracks.                                            | `1` (enabled)                                 |
+| `MUSIC_PATH`                    | Local path where your music is stored. Use Windows-style paths like `M:\Organizzata` or Unix-style paths like `/mnt/music`. | `M:\Organizzata` |
 | `RUN_GEMINI_PLAYLIST_CREATION`  | Set to `1` to enable weekly AI playlist creation.                                                     | `1` (enabled)                                 |
 | `DEEZER_ARL`                    | Deezer ARL cookie for downloading tracks (optional). Leave empty to skip downloads.                  | `your_arl_cookie_here`                        |
 
