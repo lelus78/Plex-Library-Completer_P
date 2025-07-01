@@ -40,13 +40,29 @@ class DatabasePool:
             check_same_thread=False  # Permetti uso cross-thread
         )
         
-        # Ottimizzazioni performance SQLite
-        conn.execute("PRAGMA journal_mode=WAL")
-        conn.execute("PRAGMA synchronous=NORMAL") 
-        conn.execute("PRAGMA cache_size=50000")
-        conn.execute("PRAGMA temp_store=MEMORY")
-        conn.execute("PRAGMA mmap_size=268435456")  # 256MB
-        conn.execute("PRAGMA busy_timeout=30000")   # 30s busy timeout
+        # Ottimizzazioni performance SQLite - applicale solo se non in transazione
+        try:
+            # Controlla se siamo in una transazione
+            conn.execute("BEGIN IMMEDIATE")
+            conn.execute("ROLLBACK")
+            
+            # Safe pragmas che non causano problemi in transazione
+            conn.execute("PRAGMA synchronous=NORMAL") 
+            conn.execute("PRAGMA cache_size=50000")
+            conn.execute("PRAGMA temp_store=MEMORY")
+            conn.execute("PRAGMA busy_timeout=30000")   # 30s busy timeout
+            
+            # Journal mode solo se necessario e sicuro
+            current_mode = conn.execute("PRAGMA journal_mode").fetchone()[0]
+            if current_mode != "wal":
+                conn.execute("PRAGMA journal_mode=WAL")
+            
+            # mmap_size solo su filesystem locali (problematico su network shares)
+            if not self.db_path.startswith(('/mnt/', '/media/', '//')) and os.path.exists(self.db_path):
+                conn.execute("PRAGMA mmap_size=268435456")  # 256MB
+        except sqlite3.Error as e:
+            logging.warning(f"⚠️ Impossibile applicare alcune ottimizzazioni SQLite: {e}")
+            # Continua comunque con connessione di base
         
         # Row factory per dict results
         conn.row_factory = sqlite3.Row
