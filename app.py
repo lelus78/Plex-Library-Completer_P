@@ -12,8 +12,8 @@ from plexapi.server import PlexServer
 from plexapi.exceptions import NotFound
 from plexapi.audio import Track
 
-# Carica le variabili dal file .env
-load_dotenv()
+# Carica le variabili dal file .env montato via Docker
+load_dotenv('/app/.env')
 
 # --- Configurazione del Logging Centralizzato ---
 logging.basicConfig(

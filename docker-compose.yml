@@ -6,7 +6,7 @@ services:
     image: lelus78/plex-library-completer:dev   # tag locale
     container_name: plex-library-completer
     env_file:
-      - .env
+      - /mnt/cache/appdata/plex-completer/.env
     ports:
       - "5000:5000"
     volumes:
@@ -16,6 +16,7 @@ services:
       - ./templates:/app/templates
       - ./plex_playlist_sync:/app/plex_playlist_sync
       - ./app.py:/app/app.py
-      - M:\Organizzata:/music         # ↩️ percorsa musicale locale (modifica se necessario)
-      - ./config.toml:/root/.config/streamrip/config.toml
+      - /mnt/cache/appdata/plex-completer/.env:/app/.env
+      - /mnt/cache/appdata/plex-completer/config.toml:/root/.config/streamrip/config.toml
+      - /mnt/remotes/SYNOLOGY_data/media/music:/music
     restart: on-failure
