@@ -4,9 +4,9 @@ import os
 import logging
 
 # Il percorso del file di stato ora è letto da una variabile d'ambiente, 
-# con un default a /app/state/playlist_state.json.
+# con un default a /app/state_data/playlist_state.json.
 # Usiamo una sottocartella "state" per mantenere il tutto più ordinato.
-STATE_FILE_PATH = os.getenv("STATE_FILE_PATH", "/app/state/playlist_state.json")
+STATE_FILE_PATH = os.getenv("STATE_FILE_PATH", "/app/state_data/playlist_state.json")
 
 def load_playlist_state() -> dict:
     """

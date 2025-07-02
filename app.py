@@ -816,9 +816,12 @@ def api_stats():
         ai_playlists_secondary = len(get_managed_ai_playlists_for_user('secondary'))
         total_ai_playlists = ai_playlists_main + ai_playlists_secondary
         
-        # Simulate library stats (you can replace with real Plex queries)
+        # Get real library stats from index
+        from plex_playlist_sync.utils.database import get_library_index_stats
+        index_stats = get_library_index_stats()
+        
         library_stats = {
-            'total_tracks': 5000 + len(missing_tracks),  # Mock data
+            'total_tracks': index_stats['total_tracks_indexed'],
             'sync_health': 'excellent' if total_missing < 10 else 'good' if total_missing < 50 else 'needs_attention'
         }
         

@@ -94,10 +94,11 @@ def _get_available_plex_tracks(plex: PlexServer, tracks: List[Track]) -> tuple[l
             potentially_missing.append(track)
     return plex_tracks, potentially_missing
 
-def _update_plex_playlist(plex: PlexServer, available_tracks: List, playlist: Playlist) -> "Optional[plexapi.playlist.Playlist]":
+def _update_plex_playlist(plex: PlexServer, available_tracks: List, playlist: Playlist, append_mode: bool = False) -> "Optional[plexapi.playlist.Playlist]":
     """
     MODIFICATA: Cerca una playlist esistente per nome. Se la trova E NON ha tag NO_DELETE, la aggiorna.
     Se non la trova, ne crea una nuova. Playlist con tag NO_DELETE vengono solo lette.
+    append_mode: Se True, aggiunge tracce alla playlist esistente invece di sostituirle
     """
     import os
     preserve_tag = os.getenv("PRESERVE_TAG", "NO_DELETE")
@@ -112,14 +113,26 @@ def _update_plex_playlist(plex: PlexServer, available_tracks: List, playlist: Pl
             logging.warning(f"❌ Playlist '{playlist.name}' contiene tag '{preserve_tag}' - SOLO LETTURA, non verrà modificata!")
             return plex_playlist  # Restituisce la playlist esistente senza modificarla
         
-        logging.info(f"Playlist '{playlist.name}' trovata. Aggiornamento in corso...")
-        
-        # Rimuove tutte le tracce esistenti per fare un sync pulito
-        plex_playlist.removeItems(plex_playlist.items())
-        # Aggiunge le nuove tracce
-        plex_playlist.addItems(available_tracks)
-        
-        logging.info(f"Playlist '{playlist.name}' aggiornata con {len(available_tracks)} tracce.")
+        if append_mode:
+            logging.info(f"Playlist '{playlist.name}' trovata. Modalità APPEND - aggiungendo {len(available_tracks)} nuove tracce...")
+            
+            # Controlla duplicati prima di aggiungere
+            existing_tracks = plex_playlist.items()
+            existing_track_keys = {track.ratingKey for track in existing_tracks}
+            new_tracks = [track for track in available_tracks if track.ratingKey not in existing_track_keys]
+            
+            if new_tracks:
+                plex_playlist.addItems(new_tracks)
+                logging.info(f"Playlist '{playlist.name}' aggiornata con {len(new_tracks)} nuove tracce (evitati {len(available_tracks) - len(new_tracks)} duplicati).")
+            else:
+                logging.info(f"Nessuna nuova traccia da aggiungere alla playlist '{playlist.name}' (tutte già presenti).")
+        else:
+            logging.info(f"Playlist '{playlist.name}' trovata. Modalità SYNC - sostituendo con {len(available_tracks)} tracce...")
+            # Rimuove tutte le tracce esistenti per fare un sync pulito
+            plex_playlist.removeItems(plex_playlist.items())
+            # Aggiunge le nuove tracce
+            plex_playlist.addItems(available_tracks)
+            logging.info(f"Playlist '{playlist.name}' sostituita con {len(available_tracks)} tracce.")
         return plex_playlist
 
     except NotFound:
@@ -144,7 +157,7 @@ def update_or_create_plex_playlist(plex: PlexServer, playlist: Playlist, tracks:
     
     created_playlist = None
     if len(available_tracks) >= userInputs.plex_min_songs:
-        created_playlist = _update_plex_playlist(plex, available_tracks, playlist)
+        created_playlist = _update_plex_playlist(plex, available_tracks, playlist, userInputs.append_instead_of_sync)
     else:
         logging.warning(f"Creazione playlist '{playlist.name}' saltata: brani trovati insufficienti ({len(available_tracks)} < {userInputs.plex_min_songs}).")
 

@@ -440,7 +440,7 @@ def run_full_sync_cycle():
             append_service_suffix=os.getenv("APPEND_SERVICE_SUFFIX", "1") == "1",
             add_playlist_poster=os.getenv("ADD_PLAYLIST_POSTER", "1") == "1",
             add_playlist_description=os.getenv("ADD_PLAYLIST_DESCRIPTION", "1") == "1",
-            append_instead_of_sync=False, wait_seconds=0,
+            append_instead_of_sync=True, wait_seconds=0,
             spotipy_client_id=os.getenv("SPOTIFY_CLIENT_ID"), spotipy_client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
             spotify_user_id=os.getenv("SPOTIFY_USER_ID"), deezer_user_id=os.getenv("DEEZER_USER_ID"),
             deezer_playlist_ids=os.getenv("DEEZER_PLAYLIST_ID_SECONDARY") if name == "secondary user" else os.getenv("DEEZER_PLAYLIST_ID"),
@@ -583,14 +583,18 @@ def auto_update_ai_playlists(plex, updated_tracks):
                             
                             # Add new tracks to playlist
                             if tracks_to_add:
+                                # Check for duplicates before adding
                                 current_tracks = existing_playlist.items()
-                                all_tracks = list(current_tracks) + tracks_to_add
+                                existing_track_keys = {track.ratingKey for track in current_tracks}
+                                new_tracks_to_add = [track for track in tracks_to_add if track.ratingKey not in existing_track_keys]
                                 
-                                # Update playlist with all tracks (old + new)
-                                existing_playlist.clear()
-                                existing_playlist.addItems(all_tracks)
+                                if new_tracks_to_add:
+                                    # Simply append new tracks without clearing
+                                    existing_playlist.addItems(new_tracks_to_add)
                                 
-                                logger.info(f"🎉 Playlist '{playlist_title}' updated with {len(tracks_to_add)} new tracks")
+                                    logger.info(f"🎉 Playlist '{playlist_title}' updated with {len(new_tracks_to_add)} new tracks (evitati {len(tracks_to_add) - len(new_tracks_to_add)} duplicati)")
+                                else:
+                                    logger.info(f"ℹ️ Playlist '{playlist_title}' - tutte le tracce sono già presenti")
                                 updated_count += 1
                             else:
                                 logger.info(f"⚠️ No new tracks found on Plex for '{playlist_title}'")

@@ -283,12 +283,17 @@
     function updateStats() {
         // Fetch real stats from API
         fetch('/api/stats')
-            .then(response => response.json())
+            .then(response => {
+                console.log('Stats API response status:', response.status);
+                return response.json();
+            })
             .then(data => {
                 if (data.error) {
                     console.error('Stats API error:', data.error);
                     return;
                 }
+                
+                console.log('Raw stats data:', data);
                 
                 // Animate library stats
                 animateNumber('tracks-count', data.library.total_tracks);
@@ -299,15 +304,15 @@
                 updateSyncHealth(data.library.sync_health, data.missing_tracks.total);
                 
                 // Log stats for debugging
-                console.log('Stats updated:', data);
+                console.log('Stats updated successfully - tracks:', data.library.total_tracks);
             })
             .catch(error => {
                 console.error('Error fetching stats:', error);
                 // Fallback to mock data
                 const mockStats = {
-                    tracks: 5000,
+                    tracks: 0,
                     missing: 0,
-                    aiPlaylists: 3
+                    aiPlaylists: 0
                 };
                 animateNumber('tracks-count', mockStats.tracks);
                 animateNumber('missing-count', mockStats.missing);

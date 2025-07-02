@@ -297,6 +297,9 @@ progress_bars = false
 [conversion]
 enabled = false
 
+[database]
+downloads_path = "/app/state_data/.local/share/streamrip/downloads.db"
+
 [deezer]
 arl = "{deezer_arl}"
 quality = 2
@@ -328,7 +331,7 @@ def download_single_track_with_streamrip(link: str):
         return
 
     # Assicura che la directory temp esista
-    temp_dir = "/app/state"
+    temp_dir = "/app/state_data"
     if not os.path.exists(temp_dir):
         try:
             os.makedirs(temp_dir, exist_ok=True)
@@ -345,9 +348,8 @@ def download_single_track_with_streamrip(link: str):
         
         logging.info(f"Avvio del download con streamrip per il link: {cleaned_link}")
         
-        # Configura il path per streamrip basato sull'utente corrente
-        home_dir = os.path.expanduser("~")
-        config_dir = os.path.join(home_dir, ".config", "streamrip")
+        # Configura il path per streamrip usando directory con permessi corretti
+        config_dir = "/app/state_data/.config/streamrip"
         config_path = os.path.join(config_dir, "config.toml")
         
         # Crea la directory di config se non esiste
@@ -358,8 +360,14 @@ def download_single_track_with_streamrip(link: str):
         os.makedirs(downloads_dir, exist_ok=True)
         
         # Controlla se esiste già un config.toml (backward compatibility)
+        # Prima controlla la copia con i permessi corretti
+        writable_config_path = "/app/state_data/config.toml"
         legacy_config_path = "/app/config.toml"
-        if os.path.exists(legacy_config_path):
+        
+        if os.path.exists(writable_config_path):
+            logging.info(f"✅ Utilizzando configurazione streamrip esistente: {writable_config_path}")
+            config_path = writable_config_path
+        elif os.path.exists(legacy_config_path):
             logging.info(f"✅ Utilizzando configurazione streamrip esistente: {legacy_config_path}")
             config_path = legacy_config_path
         elif os.path.exists(config_path):
@@ -379,10 +387,56 @@ def download_single_track_with_streamrip(link: str):
             # Crea file di configurazione streamrip con l'ARL dal .env
             _create_streamrip_config(config_path, deezer_arl)
         
+        # Configura variabili d'ambiente per streamrip
+        env = os.environ.copy()
+        env['HOME'] = '/app/state_data'  # Usa directory con permessi corretti come HOME
+        env['XDG_DATA_HOME'] = '/app/state_data/.local/share'  # Directory per database streamrip
+        env['XDG_CACHE_HOME'] = '/app/state_data/.cache'  # Directory per cache streamrip
+        
+        # Debug delle directory
+        logging.info(f"Environment variables for streamrip:")
+        logging.info(f"  HOME: {env.get('HOME')}")
+        logging.info(f"  XDG_DATA_HOME: {env.get('XDG_DATA_HOME')}")
+        logging.info(f"  XDG_CACHE_HOME: {env.get('XDG_CACHE_HOME')}")
+        
+        # Controlla che le directory esistano
+        data_dir = env.get('XDG_DATA_HOME', '/app/state_data/.local/share')
+        if not os.path.exists(data_dir):
+            os.makedirs(data_dir, exist_ok=True)
+            logging.info(f"Created XDG_DATA_HOME directory: {data_dir}")
+        
+        streamrip_data_dir = os.path.join(data_dir, 'streamrip')
+        if not os.path.exists(streamrip_data_dir):
+            os.makedirs(streamrip_data_dir, exist_ok=True)
+            logging.info(f"Created streamrip data directory: {streamrip_data_dir}")
+        
+        # Prova a creare manualmente il database di streamrip se non esiste
+        db_path = os.path.join(streamrip_data_dir, 'downloads.db')
+        if not os.path.exists(db_path):
+            try:
+                import sqlite3
+                with sqlite3.connect(db_path) as conn:
+                    # Crea una tabella vuota di base (streamrip la gestirà automaticamente)
+                    conn.execute("CREATE TABLE IF NOT EXISTS downloads (id INTEGER PRIMARY KEY)")
+                    conn.commit()
+                logging.info(f"Created streamrip database: {db_path}")
+            except Exception as db_error:
+                logging.warning(f"Could not pre-create streamrip database: {db_error}")
+        
+        # Inizializza streamrip se necessario (crea database)
+        try:
+            init_command = ["rip", "--config-path", config_path, "config", "--help"]
+            result = subprocess.run(init_command, capture_output=True, text=True, timeout=30, env=env)
+            logging.debug("Streamrip initialization completed")
+            if result.stderr:
+                logging.debug(f"Streamrip init stderr: {result.stderr}")
+        except Exception as init_error:
+            logging.debug(f"Streamrip init warning (non-critical): {init_error}")
+        
         command = ["rip", "--config-path", config_path, "file", temp_links_file]
         
         # Aggiungiamo un timeout per evitare che il processo si blocchi all'infinito
-        process = subprocess.run(command, capture_output=True, text=True, check=True, encoding='utf-8', timeout=1800)
+        process = subprocess.run(command, capture_output=True, text=True, check=True, encoding='utf-8', timeout=1800, env=env)
         logging.info(f"Download di {cleaned_link} completato con successo.")
         if process.stdout:
              logging.debug(f"Output di streamrip per {cleaned_link}:\n{process.stdout}")
