@@ -1020,6 +1020,7 @@ def diagnose_indexing_issues():
         plex_url = os.getenv("PLEX_URL")
         plex_token = os.getenv("PLEX_TOKEN")
         library_name = os.getenv("LIBRARY_NAME", "Musica")
+        logging.debug(f"Using library name: {library_name}")
         
         if not (plex_url and plex_token):
             logging.error("Credenziali Plex non configurate per diagnosi")

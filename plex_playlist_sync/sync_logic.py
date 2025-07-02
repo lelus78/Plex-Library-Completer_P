@@ -37,6 +37,7 @@ def build_library_index(app_state: Dict):
     logger.info("=== STARTING PARALLEL PLEX LIBRARY INDEXING ===")
     plex_url, plex_token = os.getenv("PLEX_URL"), os.getenv("PLEX_TOKEN")
     library_name = os.getenv("LIBRARY_NAME", "Musica")
+    logger.debug(f"Using library name: {library_name}")
 
     if not (plex_url and plex_token):
         logger.error("❌ Plex URL or Token not configured. Cannot index.")
@@ -338,7 +339,9 @@ def rescan_and_update_missing():
 
     try:
         plex = PlexServer(plex_url, plex_token)
-        music_library = plex.library.section(os.getenv("LIBRARY_NAME", "Musica"))
+        library_name = os.getenv("LIBRARY_NAME", "Musica")
+        logger.debug(f"Using library name: {library_name}")
+        music_library = plex.library.section(library_name)
         
         logger.info("Searching for recently added tracks to Plex to update index...")
         recently_added = music_library.search(sort="addedAt:desc", limit=500)
@@ -384,7 +387,9 @@ def run_cleanup_only():
             try:
                 plex = PlexServer(os.getenv("PLEX_URL"), token)
                 logger.info(f"--- Starting cleanup of old playlists for user {token[:4]}... ---")
-                delete_old_playlists(plex, os.getenv("LIBRARY_NAME"), int(os.getenv("WEEKS_LIMIT")), os.getenv("PRESERVE_TAG"))
+                library_name = os.getenv("LIBRARY_NAME", "Musica")
+                logger.debug(f"Using library name: {library_name}")
+                delete_old_playlists(plex, library_name, int(os.getenv("WEEKS_LIMIT")), os.getenv("PRESERVE_TAG"))
             except Exception as e:
                 logger.error(f"Error during Plex connection for cleanup (user {token[:4]}...): {e}")
 
