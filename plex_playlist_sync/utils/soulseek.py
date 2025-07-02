@@ -143,10 +143,16 @@ class SoulseekClient:
         return final_responses
 
     def queue_download(self, username: str, filename: str, size: int) -> bool:
+        import urllib.parse
+        
         try:
+            # Clean and encode username for URL
+            encoded_username = urllib.parse.quote(username, safe='')
+            clean_filename = filename.strip().encode('utf-8', errors='ignore').decode('utf-8')
+            
             self._post(
-                f"/api/v0/transfers/downloads/{username}",
-                [{"Filename": filename, "Size": size}],
+                f"/api/v0/transfers/downloads/{encoded_username}",
+                [{"Filename": clean_filename, "Size": size}],
             )
             return True
         except Exception as e:
@@ -154,16 +160,33 @@ class SoulseekClient:
             return False
 
     def get_queue_position(self, username: str, filename: str) -> Optional[int]:
-        download_id = hashlib.sha1(filename.encode()).hexdigest()
+        import urllib.parse
+        
         try:
-            r = self._get(
-                f"/api/v0/transfers/downloads/{username}/{download_id}/position"
-            )
+            # Clean filename and encode properly
+            clean_filename = filename.strip().encode('utf-8', errors='ignore').decode('utf-8')
+            download_id = hashlib.sha1(clean_filename.encode()).hexdigest()
+            
+            # URL encode username and download_id
+            encoded_username = urllib.parse.quote(username, safe='')
+            encoded_download_id = urllib.parse.quote(download_id, safe='')
+            
+            path = f"/api/v0/transfers/downloads/{encoded_username}/{encoded_download_id}/position"
+            logger.debug(f"Soulseek queue position request: {path}")
+            
+            r = self._get(path)
             return r.json()
         except requests.HTTPError as e:
             if e.response.status_code == 404:  # not queued anymore
+                logger.debug(f"Download not queued anymore: {filename}")
                 return None
-            raise
+            elif e.response.status_code == 400:
+                logger.error(f"Soulseek API 400 error for user '{username}', file '{filename}': {e}")
+                logger.error(f"Generated path: {path}")
+                return None
+            else:
+                logger.error(f"Soulseek request failed: {e}")
+                raise
         except Exception as e:
             logger.warning("Queue pos error %s: %s", filename, e)
             return None
@@ -204,13 +227,17 @@ class SoulseekClient:
         # poll queue position
         wait = 10
         for _ in range(5):
-            pos = self.get_queue_position(best["username"], file["filename"])
-            if pos is None or pos == 0:
-                logger.info("Download started for '%s'", file["filename"])
-                return True
-            logger.info("Still queued (%s) – retry in %ss", pos, wait)
-            time.sleep(wait)
-            wait *= 2
+            try:
+                pos = self.get_queue_position(best["username"], file["filename"])
+                if pos is None or pos == 0:
+                    logger.info("Download started for '%s'", file["filename"])
+                    return True
+                logger.info("Still queued (%s) – retry in %ss", pos, wait)
+                time.sleep(wait)
+                wait *= 2
+            except Exception as e:
+                logger.error("Error checking queue position: %s", e)
+                return False
         logger.warning("Download still queued after retries")
         return False
 

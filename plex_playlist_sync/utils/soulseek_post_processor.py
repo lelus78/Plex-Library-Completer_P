@@ -21,6 +21,7 @@ class SoulseekPostProcessor:
     def __init__(self):
         self.source_path = os.getenv("SOULSEEK_DOWNLOADS_PATH", "E:\\Docker image\\slskd\\downloads\\")
         self.target_path = os.getenv("SOULSEEK_ORGANIZED_PATH", "M:\\Organizzata\\")
+        self.delete_source_files = os.getenv("SOULSEEK_DELETE_SOURCE_FILES", "0") == "1"
         
         # Ensure paths end with separator
         if not self.source_path.endswith(('\\', '/')):
@@ -219,6 +220,14 @@ class SoulseekPostProcessor:
             # Copy file to target location
             shutil.copy2(source_file_path, target_file_path)
             logger.info(f"Organized file: {artist} - {album} - {title}")
+            
+            # Delete source file if configured to do so
+            if self.delete_source_files:
+                try:
+                    os.remove(source_file_path)
+                    logger.info(f"Deleted source file: {source_file_path}")
+                except Exception as e:
+                    logger.error(f"Failed to delete source file {source_file_path}: {e}")
             
             return {
                 'source': source_file_path,

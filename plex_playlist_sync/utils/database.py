@@ -607,8 +607,8 @@ def check_track_in_index_smart(title: str, artist: str, debug: bool = False) -> 
                 if debug and candidates:
                     logging.info(f"🎯 Trovati {len(candidates)} candidati per fuzzy matching")
                 
-                # Prova diverse soglie
-                for threshold in [90, 80, 70, 60]:
+                # Prova diverse soglie (aumentate per ridurre falsi positivi)
+                for threshold in [90, 80, 75]:
                     for db_title, db_artist in candidates:
                         title_score = fuzz.token_set_ratio(title_clean, db_title)
                         artist_score = fuzz.token_set_ratio(artist_clean, db_artist) if artist_clean and db_artist else 100
@@ -616,12 +616,20 @@ def check_track_in_index_smart(title: str, artist: str, debug: bool = False) -> 
                         # Peso maggiore al titolo se l'artista è problematico
                         if not db_artist or not artist_clean:
                             combined_score = title_score
+                            # Per tracce senza artista, richiedi match più alto sul titolo
+                            if combined_score < 85:
+                                continue
                         else:
-                            combined_score = (title_score * 0.7) + (artist_score * 0.3)
+                            # Bilancia meglio titolo e artista per evitare falsi positivi
+                            combined_score = (title_score * 0.6) + (artist_score * 0.4)
+                            
+                            # Se l'artista è molto diverso (< 50%), richiedi titolo quasi perfetto
+                            if artist_score < 50 and title_score < 90:
+                                continue
                         
                         if combined_score >= threshold:
                             if debug:
-                                logging.info(f"✅ Fuzzy match (soglia {threshold}): '{title}' - '{artist}' ≈ '{db_title}' - '{db_artist}' (score: {combined_score:.1f})")
+                                logging.info(f"✅ Fuzzy match (soglia {threshold}): '{title}' - '{artist}' ≈ '{db_title}' - '{db_artist}' (title: {title_score:.1f}, artist: {artist_score:.1f}, combined: {combined_score:.1f})")
                             return True
             
             if debug: logging.info("❌ Nessun match trovato")

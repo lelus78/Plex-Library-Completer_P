@@ -238,7 +238,9 @@ def force_playlist_scan_and_missing_detection():
                 for track in playlist_tracks:
                     try:
                         # Use new smart matching system
-                        if not check_track_in_index_smart(track.title, track.grandparentTitle):
+                        is_found = check_track_in_index_smart(track.title, track.grandparentTitle)
+                        
+                        if not is_found:
                             # Potentially missing track, add to DB
                             track_data = {
                                 'title': track.title,
@@ -264,10 +266,69 @@ def force_playlist_scan_and_missing_detection():
                 logger.warning(f"Error processing playlist {playlist.title}: {playlist_error}")
                 continue
         
+        # Also check managed AI playlists for missing tracks
+        ai_missing_count = check_managed_ai_playlists_integrity()
+        total_missing_found += ai_missing_count
+        
         logger.info(f"--- Scan completed: {total_missing_found} total missing tracks detected ---")
         
     except Exception as e:
         logger.error(f"Error during forced playlist scan: {e}", exc_info=True)
+
+
+def check_managed_ai_playlists_integrity():
+    """Check if managed AI playlists have all their expected tracks."""
+    from .utils.database import get_managed_ai_playlists_for_user, add_missing_track, check_track_in_index_smart
+    import json
+    
+    total_missing = 0
+    
+    try:
+        # Check both main and secondary users
+        for user_type in ['main', 'secondary']:
+            managed_playlists = get_managed_ai_playlists_for_user(user_type)
+            
+            for playlist_data in managed_playlists:
+                try:
+                    # Parse the expected tracks from JSON
+                    expected_tracks = json.loads(playlist_data['tracklist_json'])
+                    playlist_title = playlist_data['title']
+                    
+                    logger.info(f"🤖 Checking AI playlist '{playlist_title}' - expected {len(expected_tracks)} tracks")
+                    
+                    missing_in_playlist = 0
+                    for track_info in expected_tracks:
+                        title = track_info.get('title', '')
+                        artist = track_info.get('artist', '')
+                        
+                        if title and artist:
+                            # Check if this track exists in the library
+                            if not check_track_in_index_smart(title, artist):
+                                # Track is missing from library
+                                track_data = {
+                                    'title': title,
+                                    'artist': artist,
+                                    'album': track_info.get('album', ''),
+                                    'source_playlist_title': playlist_title,
+                                    'source_playlist_id': playlist_data.get('plex_rating_key', 0)
+                                }
+                                
+                                add_missing_track(track_data)
+                                missing_in_playlist += 1
+                                total_missing += 1
+                    
+                    if missing_in_playlist > 0:
+                        logger.info(f"🤖 AI playlist '{playlist_title}': {missing_in_playlist} missing tracks detected")
+                        
+                except json.JSONDecodeError as e:
+                    logger.warning(f"Failed to parse tracklist JSON for AI playlist '{playlist_data.get('title', 'unknown')}': {e}")
+                except Exception as e:
+                    logger.warning(f"Error checking AI playlist '{playlist_data.get('title', 'unknown')}': {e}")
+    
+    except Exception as e:
+        logger.error(f"Error during AI playlists integrity check: {e}")
+    
+    return total_missing
 
 
 def run_downloader_only(source=None):
@@ -327,13 +388,28 @@ def run_downloader_only(source=None):
 
     # Process unresolved tracks with Soulseek if enabled
     slsk_client = SoulseekClient()
+    soulseek_downloads_completed = False
     for track in unresolved_tracks:
         track_id, title, artist = track[0], track[1], track[2]
         if slsk_client.search_and_download(artist, title):
             update_track_status(track_id, 'downloaded')
             logger.info(f"Track '{title}' by '{artist}' sourced from Soulseek")
+            soulseek_downloads_completed = True
         else:
             logger.warning(f"No source found for '{title}' by '{artist}'")
+    
+    # If we had successful Soulseek downloads, run post-processing
+    if soulseek_downloads_completed:
+        logger.info("Running Soulseek post-processing to organize downloaded files...")
+        try:
+            from plex_playlist_sync.utils.soulseek_post_processor import process_soulseek_downloads
+            processed_files = process_soulseek_downloads()
+            if processed_files:
+                logger.info(f"Soulseek post-processing completed: {len(processed_files)} files organized")
+            else:
+                logger.info("Soulseek post-processing completed: no files found to organize")
+        except Exception as e:
+            logger.error(f"Error during Soulseek post-processing: {e}")
 
     return bool(tracks_with_links or unresolved_tracks)
 
@@ -569,8 +645,12 @@ def auto_update_ai_playlists(plex, updated_tracks):
                             for track_info in new_tracks_for_playlist:
                                 track_title, track_artist = track_info[1], track_info[2]
                                 
+                                # Create Track object for search function
+                                from .utils.helperClasses import Track
+                                temp_track = Track(title=track_title, artist=track_artist, album='', url='')
+                                
                                 # Search track on Plex using correct user connection
-                                plex_track = search_plex_track(user_plex, track_title, track_artist)
+                                plex_track = search_plex_track(user_plex, temp_track)
                                 if plex_track:
                                     tracks_to_add.append(plex_track)
                                     logger.info(f"✅ Found track for addition: '{track_title}' by '{track_artist}'")

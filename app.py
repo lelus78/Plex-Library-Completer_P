@@ -17,7 +17,7 @@ load_dotenv()
 
 # --- Configurazione del Logging Centralizzato ---
 logging.basicConfig(
-    level=logging.INFO,
+    level=logging.WARNING,
     format="%(asctime)s - %(name)s -[%(levelname)s] - %(message)s",
     handlers=[
         logging.FileHandler("plex_sync.log", mode="a", encoding="utf-8"),
@@ -26,7 +26,7 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
-log.setLevel(logging.DEBUG)
+log.setLevel(logging.WARNING)
 # --- Fine Configurazione ---
 
 # Import dei nostri moduli
