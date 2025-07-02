@@ -238,6 +238,41 @@ For easier updates:
     - Ensure `config.toml` is accessible to the container
     - Set up volume mappings for your music library
 
+## 🖥️ Cross-Platform Setup
+
+Volume paths vary by host system. After copying `.env.example` and `config.example.toml`
+to their real names, mount them so the container can read them. Both `app.py` and
+`plex_playlist_sync/sync_logic.py` look for `/app/.env`.
+
+### Linux
+```yaml
+volumes:
+  - /home/youruser/Music:/music
+  - ./config.toml:/root/.config/streamrip/config.toml
+  - ./state_data:/app/state_data
+  - ./your.env:/app/.env
+```
+
+### Windows (Docker Desktop)
+Use the Docker Desktop path style.
+```yaml
+volumes:
+  - /c/Users/YourUser/Music:/music
+  - ./config.toml:/root/.config/streamrip/config.toml
+  - ./state_data:/app/state_data
+  - ./your.env:/app/.env
+```
+
+### NAS Share
+Mount the share on the host and reference the mount point.
+```yaml
+volumes:
+  - /mnt/nas/Music:/music
+  - ./config.toml:/root/.config/streamrip/config.toml
+  - ./state_data:/app/state_data
+  - ./your.env:/app/.env
+```
+
 ### ▶️ Execution
 
 #### Docker Compose (Command Line)
