@@ -25,7 +25,8 @@ from .utils.database import (
     check_track_in_index, check_track_in_index_smart, update_track_status
 )
 
-load_dotenv()
+# Carica le variabili dal file .env montato via Docker
+load_dotenv('/app/.env')
 
 def build_library_index(app_state: Dict):
     """
