@@ -283,7 +283,7 @@ def find_tracks_free_search(search_query: str) -> List[Dict]:
 def _create_streamrip_config(config_path: str, deezer_arl: str):
     """Crea un file di configurazione base per streamrip con ARL di Deezer"""
     config_content = f"""[downloads]
-folder = "/app/Downloads"
+folder = "/music"
 source_subdirectories = true
 
 [downloads.artwork]
@@ -356,7 +356,7 @@ def download_single_track_with_streamrip(link: str):
         os.makedirs(config_dir, exist_ok=True)
         
         # Crea la directory Downloads se non esiste
-        downloads_dir = "/app/Downloads"
+        downloads_dir = "/music"  # Usa /music che è mappato a M:\Organizzata
         os.makedirs(downloads_dir, exist_ok=True)
         
         # Controlla se esiste già un config.toml (backward compatibility)

@@ -149,15 +149,20 @@ def _update_plex_playlist(plex: PlexServer, available_tracks: List, playlist: Pl
         logging.error(f"Errore imprevisto durante la gestione della playlist '{playlist.name}': {e}")
         return None
 
-def update_or_create_plex_playlist(plex: PlexServer, playlist: Playlist, tracks: List[Track], userInputs: UserInputs) -> "Optional[plexapi.playlist.Playlist]":
+def update_or_create_plex_playlist(plex: PlexServer, playlist: Playlist, tracks: List[Track], userInputs: UserInputs, force_sync_mode: bool = False) -> "Optional[plexapi.playlist.Playlist]":
     """
     Crea o aggiorna una playlist Plex, salva le tracce mancanti e restituisce l'oggetto playlist creato.
+    force_sync_mode: Se True, forza la modalità SYNC anche se userInputs.append_instead_of_sync è True
     """
     available_tracks, potentially_missing = _get_available_plex_tracks(plex, tracks)
     
     created_playlist = None
     if len(available_tracks) >= userInputs.plex_min_songs:
-        created_playlist = _update_plex_playlist(plex, available_tracks, playlist, userInputs.append_instead_of_sync)
+        # Determina la modalità: se force_sync_mode è True, usa SYNC (False), altrimenti usa la configurazione utente
+        append_mode = userInputs.append_instead_of_sync and not force_sync_mode
+        mode_desc = "SYNC" if not append_mode else "APPEND"
+        logging.info(f"🔧 Playlist '{playlist.name}': usando modalità {mode_desc} (force_sync={force_sync_mode}, user_append={userInputs.append_instead_of_sync})")
+        created_playlist = _update_plex_playlist(plex, available_tracks, playlist, append_mode)
     else:
         logging.warning(f"Creazione playlist '{playlist.name}' saltata: brani trovati insufficienti ({len(available_tracks)} < {userInputs.plex_min_songs}).")
 

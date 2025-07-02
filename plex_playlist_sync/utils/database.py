@@ -377,6 +377,21 @@ def delete_managed_ai_playlist(playlist_id: int):
     except Exception as e:
         logging.error(f"Errore nell'eliminare la playlist AI gestita dal DB: {e}")
 
+
+def update_managed_ai_playlist_content(playlist_id: int, new_tracklist_json: str):
+    """Aggiorna il contenuto di una playlist AI gestita con nuove tracce."""
+    try:
+        with sqlite3.connect(DB_PATH) as con:
+            cur = con.cursor()
+            cur.execute(
+                "UPDATE managed_ai_playlists SET tracklist_json = ? WHERE id = ?", 
+                (new_tracklist_json, playlist_id)
+            )
+            con.commit()
+            logging.info(f"Contenuto playlist AI con ID {playlist_id} aggiornato nel database.")
+    except Exception as e:
+        logging.error(f"Errore nell'aggiornare il contenuto della playlist AI ID {playlist_id}: {e}")
+
 def get_managed_playlist_details(playlist_db_id: int) -> Optional[Dict]:
     """Recupera i dettagli di una singola playlist AI gestita dal DB."""
     try:

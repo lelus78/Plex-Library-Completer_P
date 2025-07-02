@@ -14,7 +14,7 @@ if ! id -u "$USER_ID" >/dev/null 2>&1; then
     useradd -u "$USER_ID" -g "$GROUP_ID" -M plexusr
 fi
 
-mkdir -p /app/state_data /app/logs /app/Downloads
+mkdir -p /app/state_data /app/logs
 
 # Create streamrip directory structure
 mkdir -p /app/state_data/.local/share/streamrip
@@ -26,6 +26,6 @@ if [ -f "/app/config.toml" ]; then
     echo "Copied config.toml to /app/state_data/"
 fi
 
-chown -R "$USER_ID":"$GROUP_ID" /app/state_data /app/logs /app/Downloads
+chown -R "$USER_ID":"$GROUP_ID" /app/state_data /app/logs
 
 exec gosu "$USER_ID":"$GROUP_ID" python app.py

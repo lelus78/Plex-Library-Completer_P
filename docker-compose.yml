@@ -1,4 +1,3 @@
-version: "3.9"
 
 services:
   completer:
@@ -6,7 +5,7 @@ services:
     image: lelus78/plex-library-completer:dev   # tag locale
     container_name: plex-library-completer
     env_file:
-      - E:\Docker image\Plex-Library-Completer\.env
+      - .env
     environment:
       - PUID=1000
       - PGID=1000
@@ -21,5 +20,5 @@ services:
       - ./app.py:/app/app.py
       - ./.env:/app/.env
       - ./config.toml:/root/.config/streamrip/config.toml
-      - M:\Organizzata:/music
+      - /mnt/m/Organizzata:/music
     restart: on-failure

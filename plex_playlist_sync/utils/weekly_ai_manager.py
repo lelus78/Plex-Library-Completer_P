@@ -153,8 +153,8 @@ def recreate_playlist_from_state(
         
         logger.info(f"🎵 Recreating playlist '{playlist_data['name']}' with {len(tracks)} saved tracks")
         
-        # Crea/aggiorna la playlist su Plex
-        created_playlist = update_or_create_plex_playlist(plex, playlist_obj, tracks, user_inputs)
+        # Crea/aggiorna la playlist su Plex - usa SYNC per assicurarsi che contenga esattamente le tracce salvate
+        created_playlist = update_or_create_plex_playlist(plex, playlist_obj, tracks, user_inputs, force_sync_mode=True)
         
         if created_playlist:
             logger.info(f"✅ Playlist '{playlist_data['name']}' recreated successfully from JSON state")

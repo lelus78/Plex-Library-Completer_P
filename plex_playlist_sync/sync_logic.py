@@ -473,6 +473,12 @@ def run_full_sync_cycle():
 
     logger.info("Synchronization and AI cycle completed.")
     
+    # REFRESH AI PLAYLISTS: Regenerate managed AI playlists with new content from library
+    try:
+        refresh_managed_ai_playlists()
+    except Exception as e:
+        logger.error(f"Error refreshing managed AI playlists: {e}")
+    
     # CRITICAL CHECK: Do not run playlist scan if library index is empty!
     from .utils.database import get_library_index_stats
     index_stats = get_library_index_stats()
@@ -546,6 +552,8 @@ def auto_update_ai_playlists(plex, updated_tracks):
                 continue
                 
             logger.info(f"Found {len(user_playlists)} AI playlists for user {user_type}")
+            for playlist_data in user_playlists:
+                logger.info(f"  - {playlist_data['title']} (ID: {playlist_data.get('plex_rating_key', 'N/A')})")
             
             for playlist_data in user_playlists:
                 playlist_title = playlist_data['title']  # title from managed_ai_playlists table
@@ -574,9 +582,14 @@ def auto_update_ai_playlists(plex, updated_tracks):
                             tracks_to_add = []
                             for track_info in new_tracks_for_playlist:
                                 track_title, track_artist = track_info[1], track_info[2]
+                                track_album = track_info[3] if len(track_info) > 3 else ""
+                                
+                                # Create Track object for search function
+                                from .utils.helperClasses import Track
+                                track_obj = Track(title=track_title, artist=track_artist, album=track_album, url="")
                                 
                                 # Search track on Plex using correct user connection
-                                plex_track = search_plex_track(user_plex, track_title, track_artist)
+                                plex_track = search_plex_track(user_plex, track_obj)
                                 if plex_track:
                                     tracks_to_add.append(plex_track)
                                     logger.info(f"✅ Found track for addition: '{track_title}' by '{track_artist}'")
@@ -612,3 +625,195 @@ def auto_update_ai_playlists(plex, updated_tracks):
             
     except Exception as e:
         logger.error(f"Error during AI playlists auto-update: {e}", exc_info=True)
+
+
+def refresh_managed_ai_playlists():
+    """
+    Refreshes managed AI playlists by regenerating them with new content from the library.
+    This ensures that AI playlists like 'Reggae Vibes' get updated with new tracks.
+    """
+    logger.info("🔄 Refreshing managed AI playlists with new library content...")
+    
+    try:
+        from .utils.database import get_managed_ai_playlists_for_user
+        from .utils.gemini_ai import configure_gemini, generate_playlist_prompt, get_gemini_playlist_data
+        from .utils.plex import update_or_create_plex_playlist
+        from .utils.helperClasses import Playlist as PlexPlaylist, Track as PlexTrack, UserInputs
+        from .utils.i18n import i18n
+        
+        # Configure Gemini
+        model = configure_gemini()
+        if not model:
+            logger.warning("⚠️ Gemini not configured, skipping AI playlists refresh")
+            return
+        
+        # Prepare connections for both users
+        plex_url = os.getenv("PLEX_URL")
+        main_token = os.getenv("PLEX_TOKEN") 
+        secondary_token = os.getenv("PLEX_TOKEN_USERS")
+        
+        plex_connections = {}
+        user_inputs_map = {}
+        
+        # Create connections and UserInputs for each user
+        if main_token:
+            plex_connections['main'] = PlexServer(plex_url, main_token)
+            user_inputs_map['main'] = UserInputs(
+                plex_url=plex_url, plex_token=main_token,
+                plex_token_others=secondary_token,
+                plex_min_songs=int(os.getenv("PLEX_MIN_SONGS", 0)),
+                write_missing_as_csv=False,
+                append_service_suffix=os.getenv("APPEND_SERVICE_SUFFIX", "1") == "1",
+                add_playlist_poster=os.getenv("ADD_PLAYLIST_POSTER", "1") == "1",
+                add_playlist_description=os.getenv("ADD_PLAYLIST_DESCRIPTION", "1") == "1",
+                append_instead_of_sync=True, wait_seconds=0,
+                spotipy_client_id=os.getenv("SPOTIFY_CLIENT_ID"), 
+                spotipy_client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
+                spotify_user_id=os.getenv("SPOTIFY_USER_ID"), 
+                deezer_user_id=os.getenv("DEEZER_USER_ID"),
+                deezer_playlist_ids=os.getenv("DEEZER_PLAYLIST_ID"),
+                spotify_playlist_ids=os.getenv("SPOTIFY_PLAYLIST_IDS"),
+                spotify_categories=[], country=os.getenv("COUNTRY")
+            )
+            
+        if secondary_token:
+            plex_connections['secondary'] = PlexServer(plex_url, secondary_token)
+            user_inputs_map['secondary'] = UserInputs(
+                plex_url=plex_url, plex_token=secondary_token,
+                plex_token_others=main_token,
+                plex_min_songs=int(os.getenv("PLEX_MIN_SONGS", 0)),
+                write_missing_as_csv=False,
+                append_service_suffix=os.getenv("APPEND_SERVICE_SUFFIX", "1") == "1",
+                add_playlist_poster=os.getenv("ADD_PLAYLIST_POSTER", "1") == "1",
+                add_playlist_description=os.getenv("ADD_PLAYLIST_DESCRIPTION", "1") == "1",
+                append_instead_of_sync=True, wait_seconds=0,
+                spotipy_client_id=os.getenv("SPOTIFY_CLIENT_ID"), 
+                spotipy_client_secret=os.getenv("SPOTIFY_CLIENT_SECRET"),
+                spotify_user_id=os.getenv("SPOTIFY_USER_ID"), 
+                deezer_user_id=os.getenv("DEEZER_USER_ID"),
+                deezer_playlist_ids=os.getenv("DEEZER_PLAYLIST_ID_SECONDARY"),
+                spotify_playlist_ids=os.getenv("SPOTIFY_PLAYLIST_IDS_SECONDARY"),
+                spotify_categories=[], country=os.getenv("COUNTRY")
+            )
+        
+        # Get current language (default to 'en' for background tasks)
+        try:
+            current_language = i18n.get_language()
+        except RuntimeError:
+            current_language = 'en'
+        
+        refreshed_count = 0
+        
+        # Process each user's managed AI playlists
+        for user_type in ['main', 'secondary']:
+            if user_type not in plex_connections:
+                continue
+                
+            user_plex = plex_connections[user_type]
+            user_inputs = user_inputs_map[user_type]
+            user_playlists = get_managed_ai_playlists_for_user(user_type)
+            
+            if not user_playlists:
+                logger.info(f"No managed AI playlists found for user {user_type}")
+                continue
+                
+            logger.info(f"Found {len(user_playlists)} managed AI playlists for user {user_type}")
+            
+            for playlist_data in user_playlists:
+                playlist_title = playlist_data['title']
+                playlist_description = playlist_data.get('description', '')
+                
+                # Skip weekly playlists (they have their own management system)
+                if 'settimana' in playlist_title.lower() or 'week' in playlist_title.lower():
+                    logger.info(f"⏭️ Skipping weekly playlist: '{playlist_title}'")
+                    continue
+                
+                logger.info(f"🎵 Refreshing AI playlist: '{playlist_title}' for user {user_type}")
+                
+                try:
+                    # Get current favorites for context (use appropriate favorites playlist)
+                    favorites_playlist_id = os.getenv("PLEX_FAVORITES_PLAYLIST_ID_MAIN") if user_type == 'main' else os.getenv("PLEX_FAVORITES_PLAYLIST_ID_SECONDARY")
+                    
+                    if favorites_playlist_id:
+                        from .utils.weekly_ai_manager import read_no_delete_playlist_for_taste_analysis
+                        favorite_tracks = read_no_delete_playlist_for_taste_analysis(user_plex, favorites_playlist_id)
+                    else:
+                        favorite_tracks = []
+                    
+                    # Create refresh prompt with original playlist context
+                    if current_language == 'en':
+                        refresh_prompt = f"Refresh and update the playlist '{playlist_title}' with new tracks from the music library. " \
+                                       f"Maintain the original theme and style but add fresh content. " \
+                                       f"Original description: {playlist_description}. " \
+                                       f"Generate 25-30 tracks that fit the playlist theme."
+                    else:
+                        refresh_prompt = f"Aggiorna e rinnova la playlist '{playlist_title}' con nuovi brani dalla libreria musicale. " \
+                                       f"Mantieni il tema e lo stile originale ma aggiungi contenuti freschi. " \
+                                       f"Descrizione originale: {playlist_description}. " \
+                                       f"Genera 25-30 brani che si adattano al tema della playlist."
+                    
+                    # Generate new playlist content
+                    prompt = generate_playlist_prompt(
+                        favorite_tracks or [],
+                        custom_prompt=refresh_prompt,
+                        previous_week_tracks=None,
+                        include_charts_data=True,
+                        language=current_language
+                    )
+                    
+                    # Get updated playlist data from Gemini
+                    updated_playlist_data = get_gemini_playlist_data(model, prompt)
+                    if not updated_playlist_data:
+                        logger.warning(f"⚠️ Failed to get updated content for playlist '{playlist_title}'")
+                        continue
+                    
+                    # Create Plex playlist object
+                    playlist_obj = PlexPlaylist(
+                        id=None,
+                        name=playlist_title,  # Keep original name
+                        description=updated_playlist_data.get("description", playlist_description),
+                        poster=None,
+                    )
+                    
+                    # Create track objects
+                    tracks = []
+                    for track_data in updated_playlist_data["tracks"]:
+                        track = PlexTrack(
+                            title=track_data.get("title", ""),
+                            artist=track_data.get("artist", ""),
+                            album=track_data.get("album", ""),
+                            url=""
+                        )
+                        tracks.append(track)
+                    
+                    # Update playlist on Plex (use SYNC mode to replace content)
+                    updated_playlist = update_or_create_plex_playlist(
+                        user_plex, playlist_obj, tracks, user_inputs, force_sync_mode=True
+                    )
+                    
+                    if updated_playlist:
+                        logger.info(f"✅ Refreshed AI playlist '{playlist_title}' with {len(tracks)} tracks")
+                        refreshed_count += 1
+                        
+                        # Update database with new content
+                        try:
+                            from .utils.database import update_managed_ai_playlist_content
+                            import json
+                            new_tracklist_json = json.dumps(updated_playlist_data["tracks"])
+                            update_managed_ai_playlist_content(playlist_data['id'], new_tracklist_json)
+                        except Exception as db_error:
+                            logger.warning(f"⚠️ Failed to update database for playlist '{playlist_title}': {db_error}")
+                    else:
+                        logger.warning(f"⚠️ Failed to update playlist '{playlist_title}' on Plex")
+                        
+                except Exception as playlist_error:
+                    logger.error(f"❌ Error refreshing playlist '{playlist_title}': {playlist_error}")
+                    continue
+        
+        if refreshed_count > 0:
+            logger.info(f"✅ AI playlists refresh completed: {refreshed_count} playlists updated")
+        else:
+            logger.info("ℹ️ No AI playlists needed refreshing")
+            
+    except Exception as e:
+        logger.error(f"❌ Error during AI playlists refresh: {e}", exc_info=True)
