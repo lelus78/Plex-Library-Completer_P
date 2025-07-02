@@ -253,6 +253,20 @@
                         </li>
                         <li><hr class="dropdown-divider"></li>
                         <li>
+                            <button id="test-notification-btn" class="dropdown-item d-flex align-items-center">
+                                <i data-lucide="bell" class="me-2" style="width: 16px; height: 16px;"></i>
+                                Test Notification
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
+                            <button class="dropdown-item d-flex align-items-center" onclick="openAlbumSearchModal()">
+                                <i data-lucide="search" class="me-2" style="width: 16px; height: 16px;"></i>
+                                Cerca Album
+                            </button>
+                        </li>
+                        <li><hr class="dropdown-divider"></li>
+                        <li>
                             <form action="{{ url_for('delete_all_missing_tracks_route') }}" method="POST" onsubmit="return confirm('Sei sicuro di voler eliminare tutte le tracce mancanti?');" class="d-inline">
                                 <button type="submit" class="dropdown-item text-danger d-flex align-items-center">
                                     <i data-lucide="trash-2" class="me-2" style="width: 16px; height: 16px;"></i>
@@ -346,6 +360,100 @@
         </div>
     {% endif %}
 </div>
+
+<!-- Soulseek Post-Processing Section -->
+<div class="animate-slide-up mt-4" style="animation-delay: 0.4s;">
+    <div class="filter-section">
+        <div class="d-flex align-items-center mb-3">
+            <div class="me-3">
+                <div style="width: 48px; height: 48px; background: var(--gradient-secondary); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+                    <i data-lucide="folder-open" style="width: 24px; height: 24px; color: #000;"></i>
+                </div>
+            </div>
+            <div>
+                <h4 class="mb-1" style="font-weight: 600;">Soulseek Post-Processing</h4>
+                <p class="text-secondary mb-0">Elabora i file scaricati e organizzali nella libreria Plex</p>
+            </div>
+        </div>
+        
+        <div class="row align-items-center">
+            <div class="col-md-4">
+                <div class="d-flex align-items-center p-3 rounded" style="background: var(--bg-secondary); border: 1px solid rgba(255,255,255,0.1);">
+                    <i data-lucide="files" class="me-3" style="width: 24px; height: 24px; color: var(--accent-blue);"></i>
+                    <div>
+                        <div class="fw-bold fs-5 text-primary" id="source-files-count">-</div>
+                        <small class="text-secondary">File sorgente</small>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-4">
+                <button class="btn btn-success w-100 d-flex align-items-center justify-content-center" id="process-soulseek-btn">
+                    <i data-lucide="play" class="me-2" style="width: 18px; height: 18px;"></i>
+                    Elabora File Scaricati
+                </button>
+            </div>
+            
+            <div class="col-md-4">
+                <div class="d-flex align-items-center p-3 rounded" style="background: var(--bg-secondary); border: 1px solid rgba(255,255,255,0.1);">
+                    <i data-lucide="check-circle" class="me-3" style="width: 24px; height: 24px; color: var(--spotify-green);"></i>
+                    <div>
+                        <div class="fw-bold fs-5 text-success" id="processed-files-count">-</div>
+                        <small class="text-secondary">File elaborati</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Processing Status -->
+        <div class="mt-4" id="processing-status" style="display: none;">
+            <div class="d-flex align-items-center p-3 rounded" style="background: var(--bg-tertiary); border-left: 3px solid var(--accent-blue);">
+                <i data-lucide="loader" class="me-3" style="width: 20px; height: 20px; color: var(--accent-blue);"></i>
+                <div>
+                    <div class="fw-medium">Elaborazione in corso...</div>
+                    <small class="text-secondary" id="processing-message">Inizializzazione...</small>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Processing Results -->
+        <div class="mt-4" id="processing-results" style="display: none;">
+            <div class="d-flex align-items-center mb-3">
+                <i data-lucide="activity" class="me-2" style="width: 20px; height: 20px; color: var(--accent-green);"></i>
+                <h6 class="mb-0">Risultati Elaborazione</h6>
+            </div>
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="card" style="background: var(--bg-secondary); border-color: rgba(255,255,255,0.1);">
+                        <div class="card-body">
+                            <h6 class="card-title d-flex align-items-center">
+                                <i data-lucide="file-plus" class="me-2" style="width: 18px; height: 18px; color: var(--spotify-green);"></i>
+                                File Processati
+                            </h6>
+                            <div class="fs-4 fw-bold text-success" id="result-processed-count">0</div>
+                            <small class="text-secondary">File elaborati con successo</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="card" style="background: var(--bg-secondary); border-color: rgba(255,255,255,0.1);">
+                        <div class="card-body">
+                            <h6 class="card-title d-flex align-items-center">
+                                <i data-lucide="alert-circle" class="me-2" style="width: 18px; height: 18px; color: var(--accent-red);"></i>
+                                Errori
+                            </h6>
+                            <div class="fs-4 fw-bold text-danger" id="result-error-count">0</div>
+                            <small class="text-secondary">File con errori</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Detailed Results -->
+            <div class="mt-3" id="detailed-results"></div>
+        </div>
+    </div>
+</div>
 </div>
 
 <!-- Modal Ricerca Manuale - Design Moderno -->
@@ -425,6 +533,50 @@
             </div>
           </div>
         </div>
+      </div>
+      
+      <div class="modal-footer" style="border-top: 1px solid rgba(255,255,255,0.1);">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+          <i data-lucide="x" class="me-2" style="width: 16px; height: 16px;"></i>
+          Chiudi
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Album Search Modal -->
+<div class="modal fade" id="albumSearchModal" tabindex="-1" aria-labelledby="albumSearchModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content" style="background: var(--bg-secondary); border: 1px solid rgba(255,255,255,0.1);">
+      <div class="modal-header" style="border-bottom: 1px solid rgba(255,255,255,0.1);">
+        <h5 class="modal-title" id="albumSearchModalLabel">
+          <i data-lucide="disc" class="me-2" style="width: 20px; height: 20px;"></i>
+          Cerca Album
+        </h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- Search Input -->
+        <div class="mb-4">
+          <label for="albumSearchInput" class="form-label">Nome Album o Artista</label>
+          <div class="input-group">
+            <input type="text" class="form-control" id="albumSearchInput" placeholder="Inserisci nome album..." style="background: var(--bg-tertiary); border: 1px solid rgba(255,255,255,0.1); color: var(--text-primary);">
+            <button class="btn btn-primary" type="button" id="searchSoulseekBtn">
+              <i data-lucide="users" class="me-1" style="width: 16px; height: 16px;"></i>
+              Soulseek
+            </button>
+            <button class="btn btn-success" type="button" id="searchDeezerAlbumBtn">
+              <i data-lucide="zap" class="me-1" style="width: 16px; height: 16px;"></i>
+              Deezer
+            </button>
+          </div>
+          <small class="form-text text-muted">Prova prima Soulseek, poi Deezer se non trovi quello che cerchi</small>
+        </div>
+        
+        <!-- Results Container -->
+        <div id="albumSearchResults" class="search-results"></div>
       </div>
       
       <div class="modal-footer" style="border-top: 1px solid rgba(255,255,255,0.1);">
@@ -669,6 +821,75 @@ $(document).ready(function() {
         setTimeout(() => {
             notification.alert('close');
         }, 5000);
+    }
+    
+    function showDownloadNotification(notification) {
+        // Safe check for notification object
+        if (!notification || typeof notification !== 'object') {
+            console.warn('Invalid notification object:', notification);
+            return;
+        }
+        
+        const type = notification.type;
+        const message = notification.message;
+        const details = notification.details;
+        
+        let icon = '';
+        let detailsText = '';
+        
+        if (type === 'success') {
+            icon = '<i data-lucide="download" class="me-2" style="width: 16px; height: 16px;"></i>';
+            if (details && details.files_copied > 0) {
+                detailsText = `<small class="d-block mt-1 opacity-75">${details.files_copied} nuovi file aggiunti</small>`;
+            }
+        } else if (type === 'info') {
+            icon = '<i data-lucide="info" class="me-2" style="width: 16px; height: 16px;"></i>';
+            if (details && details.already_existed) {
+                detailsText = `<small class="d-block mt-1 opacity-75">Album già presente - ${details.files_found} file esistenti</small>`;
+            }
+        } else if (type === 'error') {
+            icon = '<i data-lucide="alert-circle" class="me-2" style="width: 16px; height: 16px;"></i>';
+        }
+        
+        const alertClass = type === 'success' ? 'alert-success' : 
+                          type === 'error' ? 'alert-danger' : 'alert-info';
+        
+        const downloadNotification = $(`
+            <div class="alert ${alertClass} alert-dismissible fade show position-fixed"
+                 style="top: 1rem; right: 1rem; z-index: 1050; min-width: 20rem; max-width: 90vw;">
+                <div class="d-flex align-items-start">
+                    ${icon}
+                    <div class="flex-grow-1">
+                        <div>${message}</div>
+                        ${detailsText}
+                    </div>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `);
+        
+        // Safe DOM append
+        try {
+            $('body').append(downloadNotification);
+            
+            // Update icons
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        } catch (error) {
+            console.error('Error appending notification to DOM:', error);
+        }
+        
+        // Auto remove after 8 seconds for download notifications
+        setTimeout(() => {
+            try {
+                if (downloadNotification && downloadNotification.length > 0) {
+                    downloadNotification.alert('close');
+                }
+            } catch (error) {
+                console.warn('Error closing notification:', error);
+            }
+        }, 8000);
     }
 
     // Manual search modal functionality
@@ -1029,6 +1250,850 @@ $(document).ready(function() {
         $(this).prop('disabled', false).text('Cerca e Scarica Selezionati');
         location.reload(); // Ricarica la pagina per aggiornare lo stato
     });
+
+    // === SOULSEEK POST-PROCESSING FUNCTIONALITY ===
+    
+    // Initialize soulseek section
+    loadSoulseekStatus();
+    
+    function loadSoulseekStatus() {
+        $.get('{{ url_for("get_soulseek_processing_status") }}')
+            .done(function(data) {
+                $('#source-files-count').text(data.source_files_count || '0');
+                $('#processed-files-count').text(data.processed_files_count || '0');
+            })
+            .fail(function() {
+                console.warn('Could not load Soulseek status');
+            });
+    }
+    
+    // Process Soulseek downloads button
+    $("#process-soulseek-btn").on('click', function() {
+        const button = $(this);
+        const originalHtml = button.html();
+        
+        // Show processing status
+        $('#processing-status').show();
+        $('#processing-results').hide();
+        $('#processing-message').text('Inizializzazione...');
+        
+        // Disable button and show loading
+        button.prop('disabled', true).html('<i data-lucide="loader" class="me-2" style="width: 18px; height: 18px;"></i>Elaborazione...');
+        
+        // Start processing
+        $.ajax({
+            url: '{{ url_for("process_soulseek_downloads_route") }}',
+            type: 'POST',
+            timeout: 300000, // 5 minutes timeout
+            success: function(response) {
+                if (response.success) {
+                    showSoulseekResults(response);
+                    showNotification('Elaborazione completata con successo!', 'success');
+                } else {
+                    showNotification('Errore durante l\'elaborazione: ' + (response.error || 'Errore sconosciuto'), 'error');
+                }
+            },
+            error: function(xhr, status, error) {
+                if (status === 'timeout') {
+                    showNotification('Timeout: L\'elaborazione sta richiedendo più tempo del previsto', 'warning');
+                } else {
+                    showNotification('Errore di comunicazione: ' + error, 'error');
+                }
+            },
+            complete: function() {
+                // Hide processing status and restore button
+                $('#processing-status').hide();
+                button.prop('disabled', false).html(originalHtml);
+                
+                // Refresh status
+                loadSoulseekStatus();
+                
+                // Refresh icons
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        });
+        
+        // Set up polling for progress updates and notifications
+        const pollInterval = setInterval(function() {
+            // Check for Soulseek processing status
+            $.get('{{ url_for("get_soulseek_processing_status") }}')
+                .done(function(data) {
+                    if (data.processing_message) {
+                        $('#processing-message').text(data.processing_message);
+                    }
+                    if (data.is_complete) {
+                        clearInterval(pollInterval);
+                    }
+                });
+                
+            // Check for new notifications
+            $.get('/get_notifications')
+                .done(function(data) {
+                    console.log('Notifications received:', data); // Debug log
+                    if (data.notifications && data.notifications.length > 0) {
+                        data.notifications.forEach(function(notification) {
+                            console.log('Processing notification:', notification); // Debug log
+                            if (!notification.shown) {
+                                showDownloadNotification(notification);
+                                notification.shown = true;
+                            }
+                        });
+                    }
+                })
+                .fail(function(xhr, status, error) {
+                    console.error('Failed to get notifications:', error); // Debug log
+                });
+        }, 2000);
+        
+        // Clear polling after 5 minutes
+        setTimeout(() => clearInterval(pollInterval), 300000);
+        
+        // Add test notification button for debugging
+        if (!$('#test-notification-btn').length) {
+            $('body').append(`
+                <button id="test-notification-btn" style="position: fixed; top: 10px; left: 10px; z-index: 9999; background: #007bff; color: white; border: none; padding: 10px; border-radius: 5px;">
+                    Test Notification
+                </button>
+            `);
+        }
+        
+        // Test notification button click handler
+        $('#test-notification-btn').off('click').on('click', function() {
+            console.log('Test notification button clicked');
+            
+            // Test 1: Create manual notification
+            showDownloadNotification({
+                type: 'info',
+                message: 'Test notifica manuale - funziona!',
+                details: {
+                    files_copied: 0,
+                    files_found: 3,
+                    already_existed: true
+                }
+            });
+            
+            // Test 2: Call server endpoint to create notification
+            $.post('/test_notification')
+                .done(function(data) {
+                    console.log('Server test notification response:', data);
+                })
+                .fail(function(xhr, status, error) {
+                    console.error('Failed to create server test notification:', error);
+                });
+        });
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    });
+    
+    function showSoulseekResults(response) {
+        const data = response.data || {};
+        const processed = data.processed_count || 0;
+        const errors = data.error_count || 0;
+        const details = data.details || [];
+        
+        // Update result counters
+        $('#result-processed-count').text(processed);
+        $('#result-error-count').text(errors);
+        
+        // Show detailed results if available
+        if (details.length > 0) {
+            let detailsHtml = '<div class="mt-3"><h6 class="mb-3">Dettagli Elaborazione:</h6>';
+            detailsHtml += '<div class="list-group">';
+            
+            details.forEach(function(item) {
+                const iconClass = item.status === 'success' ? 'check-circle' : 'alert-circle';
+                const textClass = item.status === 'success' ? 'text-success' : 'text-danger';
+                const bgClass = item.status === 'success' ? 'var(--bg-secondary)' : 'rgba(220, 53, 69, 0.1)';
+                
+                detailsHtml += `
+                    <div class="list-group-item d-flex align-items-start" style="background: ${bgClass}; border-color: rgba(255,255,255,0.1);">
+                        <i data-lucide="${iconClass}" class="me-3 mt-1 ${textClass}" style="width: 16px; height: 16px;"></i>
+                        <div class="flex-grow-1">
+                            <div class="fw-medium">${item.file || 'File sconosciuto'}</div>
+                            <small class="text-secondary">${item.message || 'Nessun messaggio'}</small>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            detailsHtml += '</div></div>';
+            $('#detailed-results').html(detailsHtml);
+        } else {
+            $('#detailed-results').empty();
+        }
+        
+        // Show results section
+        $('#processing-results').show();
+        
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+    
+    // === ALBUM SEARCH FUNCTIONALITY ===
+    
+    // Apri il modal di ricerca album
+    window.openAlbumSearchModal = function() {
+        $('#albumSearchModal').modal('show');
+        $('#albumSearchInput').focus();
+    };
+
+    // Ricerca su Soulseek
+    $('#searchSoulseekBtn').on('click', function() {
+        const albumName = $('#albumSearchInput').val().trim();
+        if (!albumName) {
+            alert('Inserisci il nome di un album');
+            return;
+        }
+        
+        searchAlbum(albumName, 'soulseek');
+    });
+
+    // Ricerca su Deezer
+    $('#searchDeezerAlbumBtn').on('click', function() {
+        const albumName = $('#albumSearchInput').val().trim();
+        if (!albumName) {
+            alert('Inserisci il nome di un album');
+            return;
+        }
+        
+        searchAlbum(albumName, 'deezer');
+    });
+
+    // Enter key support
+    $('#albumSearchInput').on('keypress', function(e) {
+        if (e.which === 13) {
+            $('#searchSoulseekBtn').click();
+        }
+    });
+
+    function searchAlbum(albumName, source) {
+        const resultsContainer = $('#albumSearchResults');
+        const searchBtn = source === 'soulseek' ? $('#searchSoulseekBtn') : $('#searchDeezerAlbumBtn');
+        
+        // Show loading
+        searchBtn.prop('disabled', true).html('<i data-lucide="loader" class="me-1" style="width: 16px; height: 16px;"></i>Cerca...');
+        resultsContainer.html('<div class="text-center"><i data-lucide="loader-2" class="me-2" style="width: 20px; height: 20px;"></i>Ricerca in corso...</div>');
+
+        $.get('{{ url_for("search_album_multi_source") }}', {
+            album: albumName,
+            source: source
+        })
+        .done(function(data) {
+            try {
+                console.log('Search response received:', data);
+                console.log('Response type:', typeof data);
+                console.log('Response keys:', Object.keys(data || {}));
+                displayAlbumResults(data, source);
+            } catch (error) {
+                console.error('Error processing search results:', error);
+                console.error('Error stack:', error.stack);
+                resultsContainer.html(`<div class="alert alert-danger">Errore nel processare i risultati: ${error.message}<br><small>Controlla la console per maggiori dettagli</small></div>`);
+            }
+        })
+        .fail(function(xhr) {
+            const error = xhr.responseJSON?.error || 'Errore durante la ricerca';
+            resultsContainer.html(`<div class="alert alert-danger">${error}</div>`);
+        })
+        .always(function() {
+            // Restore button
+            if (source === 'soulseek') {
+                searchBtn.prop('disabled', false).html('<i data-lucide="users" class="me-1" style="width: 16px; height: 16px;"></i>Soulseek');
+            } else {
+                searchBtn.prop('disabled', false).html('<i data-lucide="zap" class="me-1" style="width: 16px; height: 16px;"></i>Deezer');
+            }
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+        });
+    }
+
+    // Helper function per badge di qualità
+    function getQualityBadge(quality) {
+        if (!quality || quality === 'Unknown') return '';
+        
+        let badgeClass = 'bg-secondary';
+        let text = quality;
+        
+        if (quality === 'FLAC' || quality === 'WAV') {
+            badgeClass = 'bg-success';
+            text = quality;
+        } else if (quality === '320kbps' || quality.includes('320')) {
+            badgeClass = 'bg-primary';
+            text = '320kbps';
+        } else if (quality === '256kbps' || quality.includes('256')) {
+            badgeClass = 'bg-info';
+            text = '256kbps';
+        } else if (quality === '192kbps' || quality.includes('192')) {
+            badgeClass = 'bg-warning'; 
+            text = '192kbps';
+        } else if (quality === '128kbps' || quality.includes('128')) {
+            badgeClass = 'bg-danger';
+            text = '128kbps';
+        } else if (quality.includes('kbps')) {
+            // Estrai il numero per confronto
+            const bitrate = parseInt(quality.match(/(\d+)/)?.[1] || '0');
+            const isEstimate = quality.includes('~');
+            
+            if (bitrate >= 320) {
+                badgeClass = isEstimate ? 'bg-primary bg-opacity-75' : 'bg-primary';
+            } else if (bitrate >= 256) {
+                badgeClass = isEstimate ? 'bg-info bg-opacity-75' : 'bg-info';
+            } else if (bitrate >= 192) {
+                badgeClass = isEstimate ? 'bg-warning bg-opacity-75' : 'bg-warning';
+            } else if (bitrate >= 128) {
+                badgeClass = isEstimate ? 'bg-danger bg-opacity-75' : 'bg-danger';
+            } else {
+                badgeClass = 'bg-dark';
+            }
+            text = quality;
+        } else if (quality === 'Low') {
+            badgeClass = 'bg-dark';
+            text = 'Low';
+        }
+        
+        return `<span class="badge ${badgeClass} ms-2" title="Qualità audio">${text}</span>`;
+    }
+
+    // Helper con fallback per stimare qualità quando attributes mancano
+    function getQualityBadgeWithFallback(quality, files, totalSizeMB) {
+        // Prima prova il badge normale
+        const normalBadge = getQualityBadge(quality);
+        if (normalBadge) return normalBadge;
+        
+        // Fallback: analizza i file per stimare qualità
+        if (!files || files.length === 0) return '';
+        
+        let estimatedQuality = '';
+        
+        // Analizza i file audio
+        const audioFiles = files.filter(f => {
+            const filename = (f.filename || '').toLowerCase();
+            return filename.includes('.mp3') || filename.includes('.flac') || 
+                   filename.includes('.wav') || filename.includes('.m4a') || filename.includes('.aac');
+        });
+        
+        if (audioFiles.length === 0) return '';
+        
+        // Controlla se ci sono file lossless
+        const hasFlac = audioFiles.some(f => (f.filename || '').toLowerCase().includes('.flac'));
+        const hasWav = audioFiles.some(f => (f.filename || '').toLowerCase().includes('.wav'));
+        
+        if (hasFlac) {
+            estimatedQuality = 'FLAC';
+        } else if (hasWav) {
+            estimatedQuality = 'WAV';  
+        } else {
+            // Stima qualità MP3 dalla dimensione media per traccia
+            const avgSizePerTrack = totalSizeMB / audioFiles.length;
+            
+            if (avgSizePerTrack > 8) {
+                estimatedQuality = '~320kbps';
+            } else if (avgSizePerTrack > 6) {
+                estimatedQuality = '~256kbps';
+            } else if (avgSizePerTrack > 4) {
+                estimatedQuality = '~192kbps';
+            } else if (avgSizePerTrack > 2.5) {
+                estimatedQuality = '~128kbps';
+            } else {
+                estimatedQuality = 'Low';
+            }
+        }
+        
+        return getQualityBadge(estimatedQuality);
+    }
+
+    function displayAlbumResults(data, source) {
+        const container = $('#albumSearchResults');
+        
+        try {
+            console.log('displayAlbumResults called with source:', source);
+            console.log('Data structure:', data);
+            
+            const results = data.results || [];
+            
+            console.log('Results array length:', results.length);
+            
+            if (results.length === 0) {
+                container.html(`<div class="alert alert-info">${data.message || 'Nessun risultato trovato'}</div>`);
+                return;
+            }
+            
+            let html = `<div class="alert alert-success">${data.message}</div>`;
+
+            if (source === 'soulseek') {
+                html += '<div class="list-group">';
+                results.forEach((album, index) => {
+                const badgeClass = album.has_free_slot ? 'bg-success' : 'bg-warning';
+                const queueInfo = album.queue_length > 0 ? `Coda: ${album.queue_length}` : 'Disponibile';
+                const uploadSpeed = album.upload_speed > 0 ? ` • ${(album.upload_speed / (1024*1024)).toFixed(2)} MB/s` : '';
+                const formats = album.audio_formats.length > 0 ? ` • ${album.audio_formats.join(', ')}` : '';
+                const quality = album.quality_info.length > 0 ? ` • ${album.quality_info.join(', ')}` : '';
+                const accordionId = `accordion-${Date.now()}-${index}`;
+                
+                html += `
+                    <div class="list-group-item" style="background: var(--bg-primary); border: 1px solid rgba(255,255,255,0.1);">
+                        <!-- Header con info principali -->
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center justify-content-between">
+                                    <div class="fw-bold">${album.album_title}</div>
+                                    <button class="btn btn-outline-info btn-sm" type="button" 
+                                            data-bs-toggle="collapse" data-bs-target="#${accordionId}" 
+                                            aria-expanded="false" title="Mostra/Nascondi dettagli file">
+                                        <i data-lucide="list" style="width: 14px; height: 14px;"></i>
+                                        <span class="ms-1">Dettagli</span>
+                                    </button>
+                                </div>
+                                <div class="text-secondary">
+                                    <strong>Utente:</strong> ${album.username}${uploadSpeed}
+                                </div>
+                                <small class="text-muted">
+                                    ${album.track_count} tracce • ${album.total_size_mb} MB • ${queueInfo}${formats}${quality}
+                                </small>
+                                <div class="mt-2">
+                                    <span class="badge ${badgeClass}">${album.has_free_slot ? 'Slot libero' : 'In coda'}</span>
+                                    ${album.type === 'album' ? '<span class="badge bg-info ms-2">Album</span>' : '<span class="badge bg-secondary ms-2">Singola</span>'}
+                                    ${getQualityBadgeWithFallback(album.best_quality, album.files, album.total_size_mb)}
+                                </div>
+                            </div>
+                            <button class="btn btn-primary btn-sm download-album-soulseek" 
+                                    data-username="${album.username}" 
+                                    data-folder="${album.folder}"
+                                    data-files='${JSON.stringify(album.files)}'>
+                                <i data-lucide="download" class="me-1" style="width: 14px; height: 14px;"></i>
+                                Scarica
+                            </button>
+                        </div>
+                        
+                        <!-- Dettagli espandibili -->
+                        <div class="collapse mt-3" id="${accordionId}">
+                            <div class="border-top border-secondary pt-3">
+                                <h6 class="text-info mb-3">
+                                    <i data-lucide="folder" class="me-1" style="width: 14px; height: 14px;"></i>
+                                    File disponibili (${album.files.length}):
+                                </h6>
+                                
+                                <!-- Header tabella stile Soulseek -->
+                                <div class="mb-2">
+                                    <div class="row text-muted small fw-bold">
+                                        <div class="col-6">File</div>
+                                        <div class="col-2">Size</div>
+                                        <div class="col-2">Attributes</div>
+                                        <div class="col-2">Length</div>
+                                    </div>
+                                </div>
+                                
+                                <div class="bg-dark rounded p-2" style="max-height: 250px; overflow-y: auto;">
+                `;
+                
+                // Lista dettagliata dei file con formato tabellare
+                album.files.forEach((file, fileIndex) => {
+                    const filename = file.filename || 'Unknown';
+                    const filenameParts = filename.split('/').pop().split('\\').pop(); // Nome file senza path
+                    const sizeBytes = file.size || 0;
+                    const sizeMB = sizeBytes > 1024*1024 ? (sizeBytes / (1024*1024)).toFixed(2) + ' MB' : (sizeBytes / 1024).toFixed(1) + ' KB';
+                    const attrs = file.attributes || {};
+                    
+                    // Debug logging per il primo file di ogni album
+                    if (fileIndex === 0) {
+                        console.log('File structure for ' + filenameParts + ':', {
+                            filename: filename,
+                            size: file.size,
+                            attributes: attrs,
+                            attributeKeys: Object.keys(attrs)
+                        });
+                        
+                        // Debug specifico per durata
+                        console.log('Duration fields check:', {
+                            'attrs.duration': attrs.duration,
+                            'attrs.length': attrs.length,
+                            'attrs.Duration': attrs.Duration,
+                            'attrs.Length': attrs.Length,
+                            'type_duration': typeof attrs.duration,
+                            'type_length': typeof attrs.length
+                        });
+                    }
+                    
+                    // Durata formattata - prova diversi campi e formati
+                    let duration = '??:??';
+                    
+                    // Determina estensione file per calcoli successivi
+                    const ext = filenameParts.split('.').pop().toLowerCase();
+                    
+                    // Prova a trovare durata in vari formati
+                    const durationValue = attrs.duration || attrs.length || attrs.Duration || attrs.Length || 
+                                         attrs.time || attrs.Time || attrs.trackLength || attrs.TrackLength;
+                    
+                    if (durationValue) {
+                        // Se è in secondi (numero)
+                        if (typeof durationValue === 'number') {
+                            const minutes = Math.floor(durationValue / 60);
+                            const seconds = Math.floor(durationValue % 60);
+                            duration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                        }
+                        // Se è già una stringa formattata
+                        else if (typeof durationValue === 'string' && durationValue.includes(':')) {
+                            duration = durationValue;
+                        }
+                        // Se è una stringa con solo secondi
+                        else if (typeof durationValue === 'string' && !isNaN(parseInt(durationValue))) {
+                            const totalSeconds = parseInt(durationValue);
+                            const minutes = Math.floor(totalSeconds / 60);
+                            const seconds = totalSeconds % 60;
+                            duration = `${minutes}:${seconds.toString().padStart(2, '0')}`;
+                        }
+                    } else {
+                        // Se non abbiamo durata ma abbiamo bitrate e size, proviamo a stimare
+                        const bitrate = attrs.bitRate || attrs.bitrate || attrs.bit_rate || attrs.Bitrate;
+                        if (bitrate && sizeBytes > 0) {
+                            // Formula: durata = (fileSize * 8) / (bitrate * 1000)
+                            const estimatedSeconds = Math.round((sizeBytes * 8) / (bitrate * 1000));
+                            if (estimatedSeconds > 0 && estimatedSeconds < 3600) { // Max 1 ora per essere ragionevole
+                                const minutes = Math.floor(estimatedSeconds / 60);
+                                const seconds = estimatedSeconds % 60;
+                                duration = `~${minutes}:${seconds.toString().padStart(2, '0')}`;
+                            }
+                        } else if (sizeBytes > 0) {
+                            // Stima grossolana basata sulla dimensione file
+                            const sizeMB = sizeBytes / (1024 * 1024);
+                            let estimatedSeconds = 0;
+                            
+                            if (ext === 'flac') {
+                                estimatedSeconds = Math.round(sizeMB * 6); // ~6 secondi per MB per FLAC
+                            } else if (ext === 'mp3') {
+                                // Stima basata su bitrate medio
+                                if (sizeMB > 8) estimatedSeconds = 220;      // ~320kbps
+                                else if (sizeMB > 6) estimatedSeconds = 200; // ~256kbps
+                                else if (sizeMB > 4) estimatedSeconds = 180; // ~192kbps
+                                else estimatedSeconds = Math.round(sizeMB * 40); // ~128kbps
+                            }
+                            
+                            if (estimatedSeconds > 0) {
+                                const minutes = Math.floor(estimatedSeconds / 60);
+                                const seconds = estimatedSeconds % 60;
+                                duration = `~${minutes}:${seconds.toString().padStart(2, '0')}`;
+                            }
+                        }
+                    }
+                    
+                    // Attributes formattati come Soulseek - prova diversi nomi di campo
+                    let attributesText = '';
+                    const bitrate = attrs.bitRate || attrs.bitrate || attrs.bit_rate || attrs.Bitrate;
+                    const sampleRate = attrs.sampleRate || attrs.sample_rate || attrs.SampleRate;
+                    const bitDepth = attrs.bitDepth || attrs.bit_depth || attrs.BitDepth || 16;
+                    
+                    if (bitrate && sampleRate) {
+                        if (bitrate >= 1411) {
+                            attributesText = `${bitDepth}/${(sampleRate/1000).toFixed(1)}kHz`;
+                        } else {
+                            attributesText = `${bitrate}kbps`;
+                        }
+                    } else if (bitrate) {
+                        attributesText = `${bitrate}kbps`;
+                    } else {
+                        // Prova a indovinare dal nome file e dimensione
+                        if (ext === 'flac') {
+                            attributesText = '16/44.1kHz';
+                        } else if (ext === 'wav') {
+                            attributesText = '16/44.1kHz';
+                        } else if (ext === 'mp3') {
+                            // Stima bitrate da dimensione file - usa stessa logica del badge
+                            if (sizeBytes > 0) {
+                                // Stima durata media per MP3 (3-4 minuti) se non disponibile
+                                let estimatedDurationSeconds = 0;
+                                
+                                if (duration !== '??:??') {
+                                    estimatedDurationSeconds = duration.split(':').reduce((acc, time) => (60 * acc) + +time, 0);
+                                } else {
+                                    // Stima durata da dimensione file (euristica)
+                                    const sizeMB = sizeBytes / (1024 * 1024);
+                                    if (sizeMB > 8) estimatedDurationSeconds = 220; // ~3:40 per 320kbps
+                                    else if (sizeMB > 6) estimatedDurationSeconds = 200; // ~3:20 per 256kbps  
+                                    else if (sizeMB > 4) estimatedDurationSeconds = 180; // ~3:00 per 192kbps
+                                    else estimatedDurationSeconds = 180; // default 3 min
+                                }
+                                
+                                if (estimatedDurationSeconds > 0) {
+                                    const estimatedBitrate = Math.round((sizeBytes * 8) / (estimatedDurationSeconds * 1000));
+                                    
+                                    // Arrotonda a valori comuni
+                                    if (estimatedBitrate >= 300) {
+                                        attributesText = '~320kbps';
+                                    } else if (estimatedBitrate >= 240) {
+                                        attributesText = '~256kbps';
+                                    } else if (estimatedBitrate >= 170) {
+                                        attributesText = '~192kbps';
+                                    } else if (estimatedBitrate >= 112) {
+                                        attributesText = '~128kbps';
+                                    } else {
+                                        attributesText = '~' + estimatedBitrate + 'kbps';
+                                    }
+                                } else {
+                                    attributesText = 'MP3';
+                                }
+                            } else {
+                                attributesText = 'MP3';
+                            }
+                        } else {
+                            attributesText = ext.toUpperCase();
+                        }
+                    }
+                    
+                    // Icona basata sull'estensione
+                    let fileIcon = 'file-audio';
+                    let iconColor = 'text-info';
+                    if (ext === 'flac' || ext === 'wav') {
+                        fileIcon = 'file-audio-2';
+                        iconColor = 'text-success';
+                    } else if (ext === 'jpg' || ext === 'png') {
+                        fileIcon = 'image';
+                        iconColor = 'text-warning';
+                    } else if (ext === 'mp3') {
+                        iconColor = 'text-primary';
+                    }
+                    
+                    html += `
+                        <div class="row align-items-center py-1 border-bottom border-secondary" style="--bs-border-opacity: 0.3;">
+                            <div class="col-6">
+                                <div class="d-flex align-items-center">
+                                    <i data-lucide="${fileIcon}" class="me-2 ${iconColor}" style="width: 14px; height: 14px;"></i>
+                                    <span class="text-light small">${filenameParts}</span>
+                                </div>
+                            </div>
+                            <div class="col-2">
+                                <span class="text-info small">${sizeMB}</span>
+                            </div>
+                            <div class="col-2">
+                                <span class="text-warning small">${attributesText}</span>
+                            </div>
+                            <div class="col-2">
+                                <span class="text-secondary small">${duration}</span>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                html += `
+                                </div>
+                                <div class="mt-2">
+                                    <small class="text-muted">
+                                        <i data-lucide="folder-open" class="me-1" style="width: 12px; height: 12px;"></i>
+                                        <strong>Percorso:</strong> ${album.folder || 'Root directory'}
+                                    </small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                });
+                html += '</div>';
+            } else {
+            // Deezer results
+            html += '<div class="list-group">';
+            results.forEach(album => {
+                html += `
+                    <div class="list-group-item" style="background: var(--bg-primary); border: 1px solid rgba(255,255,255,0.1);">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div class="d-flex align-items-center flex-grow-1">
+                                ${album.cover ? `<img src="${album.cover}" alt="${album.title}" width="50" height="50" class="me-3 rounded">` : ''}
+                                <div>
+                                    <div class="fw-bold">${album.title}</div>
+                                    <div class="text-secondary">${album.artist}</div>
+                                    <small class="text-muted">${album.track_count} tracce • ${album.release_date || 'Data sconosciuta'}</small>
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <a href="${album.album_url}" target="_blank" class="btn btn-outline-info btn-sm">
+                                    <i data-lucide="external-link" style="width: 14px; height: 14px;"></i>
+                                    Apri
+                                </a>
+                                <button class="btn btn-success btn-sm download-album-deezer" data-album-url="${album.album_url}">
+                                    <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                    Scarica Album
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            html += '</div>';
+        }
+
+            container.html(html);
+            
+            // Gestisci il toggle delle icone nei collapse
+            container.find('[data-bs-toggle="collapse"]').on('click', function() {
+                const target = $(this).attr('data-bs-target');
+                const icon = $(this).find('i');
+                const isExpanded = $(this).attr('aria-expanded') === 'true';
+                
+                // Aggiorna l'icona
+                if (isExpanded) {
+                    icon.attr('data-lucide', 'list');
+                    $(this).find('span').text('Dettagli');
+                } else {
+                    icon.attr('data-lucide', 'eye-off');
+                    $(this).find('span').text('Nascondi');
+                }
+            });
+            
+            if (typeof lucide !== 'undefined') {
+                lucide.createIcons();
+            }
+            
+        } catch (error) {
+            console.error('Error in displayAlbumResults:', error);
+            console.error('Error stack:', error.stack);
+            container.html(`<div class="alert alert-danger">Errore nella visualizzazione risultati: ${error.message}<br><small>Controlla la console per maggiori dettagli</small></div>`);
+        }
+    }
+
+    // Handle Soulseek album download
+    $(document).on('click', '.download-album-soulseek', function() {
+        const button = $(this);
+        const username = button.data('username');
+        const folder = button.data('folder');
+        let files = button.data('files');
+        
+        // Ensure files is properly parsed as an array of objects
+        if (typeof files === 'string') {
+            try {
+                files = JSON.parse(files);
+            } catch (e) {
+                console.error('Failed to parse files data:', e);
+                showNotification('Errore nel parsing dei dati file', 'error');
+                return;
+            }
+        }
+        
+        console.log('Sending files to backend:', files);
+        
+        button.prop('disabled', true).html('<i data-lucide="loader" class="me-1" style="width: 14px; height: 14px;"></i>Download...');
+
+        $.ajax({
+            url: '{{ url_for("download_album_soulseek") }}',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                username: username,
+                folder: folder,
+                files: files
+            }),
+            success: function(response) {
+                if (response.success) {
+                    showNotification(response.message, 'success');
+                } else {
+                    showNotification('Errore: ' + response.error, 'error');
+                }
+            },
+            error: function() {
+                showNotification('Errore di comunicazione con il server', 'error');
+            },
+            complete: function() {
+                button.prop('disabled', false).html('<i data-lucide="download" class="me-1" style="width: 14px; height: 14px;"></i>Scarica Album');
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        });
+    });
+
+    // Handle Deezer album download  
+    $(document).on('click', '.download-album-deezer', function() {
+        const button = $(this);
+        const albumUrl = button.data('album-url');
+        
+        button.prop('disabled', true).html('<i data-lucide="loader" class="me-1" style="width: 14px; height: 14px;"></i>Download...');
+
+        $.ajax({
+            url: '{{ url_for("download_track") }}',
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                track_id: 0, // Dummy ID per album download
+                album_url: albumUrl
+            }),
+            success: function(response) {
+                if (response.success) {
+                    showNotification('Album aggiunto alla coda di download!', 'success');
+                } else {
+                    showNotification('Errore: ' + response.error, 'error');
+                }
+            },
+            error: function() {
+                showNotification('Errore di comunicazione con il server', 'error');
+            },
+            complete: function() {
+                button.prop('disabled', false).html('<i data-lucide="download" class="me-1" style="width: 14px; height: 14px;"></i>Scarica Album');
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        });
+    });
+
+
+    // Notification polling system
+    function pollForNotifications() {
+        $.ajax({
+            url: '/get_notifications',
+            method: 'GET',
+            success: function(data) {
+                try {
+                    console.log('Polling response:', data);
+                    if (data && data.notifications && Array.isArray(data.notifications)) {
+                        data.notifications.forEach(function(notification) {
+                            console.log('Processing notification:', notification);
+                            showDownloadNotification(notification);
+                        });
+                        
+                        // Clear notifications after showing them
+                        if (data.notifications.length > 0) {
+                            $.post('/clear_notifications');
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error processing notifications:', error);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.debug('Notification polling error (normal if no notifications):', error);
+            }
+        });
+    }
+
+    // Test notification button functionality
+    $('#test-notification-btn').off('click').on('click', function() {
+        console.log('Test notification button clicked');
+        
+        // Test local notification first
+        showDownloadNotification({
+            type: 'info',
+            message: 'Test notifica manuale - funziona!',
+            details: { files_copied: 0, files_found: 3, already_existed: true }
+        });
+        
+        // Also test backend endpoint
+        $.ajax({
+            url: '/test_notification',
+            method: 'POST',
+            success: function(response) {
+                console.log('Backend test notification response:', response);
+            },
+            error: function(xhr, status, error) {
+                console.error('Backend test notification error:', error);
+            }
+        });
+    });
+
+    // Start polling for notifications every 2 seconds
+    setInterval(pollForNotifications, 2000);
+    console.log('Notification polling started');
 });
 </script>
 {% endblock %}

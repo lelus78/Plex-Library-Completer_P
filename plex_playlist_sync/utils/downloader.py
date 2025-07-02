@@ -6,6 +6,7 @@ import subprocess
 from typing import List, Dict
 import time
 import unicodedata
+import shutil
 from .soulseek import SoulseekClient
 
 def clean_url(url: str) -> str:
@@ -284,7 +285,7 @@ def find_tracks_free_search(search_query: str) -> List[Dict]:
 def _create_streamrip_config(config_path: str, deezer_arl: str):
     """Crea un file di configurazione base per streamrip con ARL di Deezer"""
     config_content = f"""[downloads]
-folder = "/app/Downloads"
+folder = "/app/downloads"
 source_subdirectories = true
 
 [downloads.artwork]
@@ -314,22 +315,145 @@ version = "2.0"
     except Exception as e:
         logging.error(f"❌ Errore nella creazione del file di configurazione streamrip: {e}")
 
+def _copy_downloaded_files_to_music_directory():
+    """Copy downloaded files from temp directory to the final music directory.
+    
+    Returns:
+        dict: Information about the copy operation
+    """
+    temp_downloads = "/app/downloads"
+    final_music_dir = "/music"
+    
+    logging.info(f"🔍 Checking for files in: {temp_downloads}")
+    
+    if not os.path.exists(temp_downloads):
+        logging.warning(f"❌ Temp downloads directory not found: {temp_downloads}")
+        return
+    
+    # List contents of temp directory for debugging
+    try:
+        temp_contents = os.listdir(temp_downloads)
+        logging.info(f"📁 Temp directory contents: {temp_contents}")
+    except Exception as e:
+        logging.error(f"❌ Cannot list temp directory: {e}")
+        return
+    
+    if not os.path.exists(final_music_dir):
+        try:
+            os.makedirs(final_music_dir, exist_ok=True)
+            logging.info(f"✅ Created final music directory: {final_music_dir}")
+        except Exception as e:
+            logging.error(f"❌ Failed to create final music directory: {e}")
+            return
+    
+    try:
+        files_found = 0
+        files_copied = 0
+        
+        # Walk through all files in temp downloads directory
+        for root, dirs, files in os.walk(temp_downloads):
+            logging.info(f"📂 Scanning directory: {root} (found {len(files)} files)")
+            for file in files:
+                files_found += 1
+                logging.info(f"📄 Found file: {file}")
+                
+                if file.lower().endswith(('.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac')):
+                    source_file = os.path.join(root, file)
+                    
+                    # Calculate relative path from temp_downloads
+                    rel_path = os.path.relpath(root, temp_downloads)
+                    if rel_path == '.':
+                        target_dir = final_music_dir
+                    else:
+                        target_dir = os.path.join(final_music_dir, rel_path)
+                    
+                    # Create target directory if it doesn't exist
+                    try:
+                        os.makedirs(target_dir, exist_ok=True)
+                        logging.debug(f"📁 Ensured target directory exists: {target_dir}")
+                    except Exception as e:
+                        logging.error(f"❌ Failed to create target directory {target_dir}: {e}")
+                        continue
+                    
+                    target_file = os.path.join(target_dir, file)
+                    
+                    # Log the target path for debugging
+                    logging.debug(f"🎯 Target file path: {target_file}")
+                    
+                    # Copy file if it doesn't already exist or if it's different
+                    if not os.path.exists(target_file):
+                        try:
+                            shutil.copy2(source_file, target_file)
+                            files_copied += 1
+                            logging.info(f"✅ Copied: {rel_path}/{file} -> {target_file}")
+                        except Exception as e:
+                            logging.error(f"❌ Failed to copy {source_file} to {target_file}: {e}")
+                    else:
+                        # Check if file actually exists and log details
+                        if os.path.exists(target_file):
+                            source_size = os.path.getsize(source_file)
+                            target_size = os.path.getsize(target_file)
+                            logging.debug(f"⚠️ File already exists: {target_file} (source: {source_size} bytes, target: {target_size} bytes)")
+                        else:
+                            logging.warning(f"🤔 Inconsistent state: os.path.exists returned True but file not found: {target_file}")
+                else:
+                    logging.debug(f"⏭️ Skipping non-audio file: {file}")
+        
+        logging.info(f"📊 Copy summary: {files_copied} files copied out of {files_found} total files found")
+        
+        # If no files were copied, provide user-friendly feedback
+        if files_copied == 0 and files_found > 0:
+            logging.info(f"ℹ️ Album already exists in your music library - no files copied")
+            logging.info(f"📁 All {files_found} audio files are already present with identical content")
+            logging.info(f"💡 This prevents duplicate downloads and saves storage space")
+        elif files_copied > 0:
+            logging.info(f"✅ Successfully added {files_copied} new files to your music library")
+        
+        # Clean up temp directory after successful copy
+        if files_copied > 0:
+            try:
+                shutil.rmtree(temp_downloads)
+                logging.info(f"🧹 Cleaned up temporary downloads directory ({files_copied} files copied)")
+            except Exception as e:
+                logging.warning(f"⚠️ Failed to clean up temp downloads: {e}")
+        elif files_found > 0:
+            # Clean up since album already exists
+            try:
+                shutil.rmtree(temp_downloads)
+                logging.info(f"🧹 Cleaned up temp directory - album was already in library")
+            except Exception as e:
+                logging.warning(f"⚠️ Failed to clean up temp downloads: {e}")
+        else:
+            logging.warning(f"⚠️ No files were copied, keeping temp directory for debugging: {temp_downloads}")
+            logging.info(f"🔍 To manually check: temp files are in {temp_downloads}, target should be {final_music_dir}")
+            
+        return {"files_copied": files_copied, "files_found": files_found}
+        
+    except Exception as e:
+        logging.error(f"❌ Error copying downloaded files: {e}")
+        import traceback
+        logging.error(f"❌ Full traceback: {traceback.format_exc()}")
+        return {"files_copied": 0, "files_found": 0}
+
 def download_single_track_with_streamrip(link: str, source: str = "Deezer"):
     """Lancia streamrip per scaricare un singolo URL.
 
     Args:
         link:  URL Deezer da scaricare.
         source: Nome della sorgente per i log.
+        
+    Returns:
+        dict: Informazioni sul risultato del download
     """
     if not link:
         logging.info("Nessun link da scaricare fornito.")
-        return
+        return {"success": False, "message": "Nessun link fornito", "files_copied": 0}
 
     # Pulisci l'URL da caratteri invisibili prima del download
     cleaned_link = clean_url(link)
     if not cleaned_link:
         logging.error("URL vuoto dopo la pulizia, download annullato.")
-        return
+        return {"success": False, "message": "URL non valido", "files_copied": 0}
 
     # Assicura che la directory temp esista
     temp_dir = "/app/state"
@@ -357,8 +481,8 @@ def download_single_track_with_streamrip(link: str, source: str = "Deezer"):
         # Crea la directory di config se non esiste
         os.makedirs(config_dir, exist_ok=True)
         
-        # Crea la directory Downloads se non esiste
-        downloads_dir = "/app/Downloads"
+        # Crea la directory downloads se non esiste
+        downloads_dir = "/app/downloads"
         os.makedirs(downloads_dir, exist_ok=True)
         
         # Controlla se esiste già un config.toml (backward compatibility)
@@ -373,12 +497,13 @@ def download_single_track_with_streamrip(link: str, source: str = "Deezer"):
             deezer_arl = os.getenv("DEEZER_ARL", "").strip()
             
             if not deezer_arl:
+                error_msg = "Configurazione Deezer mancante - ARL non trovato"
                 logging.warning(f"⚠️ Nessuna configurazione Deezer trovata - saltando download: {cleaned_link}")
                 logging.info("💡 Opzioni per abilitare i download da Deezer:")
                 logging.info("   1. Aggiungi DEEZER_ARL=your_arl_cookie nel file .env, oppure")
                 logging.info("   2. Usa il file config.toml nella directory principale")
                 logging.info("📖 Istruzioni ARL: https://github.com/nathom/streamrip/wiki/Finding-your-Deezer-ARL-Cookie")
-                return
+                return {"success": False, "message": error_msg, "files_copied": 0}
             
             # Crea file di configurazione streamrip con l'ARL dal .env
             _create_streamrip_config(config_path, deezer_arl)
@@ -387,18 +512,45 @@ def download_single_track_with_streamrip(link: str, source: str = "Deezer"):
         
         # Aggiungiamo un timeout per evitare che il processo si blocchi all'infinito
         process = subprocess.run(command, capture_output=True, text=True, check=True, encoding='utf-8', timeout=1800)
-        logging.info(f"Download di {cleaned_link} da {source} completato con successo.")
+        logging.info(f"✅ Streamrip download completed: {cleaned_link}")
         if process.stdout:
-             logging.debug(f"Output di streamrip per {cleaned_link}:\n{process.stdout}")
+             logging.info(f"📜 Streamrip output for {cleaned_link}:\n{process.stdout}")
         if process.stderr:
-             logging.warning(f"Output di warning da streamrip per {cleaned_link}:\n{process.stderr}")
+             logging.warning(f"⚠️ Streamrip warnings for {cleaned_link}:\n{process.stderr}")
+        
+        # Copy files from temp directory to final destination
+        logging.info("🔄 Starting file copy from temp to final destination...")
+        copy_result = _copy_downloaded_files_to_music_directory()
+        
+        # Return success result with copy information
+        files_copied = copy_result.get("files_copied", 0)
+        files_found = copy_result.get("files_found", 0)
+        
+        if files_copied > 0:
+            success_msg = f"Album scaricato con successo - {files_copied} nuovi file aggiunti alla libreria"
+        elif files_found > 0:
+            success_msg = f"Album già presente nella libreria - nessun file copiato (evitati {files_found} duplicati)"
+        else:
+            success_msg = "Download completato"
+            
+        return {
+            "success": True, 
+            "message": success_msg,
+            "files_copied": files_copied,
+            "files_found": files_found,
+            "already_existed": files_found > 0 and files_copied == 0
+        }
 
     except subprocess.CalledProcessError as e:
+        error_msg = f"Errore durante il download da {source}"
         logging.error(f"Errore durante l'esecuzione di streamrip per {cleaned_link}.")
         if e.stdout: logging.error(f"Output Standard (stdout):\n{e.stdout}")
         if e.stderr: logging.error(f"Output di Errore (stderr):\n{e.stderr}")
+        return {"success": False, "message": error_msg, "files_copied": 0}
     except Exception as e:
+        error_msg = f"Errore imprevisto durante il download: {str(e)}"
         logging.error(f"Un errore imprevisto è occorso durante l'avvio di streamrip per {cleaned_link}: {e}")
+        return {"success": False, "message": error_msg, "files_copied": 0}
     finally:
         if os.path.exists(temp_links_file):
             os.remove(temp_links_file)

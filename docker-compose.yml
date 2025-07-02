@@ -18,4 +18,5 @@ services:
       - ./app.py:/app/app.py
       - ${MUSIC_PATH}:/music         # ↩️ percorsa musicale locale (modifica se necessario)
       - ./config.toml:/root/.config/streamrip/config.toml
+      - E:\Docker image\slskd\downloads:/app/soulseek_downloads  # Soulseek downloads directory
     restart: on-failure

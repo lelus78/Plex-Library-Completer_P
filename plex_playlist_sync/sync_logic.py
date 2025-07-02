@@ -270,7 +270,7 @@ def force_playlist_scan_and_missing_detection():
         logger.error(f"Error during forced playlist scan: {e}", exc_info=True)
 
 
-def run_downloader_only():
+def run_downloader_only(source=None):
     """Reads missing tracks from DB and tries to download them."""
 
     logger.info("--- Starting automatic search and download for missing tracks from DB ---")

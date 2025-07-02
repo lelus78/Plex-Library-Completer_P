@@ -46,6 +46,7 @@ from plex_playlist_sync.utils.database import (
 )
 from plex_playlist_sync.utils.downloader import DeezerLinkFinder, download_single_track_with_streamrip, find_potential_tracks, find_tracks_free_search
 from plex_playlist_sync.utils.i18n import init_i18n_for_app, translate_status
+from plex_playlist_sync.utils.soulseek_post_processor import process_soulseek_downloads
 
 initialize_db()
 
@@ -56,6 +57,9 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "una-chiave-segreta-casuale-e-rob
 init_i18n_for_app(app)
 
 app_state = { "status": "In attesa", "last_sync": "Mai eseguito", "is_running": False }
+
+# Sistema di notifiche per l'interfaccia utente
+user_notifications = []
 
 # Numero massimo di tentativi per il download di una traccia
 MAX_DOWNLOAD_RETRIES = int(os.getenv("DOWNLOAD_MAX_RETRIES", 3))
@@ -77,22 +81,58 @@ def download_worker():
             link, track_id = track_info
             attempts = 0
 
-try:
-    source = "Deezer"
-    log.info(
-        f"Starting download attempt {attempts + 1}/{MAX_DOWNLOAD_RETRIES} "
-        f"from {source} for {link} (Track ID: {track_id})"
-    )
+        try:
+            source = "Deezer"
+            log.info(
+                f"Starting download attempt {attempts + 1}/{MAX_DOWNLOAD_RETRIES} "
+                f"from {source} for {link} (Track ID: {track_id})"
+            )
 
-    # passa 'source' alla funzione di download
-    download_single_track_with_streamrip(link, source=source)
-
-    # aggiorna lo stato
-    update_track_status(track_id, "downloaded", source=source)
-
-    log.info(
-        f"Download completed from {source} for {link} (Track ID: {track_id})"
-    )
+            # passa 'source' alla funzione di download
+            download_result = download_single_track_with_streamrip(link, source=source)
+            
+            if download_result and download_result.get("success"):
+                # aggiorna lo stato
+                update_track_status(track_id, "downloaded", source=source)
+                
+                # Aggiungi notifica per l'utente
+                notification = {
+                    "type": "success" if download_result.get("files_copied", 0) > 0 else "info",
+                    "message": download_result.get("message", "Download completato"),
+                    "timestamp": time.time(),
+                    "details": {
+                        "files_copied": download_result.get("files_copied", 0),
+                        "files_found": download_result.get("files_found", 0),
+                        "already_existed": download_result.get("already_existed", False)
+                    }
+                }
+                user_notifications.append(notification)
+                log.info(f"Added notification to queue: {notification}") # Debug log
+                
+                # Mantieni solo le ultime 10 notifiche
+                if len(user_notifications) > 10:
+                    user_notifications.pop(0)
+                
+                log.info(
+                    f"Download completed from {source} for {link} (Track ID: {track_id}): {download_result.get('message')}"
+                )
+            else:
+                error_msg = download_result.get("message", "Download fallito") if download_result else "Errore sconosciuto"
+                update_track_status(track_id, "failed", source=source)
+                
+                # Aggiungi notifica di errore
+                notification = {
+                    "type": "error",
+                    "message": f"Errore download: {error_msg}",
+                    "timestamp": time.time()
+                }
+                user_notifications.append(notification)
+                
+                if len(user_notifications) > 10:
+                    user_notifications.pop(0)
+                
+                log.error(f"Download failed for {link} (Track ID: {track_id}): {error_msg}")
+                return  # Non riprovare se la funzione ha restituito un errore specifico
 
         except Exception as e:
             attempts += 1
@@ -107,7 +147,18 @@ try:
                     f"Failed to download {link} (Track ID: {track_id}) after {attempts} attempts: {e}",
                     exc_info=True,
                 )
-                update_track_status(track_id, "failed")
+                update_track_status(track_id, "failed", source="Deezer")
+                
+                # Aggiungi notifica di fallimento definitivo
+                notification = {
+                    "type": "error",
+                    "message": f"Download fallito dopo {attempts} tentativi",
+                    "timestamp": time.time()
+                }
+                user_notifications.append(notification)
+                
+                if len(user_notifications) > 10:
+                    user_notifications.pop(0)
         finally:
             download_queue.task_done()
 
@@ -789,16 +840,480 @@ def search_deezer_free():
     if not query: return jsonify({"error": "Query di ricerca richiesta"}), 400
     return jsonify(find_tracks_free_search(query))
 
+@app.route('/search_album_multi_source')
+def search_album_multi_source():
+    """Ricerca album su Soulseek e Deezer per download nelle missing tracks"""
+    album_name = request.args.get('album')
+    source = request.args.get('source', 'soulseek')  # default soulseek
+    
+    if not album_name:
+        return jsonify({"error": "Nome album richiesto"}), 400
+    
+    try:
+        if source == 'soulseek':
+            return search_album_soulseek(album_name)
+        elif source == 'deezer':
+            return search_album_deezer(album_name)
+        else:
+            return jsonify({"error": "Fonte non supportata. Usa 'soulseek' o 'deezer'"}), 400
+            
+    except Exception as e:
+        log.error(f"Errore durante ricerca album '{album_name}' su {source}: {e}")
+        return jsonify({"error": f"Errore durante la ricerca: {str(e)}"}), 500
+
+def search_album_soulseek(album_name: str):
+    """Cerca album su Soulseek"""
+    from plex_playlist_sync.utils.soulseek import SoulseekClient
+    
+    client = SoulseekClient()
+    if not client.enabled:
+        return jsonify({"error": "Soulseek non è abilitato. Controlla USE_SOULSEEK nel .env"}), 400
+    
+    # Cerca l'album
+    search_id = client.search(album_name)
+    if not search_id:
+        return jsonify({"results": [], "message": f"Nessun risultato trovato per '{album_name}' su Soulseek"})
+    
+    # Attendi i risultati con polling intelligente
+    log.info(f"Waiting for Soulseek search results for '{album_name}' (intelligent polling enabled)...")
+    responses = client.wait_for_search_completion(search_id, max_wait_time=120, check_interval=3)
+    if not responses:
+        return jsonify({"results": [], "message": f"Nessun risultato disponibile per '{album_name}' su Soulseek"})
+    
+    # Filtra e formatta i risultati per album/cartelle e singole tracce
+    album_results = []
+    seen_folders = set()
+    single_tracks = []
+    
+    log.info(f"Processing {len(responses)} Soulseek responses for '{album_name}'")
+    
+    for response in responses[:15]:  # Prendi i primi 15 utenti per più opzioni
+        username = response.get("username", "Unknown")
+        files = response.get("files", [])
+        
+        log.debug(f"User '{username}' has {len(files)} files")
+        
+        # Raggruppa per cartelle (album) - supporta sia Windows (\) che Unix (/)
+        folders = {}
+        for file in files:
+            filename = file.get("filename", "")
+            
+            # Filtra file video e non audio
+            if any(ext in filename.lower() for ext in ['.mp4', '.avi', '.mkv', '.mov', '.wmv', '.flv', '.webm', '.m4v']):
+                log.debug(f"Skipping video file: {filename}")
+                continue
+                
+            # Considera solo file audio e immagini (per cover)
+            if not any(ext in filename.lower() for ext in ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma', '.jpg', '.jpeg', '.png', '.gif', '.bmp']):
+                log.debug(f"Skipping non-audio file: {filename}")
+                continue
+            
+            # Prova entrambi i separatori
+            parts = filename.replace("\\", "/").split("/")
+            
+            if len(parts) > 1:
+                folder = "/".join(parts[:-1])  # Tutto tranne il nome file
+                if folder not in folders:
+                    folders[folder] = []
+                folders[folder].append(file)
+            else:
+                # File singolo senza cartella (solo se audio)
+                if any(ext in filename.lower() for ext in ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma']):
+                    single_tracks.append({
+                        "username": username,
+                        "filename": filename,
+                        "file": file,
+                        "queue_length": response.get("queueLength", 0),
+                        "has_free_slot": response.get("hasFreeUploadSlot", False)
+                    })
+        
+        # Aggiungi cartelle che sembrano album (almeno 1 file ora, era 3)
+        for folder, folder_files in folders.items():
+            if len(folder_files) >= 1:  # Almeno 1 file (più permissivo)
+                folder_key = f"{username}|{folder}"
+                if folder_key not in seen_folders:
+                    seen_folders.add(folder_key)
+                    album_title = folder.split("/")[-1] if "/" in folder else folder
+                    # Calcola metadati aggiuntivi
+                    total_size = sum(f.get("size", 0) for f in folder_files)
+                    total_size_mb = total_size / (1024 * 1024) if total_size > 0 else 0
+                    
+                    # Rileva formati audio e qualità dettagliati
+                    audio_formats = set()
+                    quality_info = set()
+                    bitrates = []
+                    best_quality = "Unknown"
+                    
+                    for f in folder_files:
+                        filename = f.get("filename", "").lower()
+                        attrs = f.get("attributes", {})
+                        
+                        # Solo per file audio (esclude immagini)
+                        if not any(ext in filename for ext in ['.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac', '.wma']):
+                            continue
+                        
+                        # Debug logging per capire la struttura
+                        if attrs:
+                            log.debug(f"File attributes for {filename}: {attrs}")
+                            # Log specifico per campi di durata
+                            duration_fields = {k: v for k, v in attrs.items() if any(d in k.lower() for d in ['duration', 'length', 'time'])}
+                            if duration_fields:
+                                log.info(f"Duration fields found in {filename}: {duration_fields}")
+                            else:
+                                log.debug(f"No duration fields found in {filename}. Available keys: {list(attrs.keys())}")
+                        
+                        # Determina formato e qualità
+                        if any(ext in filename for ext in ['.flac', '.wav']):
+                            audio_formats.add('Lossless')
+                            if '.flac' in filename:
+                                best_quality = "FLAC"
+                            elif '.wav' in filename:
+                                best_quality = "WAV"
+                        elif any(ext in filename for ext in ['.mp3', '.m4a', '.aac']):
+                            audio_formats.add('Compressed')
+                        
+                        # Estrai bitrate e sample rate - prova diversi nomi di campo
+                        if isinstance(attrs, dict):
+                            # Prova diversi nomi possibili per bitrate
+                            bitrate = attrs.get("bitRate") or attrs.get("bitrate") or attrs.get("bit_rate") or attrs.get("Bitrate")
+                            sample_rate = attrs.get("sampleRate") or attrs.get("sample_rate") or attrs.get("SampleRate")
+                            bit_depth = attrs.get("bitDepth") or attrs.get("bit_depth") or attrs.get("BitDepth") or 16
+                            duration = attrs.get("duration") or attrs.get("length") or attrs.get("Duration") or attrs.get("Length")
+                            
+                            # Log per debug
+                            if bitrate or sample_rate or duration:
+                                log.debug(f"Parsed attributes: bitrate={bitrate}, sample_rate={sample_rate}, duration={duration}")
+                            
+                            if bitrate:
+                                bitrates.append(bitrate)
+                                
+                                # Determina qualità basata su bitrate
+                                if bitrate >= 1411:  # CD quality o superiore
+                                    quality_info.add(f"CD+ ({sample_rate/1000:.1f}kHz/{bit_depth}bit)" if sample_rate else "Lossless")
+                                    if best_quality == "Unknown":
+                                        best_quality = "FLAC" if '.flac' in filename else "CD+"
+                                elif bitrate >= 320:
+                                    quality_info.add(f"320kbps")
+                                    if best_quality == "Unknown":
+                                        best_quality = "320kbps"
+                                elif bitrate >= 256:
+                                    quality_info.add(f"256kbps")
+                                    if best_quality == "Unknown":
+                                        best_quality = "256kbps"
+                                elif bitrate >= 192:
+                                    quality_info.add(f"192kbps")
+                                    if best_quality == "Unknown":
+                                        best_quality = "192kbps"
+                                elif bitrate >= 128:
+                                    quality_info.add(f"128kbps")
+                                    if best_quality == "Unknown":
+                                        best_quality = "128kbps"
+                                else:
+                                    quality_info.add(f"{bitrate}kbps")
+                                    if best_quality == "Unknown":
+                                        best_quality = f"{bitrate}kbps"
+                    
+                    # Determina la migliore qualità per il badge
+                    if best_quality == "Unknown" and bitrates:
+                        max_bitrate = max(bitrates)
+                        if max_bitrate >= 320:
+                            best_quality = "320kbps"
+                        elif max_bitrate >= 128:
+                            best_quality = f"{max_bitrate}kbps"
+                    
+                    album_results.append({
+                        "username": username,
+                        "folder": folder,
+                        "album_title": album_title,
+                        "track_count": len(folder_files),
+                        "files": folder_files,  # Tutti i file, non solo 5
+                        "queue_length": response.get("queueLength", 0),
+                        "has_free_slot": response.get("hasFreeUploadSlot", False),
+                        "upload_speed": response.get("uploadSpeed", 0),
+                        "total_size_mb": round(total_size_mb, 2),
+                        "audio_formats": list(audio_formats),
+                        "quality_info": list(quality_info),
+                        "best_quality": best_quality,
+                        "bitrates": bitrates,
+                        "type": "album"
+                    })
+    
+    # Aggiungi anche le migliori singole tracce se non abbiamo molti album
+    if len(album_results) < 5:
+        single_tracks.sort(key=lambda x: (not x["has_free_slot"], x["queue_length"]))
+        for track in single_tracks[:10]:  # Massimo 10 singole tracce
+            file_info = track["file"]
+            file_size_mb = file_info.get("size", 0) / (1024 * 1024) if file_info.get("size") else 0
+            filename = track["filename"].lower()
+            
+            # Rileva formato e qualità per singola traccia
+            attrs = file_info.get("attributes", {})
+            best_quality = "Unknown"
+            
+            if any(ext in filename for ext in ['.flac', '.wav']):
+                audio_format = "Lossless"
+                if '.flac' in filename:
+                    best_quality = "FLAC"
+                elif '.wav' in filename:
+                    best_quality = "WAV"
+            else:
+                audio_format = "Compressed"
+                if isinstance(attrs, dict) and attrs.get("bitRate"):
+                    bitrate = attrs.get("bitRate")
+                    if bitrate >= 320:
+                        best_quality = "320kbps"
+                    elif bitrate >= 256:
+                        best_quality = "256kbps"
+                    elif bitrate >= 192:
+                        best_quality = "192kbps"
+                    elif bitrate >= 128:
+                        best_quality = "128kbps"
+                    else:
+                        best_quality = f"{bitrate}kbps"
+            
+            album_results.append({
+                "username": track["username"],
+                "folder": "",
+                "album_title": f"Single: {track['filename'].split('/')[-1]}",
+                "track_count": 1,
+                "files": [track["file"]],
+                "queue_length": track["queue_length"],
+                "has_free_slot": track["has_free_slot"],
+                "upload_speed": 0,  # Non disponibile per singole tracce
+                "total_size_mb": round(file_size_mb, 2),
+                "audio_formats": [audio_format],
+                "quality_info": [],
+                "best_quality": best_quality,
+                "bitrates": [attrs.get("bitRate", 0)] if attrs.get("bitRate") else [],
+                "type": "single"
+            })
+    
+    log.info(f"Found {len(album_results)} results ({len([r for r in album_results if r.get('type') == 'album'])} albums, {len([r for r in album_results if r.get('type') == 'single'])} singles)")
+    
+    # Ordina per qualità (slot libero e coda corta)
+    album_results.sort(key=lambda x: (not x["has_free_slot"], x["queue_length"]))
+    
+    return jsonify({
+        "results": album_results[:15],  # Massimo 15 risultati
+        "source": "soulseek",
+        "search_id": search_id,
+        "message": f"Trovati {len(album_results)} album per '{album_name}' su Soulseek"
+    })
+
+def search_album_deezer(album_name: str):
+    """Cerca album su Deezer"""
+    import requests
+    import time
+    
+    try:
+        # Cerca specificamente album su Deezer
+        search_url = f'https://api.deezer.com/search/album?q={album_name}&limit=15'
+        time.sleep(0.5)  # Rate limiting
+        response = requests.get(search_url, timeout=10)
+        
+        if response.status_code == 403:
+            return jsonify({"error": "Deezer API ha restituito 403 - accesso limitato"}), 403
+            
+        response.raise_for_status()
+        deezer_data = response.json()
+        
+        results = []
+        for album in deezer_data.get("data", []):
+            album_info = {
+                "album_id": album.get("id"),
+                "title": album.get("title"),
+                "artist": album.get("artist", {}).get("name"),
+                "cover": album.get("cover_medium"),
+                "track_count": album.get("nb_tracks", 0),
+                "release_date": album.get("release_date"),
+                "album_url": f"https://www.deezer.com/album/{album.get('id')}",
+                "preview_tracks": []  # Potresti aggiungere preview se necessario
+            }
+            results.append(album_info)
+        
+        return jsonify({
+            "results": results,
+            "source": "deezer", 
+            "message": f"Trovati {len(results)} album per '{album_name}' su Deezer"
+        })
+        
+    except Exception as e:
+        log.error(f"Errore ricerca Deezer per '{album_name}': {e}")
+        return jsonify({"error": f"Errore Deezer: {str(e)}"}), 500
+
+@app.route('/download_album_soulseek', methods=['POST'])
+def download_album_soulseek():
+    """Scarica un album completo da Soulseek"""
+    data = request.json
+    username = data.get('username')
+    folder = data.get('folder') 
+    files = data.get('files', [])
+    
+    if not username or not folder or not files:
+        return jsonify({"success": False, "error": "Dati incompleti per il download"}), 400
+    
+    from plex_playlist_sync.utils.soulseek import SoulseekClient
+    client = SoulseekClient()
+    
+    if not client.enabled:
+        return jsonify({"success": False, "error": "Soulseek non abilitato"}), 400
+    
+    # Aggiungi tutti i file alla coda di download
+    success_count = 0
+    for file in files:
+        # Handle both dict and string formats defensively
+        if isinstance(file, dict):
+            filename = file.get("filename")
+            size = file.get("size", 0)
+        elif isinstance(file, str):
+            # If file is a string, try to parse it as JSON
+            try:
+                import json
+                file_obj = json.loads(file)
+                filename = file_obj.get("filename")
+                size = file_obj.get("size", 0)
+            except (json.JSONDecodeError, AttributeError):
+                log.error(f"Failed to parse file data: {file}")
+                continue
+        else:
+            log.error(f"Unexpected file data type: {type(file)} - {file}")
+            continue
+            
+        if filename and client.queue_download(username, filename, size):
+            success_count += 1
+    
+    if success_count > 0:
+        return jsonify({
+            "success": True, 
+            "message": f"Aggiunti {success_count}/{len(files)} file alla coda Soulseek"
+        })
+    else:
+        return jsonify({
+            "success": False, 
+            "error": "Nessun file aggiunto alla coda"
+        })
+
+@app.route('/process_soulseek_downloads', methods=['POST'])
+def process_soulseek_downloads_route():
+    """Process and organize Soulseek downloads into proper folder structure"""
+    try:
+        log.info("Starting Soulseek downloads post-processing...")
+        from plex_playlist_sync.utils.soulseek_post_processor import process_soulseek_downloads as process_downloads
+        processed_files = process_downloads()
+        
+        if processed_files:
+            success_count = len([f for f in processed_files if f['status'] == 'processed'])
+            skipped_count = len([f for f in processed_files if f['status'] == 'skipped'])
+            
+            message = f"Processing completed: {success_count} files organized"
+            if skipped_count > 0:
+                message += f", {skipped_count} files skipped (already exist)"
+            
+            log.info(f"Soulseek post-processing completed: {success_count} processed, {skipped_count} skipped")
+            return jsonify({
+                "success": True,
+                "message": message,
+                "processed_count": success_count,
+                "skipped_count": skipped_count,
+                "files": processed_files
+            })
+        else:
+            return jsonify({
+                "success": True,
+                "message": "No files found to process in Soulseek downloads directory",
+                "processed_count": 0,
+                "skipped_count": 0,
+                "files": []
+            })
+            
+    except Exception as e:
+        log.error(f"Error during Soulseek post-processing: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": f"Post-processing failed: {str(e)}"
+        }), 500
+
+@app.route('/get_soulseek_processing_status')
+def get_soulseek_processing_status():
+    """Get status of Soulseek downloads and processing"""
+    try:
+        from pathlib import Path
+        
+        source_path = os.getenv("SOULSEEK_DOWNLOADS_PATH", "E:\\Docker image\\slskd\\downloads\\")
+        target_path = os.getenv("SOULSEEK_ORGANIZED_PATH", "M:\\Organizzata\\")
+        
+        # Count files in source directory
+        source_count = 0
+        audio_extensions = {'.mp3', '.flac', '.wav', '.ogg', '.m4a', '.aac'}
+        
+        if os.path.exists(source_path):
+            for root, dirs, files in os.walk(source_path):
+                for file in files:
+                    if Path(file).suffix.lower() in audio_extensions:
+                        source_count += 1
+        
+        return jsonify({
+            "success": True,
+            "source_path": source_path,
+            "target_path": target_path,
+            "source_files_count": source_count,
+            "source_path_exists": os.path.exists(source_path),
+            "target_path_exists": os.path.exists(target_path)
+        })
+        
+    except Exception as e:
+        log.error(f"Error getting Soulseek processing status: {e}", exc_info=True)
+        return jsonify({
+            "success": False,
+            "error": f"Status check failed: {str(e)}"
+        }), 500
+
 @app.route('/download_track', methods=['POST'])
 def download_track():
     data = request.json
     track_id, album_url = data.get('track_id'), data.get('album_url')
-    if not track_id or not album_url: return jsonify({"success": False, "error": "Dati incompleti."}), 400
+    if track_id is None or not album_url: return jsonify({"success": False, "error": "Dati incompleti."}), 400
     
     # Aggiungi il download alla coda, non bloccare l'UI
     download_queue.put((album_url, track_id, 0))
     log.info(f"Traccia {track_id} con URL {album_url} aggiunta alla coda di download.")
     return jsonify({"success": True, "message": "Download aggiunto alla coda."})
+
+@app.route('/get_notifications')
+def get_notifications():
+    """Endpoint per ottenere le notifiche per l'utente"""
+    # Rimuovi notifiche più vecchie di 5 minuti
+    current_time = time.time()
+    global user_notifications
+    user_notifications = [n for n in user_notifications if current_time - n['timestamp'] < 300]
+    
+    log.debug(f"Returning {len(user_notifications)} notifications to frontend") # Debug log
+    return jsonify({"notifications": user_notifications})
+
+@app.route('/clear_notifications', methods=['POST'])
+def clear_notifications():
+    """Endpoint per pulire le notifiche"""
+    global user_notifications
+    user_notifications.clear()
+    return jsonify({"success": True})
+
+@app.route('/test_notification', methods=['POST'])
+def test_notification():
+    """Endpoint per testare le notifiche"""
+    global user_notifications
+    test_notification = {
+        "type": "info",
+        "message": "Test notifica - sistema funzionante!",
+        "timestamp": time.time(),
+        "details": {
+            "files_copied": 0,
+            "files_found": 5,
+            "already_existed": True
+        }
+    }
+    user_notifications.append(test_notification)
+    log.info(f"Added test notification: {test_notification}")
+    return jsonify({"success": True, "message": "Test notification added"})
 
 
 @app.route('/get_logs')

@@ -183,6 +183,12 @@ If you want to modify the code or build locally:
 4.  **Optional Soulseek Integration**
     If you run a [slskd](https://github.com/slskd/slskd) instance you can set `USE_SOULSEEK=1` and configure `SLSKD_URL`/`SLSKD_TOKEN` in `.env`.
     Missing tracks will then be searched on Soulseek when not found on Deezer.
+    
+    **Post-Processing Setup**: Configure the download paths for automatic file organization:
+    - `SOULSEEK_DOWNLOADS_PATH`: Where slskd saves files (e.g., `E:\slskd\downloads\`)
+    - `SOULSEEK_ORGANIZED_PATH`: Where files should be organized (e.g., `M:\Organizzata\`)
+    
+    Files will be automatically reorganized from `Artist - Album\Track.mp3` to `Artist\Album\TrackNum - Title.mp3` format matching Deezer downloads.
 
 5.  **Verify Volume Paths**
     Edit `docker-compose.yml` and update the music library path:
@@ -282,9 +288,16 @@ Once running, access the web interface at:
 
 The interface provides:
 - Dashboard with sync status and statistics
-- Missing tracks management
+- Missing tracks management with album search (Soulseek & Deezer)
+- Soulseek post-processing for downloaded files organization
 - AI playlist laboratory
 - Detailed music statistics and charts
+
+**Soulseek Features in Web Interface**:
+- Album search with quality indicators (free slots, queue length)
+- One-click album downloads from Soulseek users
+- Post-processing tool to organize downloaded files into proper folder structure
+- Real-time monitoring of source and processed files count
 
 ## Environment Variables (`.env`)
 
@@ -315,6 +328,8 @@ This is the complete list of variables to configure in the `.env` file.
 | `USE_SOULSEEK`                  | Enable fallback downloads via Soulseek when Deezer fails.                                            | `0` |
 | `SLSKD_URL`                     | Base URL of your slskd instance.                                                                    | `http://localhost:5030` |
 | `SLSKD_TOKEN`                   | API token for slskd (if required).                                                                  | `my_slskd_token` |
+| `SOULSEEK_DOWNLOADS_PATH`       | Source path where slskd saves downloaded files (Windows path format).                               | `E:\\slskd\\downloads\\` |
+| `SOULSEEK_ORGANIZED_PATH`       | Target path where files should be organized (same structure as Deezer downloads).                   | `M:\\Organizzata\\` |
 
 
 ## Project Structure
