@@ -20,7 +20,7 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s -[%(levelname)s] - %(message)s",
     handlers=[
-        logging.FileHandler("plex_sync.log", mode="a", encoding="utf-8"),
+        logging.FileHandler("/app/logs/plex_sync.log", mode="a", encoding="utf-8"),
         logging.StreamHandler(sys.stdout)
     ]
 )

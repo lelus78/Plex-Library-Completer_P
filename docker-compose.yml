@@ -6,7 +6,7 @@ services:
     image: lelus78/plex-library-completer:dev   # tag locale
     container_name: plex-library-completer
     env_file:
-      - /mnt/cache/appdata/plex-completer/.env
+      - E:\Docker image\Plex-Library-Completer\.env
     environment:
       - PUID=1000
       - PGID=1000
@@ -19,7 +19,7 @@ services:
       - ./templates:/app/templates
       - ./plex_playlist_sync:/app/plex_playlist_sync
       - ./app.py:/app/app.py
-      - /mnt/cache/appdata/plex-completer/.env:/app/.env
-      - /mnt/cache/appdata/plex-completer/config.toml:/root/.config/streamrip/config.toml
-      - /mnt/remotes/SYNOLOGY_data/media/music:/music
+      - ./.env:/app/.env
+      - ./config.toml:/root/.config/streamrip/config.toml
+      - M:\Organizzata:/music
     restart: on-failure

@@ -31,7 +31,7 @@ COPY . .
 RUN mkdir -p /app/state_data /app/logs
 
 # Copy entrypoint
-COPY entrypoint.sh /entrypoint.sh
+COPY ./entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
 EXPOSE 5000
