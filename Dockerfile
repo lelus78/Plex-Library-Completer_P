@@ -1,5 +1,5 @@
 # syntax=docker/dockerfile:1
-FROM python:3.11-slim AS base
+FROM python:3.11-slim as base
 
 # ---- Metadata ----
 LABEL org.opencontainers.image.source="https://github.com/lelus78/Plex-Library-Completer_P" \
@@ -14,7 +14,10 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1
 
 # ---- System prep ----
-RUN useradd -m -u 1000 app
+RUN apt-get update && apt-get install -y --no-install-recommends \
+        ffmpeg libmagic1 gosu \
+    && rm -rf /var/lib/apt/lists/*
+
 WORKDIR /app
 
 # ---- Dependencies ----
@@ -25,20 +28,11 @@ RUN --mount=type=cache,target=/root/.cache/pip \
 # ---- Application ----
 COPY . .
 
-# Create directories with correct permissions
-RUN mkdir -p /app/state_data /app/logs && \
-    chown -R app:app /app && \
-    chmod -R 755 /app
+RUN mkdir -p /app/state_data /app/logs
 
-# Create entrypoint script for runtime permission fix
-RUN echo '#!/bin/bash\n\
-mkdir -p /app/state_data /app/logs\n\
-# Try to set permissions but ignore errors if directories are owned by root\n\
-chmod 755 /app/state_data /app/logs 2>/dev/null || true\n\
-python app.py' > /app/entrypoint.sh && \
-    chmod +x /app/entrypoint.sh && \
-    chown app:app /app/entrypoint.sh
+# Copy entrypoint
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
-USER app
 EXPOSE 5000
-ENTRYPOINT ["/app/entrypoint.sh"]
+ENTRYPOINT ["/entrypoint.sh"]

@@ -120,6 +120,8 @@ docker run -d \
   -e SPOTIFY_CLIENT_ID=your_spotify_id \
   -e SPOTIFY_CLIENT_SECRET=your_spotify_secret \
   -e GEMINI_API_KEY=your_gemini_key \
+  -e PUID=$(id -u) \
+  -e PGID=$(id -g) \
   lelus78/plex-library-completer:latest
 ```
 
@@ -138,6 +140,9 @@ services:
       - ./config.toml:/root/.config/streamrip/config.toml
     env_file:
       - .env
+    environment:
+      - PUID=1000
+      - PGID=1000
     restart: unless-stopped
 ```
 
@@ -338,6 +343,8 @@ This is the complete list of variables to configure in the `.env` file.
 | `RUN_DOWNLOADER`                | Set to `1` to enable automatic download of missing tracks.                                            | `1` (enabled)                                 |
 | `RUN_GEMINI_PLAYLIST_CREATION`  | Set to `1` to enable weekly AI playlist creation.                                                     | `1` (enabled)                                 |
 | `DEEZER_ARL`                    | Deezer ARL cookie for downloading tracks (optional). Leave empty to skip downloads.                  | `your_arl_cookie_here`                        |
+| `PUID`                          | User ID that the container should run as.                                                           | `1000`                                        |
+| `PGID`                          | Group ID that the container should run as.                                                          | `1000`                                        |
 
 ## Project Structure
 

@@ -6,6 +6,9 @@ services:
     container_name: plex-library-completer
     env_file:
       - .env
+    environment:
+      - PUID=1000
+      - PGID=1000
     ports:
       - "5000:5000"
     volumes:
@@ -18,3 +21,4 @@ services:
       - /mnt/e/Music:/music
       - ./config.toml:/root/.config/streamrip/config.toml
     restart: on-failure
+
