@@ -168,16 +168,19 @@ def build_library_index(app_state: Dict):
 def sync_playlists_for_user(plex: PlexServer, user_inputs: UserInputs):
     """Performs Spotify and Deezer synchronization for a single user."""
     if os.getenv("SKIP_SPOTIFY_SYNC", "0") != "1":
-        sp = spotipy.Spotify(
-            auth_manager=SpotifyClientCredentials(
-                client_id=user_inputs.spotipy_client_id,
-                client_secret=user_inputs.spotipy_client_secret,
+        if not user_inputs.spotify_user_id:
+            logger.error("SPOTIFY_USER_ID not configured; skipping Spotify sync")
+        else:
+            sp = spotipy.Spotify(
+                auth_manager=SpotifyClientCredentials(
+                    client_id=user_inputs.spotipy_client_id,
+                    client_secret=user_inputs.spotipy_client_secret,
+                )
             )
-        )
-        logger.info(
-            f"--- Starting Spotify sync for user {user_inputs.plex_token[:4]}... ---"
-        )
-        spotify_playlist_sync(sp, plex, user_inputs)
+            logger.info(
+                f"--- Starting Spotify sync for user {user_inputs.plex_token[:4]}... ---"
+            )
+            spotify_playlist_sync(sp, plex, user_inputs)
     
     if os.getenv("SKIP_DEEZER_SYNC", "0") != "1":
         logger.info(
