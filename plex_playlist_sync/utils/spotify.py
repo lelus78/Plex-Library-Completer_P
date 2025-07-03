@@ -79,6 +79,9 @@ def spotify_playlist_sync(
     sp: spotipy.Spotify, plex: PlexServer, userInputs: UserInputs
 ) -> None:
     """Create/Update plex playlists with playlists from spotify."""
+    if not userInputs.spotify_user_id:
+        logging.error("SPOTIFY_USER_ID not configured; skipping Spotify sync")
+        return
     # Passa userInputs alla funzione sottostante per applicare il limite
     playlists = _get_sp_user_playlists(
         sp,
