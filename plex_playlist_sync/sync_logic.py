@@ -171,16 +171,27 @@ def sync_playlists_for_user(plex: PlexServer, user_inputs: UserInputs):
         if not user_inputs.spotify_user_id:
             logger.error("SPOTIFY_USER_ID not configured; skipping Spotify sync")
         else:
-            sp = spotipy.Spotify(
-                auth_manager=SpotifyClientCredentials(
-                    client_id=user_inputs.spotipy_client_id,
-                    client_secret=user_inputs.spotipy_client_secret,
+            try:
+                # Suppress Spotipy cache warnings - token caching is not critical for sync
+                import warnings
+                warnings.filterwarnings("ignore", message="Couldn't write token to cache")
+                
+                logger.info("🎵 Initializing Spotify API connection...")
+                sp = spotipy.Spotify(
+                    auth_manager=SpotifyClientCredentials(
+                        client_id=user_inputs.spotipy_client_id,
+                        client_secret=user_inputs.spotipy_client_secret,
+                        cache_handler=None  # Disable cache to avoid warning spam
+                    )
                 )
-            )
-            logger.info(
-                f"--- Starting Spotify sync for user {user_inputs.plex_token[:4]}... ---"
-            )
-            spotify_playlist_sync(sp, plex, user_inputs)
+                logger.info(
+                    f"--- Starting Spotify sync for user {user_inputs.plex_token[:4]}... ---"
+                )
+                spotify_playlist_sync(sp, plex, user_inputs)
+                logger.info("✅ Spotify sync completed successfully")
+            except Exception as spotify_error:
+                logger.error(f"❌ Spotify sync failed: {spotify_error}")
+                logger.info("ℹ️ Continuing without Spotify sync - other features unaffected")
     
     if os.getenv("SKIP_DEEZER_SYNC", "0") != "1":
         logger.info(
