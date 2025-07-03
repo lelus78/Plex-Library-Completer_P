@@ -750,7 +750,14 @@ def refresh_managed_ai_playlists():
                             continue
                             
                         # Search for track in Plex library
-                        found_plex_track = search_plex_track(user_plex, track_title, track_artist)
+                        # Create Track object for search function
+                        track_obj = PlexTrack(
+                            title=track_title, 
+                            artist=track_artist, 
+                            album=track_data.get('album', ''),
+                            url=''
+                        )
+                        found_plex_track = search_plex_track(user_plex, track_obj)
                         
                         if found_plex_track:
                             # Track found in library
