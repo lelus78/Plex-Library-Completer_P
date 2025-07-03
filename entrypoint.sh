@@ -9,9 +9,15 @@ if ! getent group "$GROUP_ID" >/dev/null; then
     groupadd -g "$GROUP_ID" plexgrp
 fi
 
-# Create user if needed
+# Create user if needed, suppress warnings for low UIDs (common in Unraid)
 if ! id -u "$USER_ID" >/dev/null 2>&1; then
-    useradd -u "$USER_ID" -g "$GROUP_ID" -M plexusr
+    # For UIDs below 1000 (like Unraid's 99), add --system flag to suppress warnings
+    if [ "$USER_ID" -lt 1000 ]; then
+        useradd -u "$USER_ID" -g "$GROUP_ID" -M --system plexusr 2>/dev/null || \
+        useradd -u "$USER_ID" -g "$GROUP_ID" -M plexusr 2>/dev/null
+    else
+        useradd -u "$USER_ID" -g "$GROUP_ID" -M plexusr
+    fi
 fi
 
 mkdir -p /app/state_data /app/logs
