@@ -28,12 +28,10 @@ def _get_sp_user_playlists(
 
             playlists.append(
                 Playlist(
-                    id=playlist["uri"],
+                    id=playlist["id"],
                     name=playlist["name"] + suffix,
                     description=playlist.get("description", ""),
-                    poster=""
-                    if len(playlist["images"]) == 0
-                    else playlist["images"][0].get("url", ""),
+                    poster=playlist.get("images", [{}])[0].get("url", ""),
                 )
             )
     except Exception as e:
@@ -41,8 +39,32 @@ def _get_sp_user_playlists(
     return playlists
 
 
+def _get_sp_playlists_by_ids(
+    sp: spotipy.Spotify, ids: List[str], suffix: str = " - Spotify"
+) -> List[Playlist]:
+    """Fetch specific playlists by ID."""
+    playlists = []
+    for pid in ids:
+        pid = pid.strip()
+        if not pid:
+            continue
+        try:
+            pl = sp.playlist(pid)
+            playlists.append(
+                Playlist(
+                    id=pl["id"],
+                    name=pl["name"] + suffix,
+                    description=pl.get("description", ""),
+                    poster=pl.get("images", [{}])[0].get("url", ""),
+                )
+            )
+        except Exception as e:
+            logging.error(f"Error fetching playlist {pid}: {e}")
+    return playlists
+
+
 def _get_sp_tracks_from_playlist(
-    sp: spotipy.Spotify, user_id: str, playlist: Playlist
+    sp: spotipy.Spotify, playlist: Playlist
 ) -> List[Track]:
     """Return list of tracks with metadata."""
 
@@ -53,7 +75,7 @@ def _get_sp_tracks_from_playlist(
         url = track["track"]["external_urls"].get("spotify", "")
         return Track(title, artist, album, url)
 
-    sp_playlist_tracks = sp.user_playlist_tracks(user_id, playlist.id)
+    sp_playlist_tracks = sp.playlist_items(playlist.id)
 
     tracks = list(
         map(
@@ -82,18 +104,16 @@ def spotify_playlist_sync(
     if not userInputs.spotify_user_id:
         logging.error("SPOTIFY_USER_ID not configured; skipping Spotify sync")
         return
-    # Passa userInputs alla funzione sottostante per applicare il limite
-    playlists = _get_sp_user_playlists(
-        sp,
-        userInputs.spotify_user_id,
-        userInputs,
-        " - Spotify" if userInputs.append_service_suffix else "",
-    )
+
+    suffix = " - Spotify" if userInputs.append_service_suffix else ""
+    if userInputs.spotify_playlist_ids:
+        ids = userInputs.spotify_playlist_ids.split(",")
+        playlists = _get_sp_playlists_by_ids(sp, ids, suffix)
+    else:
+        playlists = _get_sp_user_playlists(sp, userInputs.spotify_user_id, userInputs, suffix)
     if playlists:
         for playlist in playlists:
-            tracks = _get_sp_tracks_from_playlist(
-                sp, userInputs.spotify_user_id, playlist
-            )
+            tracks = _get_sp_tracks_from_playlist(sp, playlist)
             update_or_create_plex_playlist(plex, playlist, tracks, userInputs)
     else:
         logging.error("No spotify playlists found for given user")

@@ -217,7 +217,7 @@ Open your browser and go to:
 
 1. **Index Your Library**: Click "Index Library" to scan your music collection
 2. **Wait for Completion**: This may take 10-30 minutes depending on library size
-3. **Configure Playlists**: Add your Spotify/Deezer playlist IDs in the `.env` file
+3. **Configure Playlists**: Add Deezer playlist IDs and, if you want only specific Spotify playlists, set `SPOTIFY_PLAYLIST_IDS` in the `.env` file
 4. **Test Sync**: Click "Start Full Sync" to test the synchronization
 
 ### Quick Test Configuration
@@ -274,6 +274,7 @@ PLEX_TOKEN=your_plex_token_here
 
 # Streaming Services
 SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_PLAYLIST_IDS=
 DEEZER_PLAYLIST_ID=123456789,987654321
 
 # AI Features
@@ -689,7 +690,7 @@ This is the complete list of variables to configure in the `.env` file.
 | `PLEX_TOKEN_USERS`              | Access token for the secondary Plex user (optional)                                                    | `secondaryUserPlexToken`                      | ❌ |
 | `DEEZER_PLAYLIST_ID`            | Numeric IDs of Deezer playlists to sync for the main user, comma-separated                           | `12345678,87654321`                           | ❌ |
 | `DEEZER_PLAYLIST_ID_SECONDARY`  | Deezer playlist IDs for the secondary user, comma-separated (optional)                               | `98765432`                                    | ❌ |
-| `SPOTIFY_PLAYLIST_IDS`          | Spotify playlist IDs to sync for main user, comma-separated                                          | `37i9dQZEVXcJZyENOWUFo7,3J9M8N6y6vSO8Ex3rR7PJM` | ❌ |
+| `SPOTIFY_PLAYLIST_IDS`          | Comma-separated list of Spotify playlist IDs to sync. Leave empty to import all playlists from `SPOTIFY_USER_ID` | `37i9dQZEVXcJZyENOWUFo7,3J9M8N6y6vSO8Ex3rR7PJM` | ❌ |
 | `GEMINI_API_KEY`                | API key obtained from Google AI Studio for AI functions                                              | `yourGeminiApiKey`                            | ❌ |
 | `PLEX_FAVORITES_PLAYLIST_ID_MAIN` | Rating Key (numeric ID) of the "favorites" Plex playlist for the main user (for AI)                 | `12345`                                       | ❌ |
 | `PLEX_FAVORITES_PLAYLIST_ID_SECONDARY` | Rating Key of the "favorites" playlist for the secondary user (optional, for AI)                   | `54321`                                       | ❌ |
