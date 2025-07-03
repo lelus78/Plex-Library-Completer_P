@@ -272,20 +272,67 @@
                 <div class="mb-3">
                     <h6 class="text-uppercase fw-bold mb-3" style="color: var(--accent-red); font-size: 0.75rem; letter-spacing: 1px;">📅 {% if current_language == 'en' %}ERAS{% else %}EPOCHE{% endif %}</h6>
                     <div class="preset-category">
-                        <div class="ai-preset-card" data-preset="80s-90s" data-category="era">
+                        <!-- 1960s -->
+                        <div class="ai-preset-card" data-preset="1960s" data-category="era">
                             <div class="preset-icon">
-                                <i data-lucide="rewind" style="width: 24px; height: 24px;"></i>
+                                <i data-lucide="flower" style="width: 24px; height: 24px; color: #FF6B6B;"></i>
                             </div>
-                            <h6 class="fw-bold mb-2">{{ _('ai_lab.eras.80s_90s') }}</h6>
-                            <p class="text-secondary small mb-0">{{ _('ai_lab.eras.80s_90s_desc') }}</p>
+                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}1960s{% else %}Anni '60{% endif %}</h6>
+                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Flower power, rock 'n' roll, Motown{% else %}Flower power, rock 'n' roll, Motown{% endif %}</p>
                         </div>
                         
+                        <!-- 1970s -->
+                        <div class="ai-preset-card" data-preset="1970s" data-category="era">
+                            <div class="preset-icon">
+                                <i data-lucide="disc" style="width: 24px; height: 24px; color: #4ECDC4;"></i>
+                            </div>
+                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}1970s{% else %}Anni '70{% endif %}</h6>
+                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Disco, funk, progressive rock{% else %}Disco, funk, rock progressive{% endif %}</p>
+                        </div>
+                        
+                        <!-- 1980s -->
+                        <div class="ai-preset-card" data-preset="1980s" data-category="era">
+                            <div class="preset-icon">
+                                <i data-lucide="zap" style="width: 24px; height: 24px; color: #FF9F43;"></i>
+                            </div>
+                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}1980s{% else %}Anni '80{% endif %}</h6>
+                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Synth-pop, new wave, MTV era{% else %}Synth-pop, new wave, era MTV{% endif %}</p>
+                        </div>
+                        
+                        <!-- 1990s -->
+                        <div class="ai-preset-card" data-preset="1990s" data-category="era">
+                            <div class="preset-icon">
+                                <i data-lucide="guitar" style="width: 24px; height: 24px; color: #A55EEA;"></i>
+                            </div>
+                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}1990s{% else %}Anni '90{% endif %}</h6>
+                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Grunge, alternative, hip-hop rise{% else %}Grunge, alternative, ascesa hip-hop{% endif %}</p>
+                        </div>
+                        
+                        <!-- 2000s -->
                         <div class="ai-preset-card" data-preset="2000s" data-category="era">
                             <div class="preset-icon">
-                                <i data-lucide="cd" style="width: 24px; height: 24px;"></i>
+                                <i data-lucide="play-circle" style="width: 24px; height: 24px; color: #26C6DA;"></i>
                             </div>
-                            <h6 class="fw-bold mb-2">{{ _('ai_lab.eras.2000s') }}</h6>
-                            <p class="text-secondary small mb-0">{{ _('ai_lab.eras.2000s_desc') }}</p>
+                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}2000s{% else %}Anni 2000{% endif %}</h6>
+                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Pop-punk, emo, R&B golden age{% else %}Pop-punk, emo, età d'oro R&B{% endif %}</p>
+                        </div>
+                        
+                        <!-- 2010s -->
+                        <div class="ai-preset-card" data-preset="2010s" data-category="era">
+                            <div class="preset-icon">
+                                <i data-lucide="smartphone" style="width: 24px; height: 24px; color: #FD79A8;"></i>
+                            </div>
+                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}2010s{% else %}Anni 2010{% endif %}</h6>
+                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}EDM boom, indie folk, streaming era{% else %}Boom EDM, indie folk, era streaming{% endif %}</p>
+                        </div>
+                        
+                        <!-- 2020s -->
+                        <div class="ai-preset-card" data-preset="2020s" data-category="era">
+                            <div class="preset-icon">
+                                <i data-lucide="headphones" style="width: 24px; height: 24px; color: #00D2D3;"></i>
+                            </div>
+                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}2020s{% else %}Anni 2020{% endif %}</h6>
+                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Hyperpop, bedroom pop, TikTok hits{% else %}Hyperpop, bedroom pop, hit TikTok{% endif %}</p>
                         </div>
                     </div>
                 </div>
@@ -334,19 +381,23 @@
                         <small class="text-secondary d-block mb-2">{{ _('ai.bot_messages.customization_prompt') }}</small>
                         <div class="d-flex flex-wrap gap-1" id="modifierPills">
                             {% if current_language == 'en' %}
-                                <span class="suggestion-pill" data-modifier="20 tracks">20 tracks</span>
-                                <span class="suggestion-pill" data-modifier="30 tracks">30 tracks</span>
+                                <span class="suggestion-pill" data-modifier="high energy">high energy</span>
+                                <span class="suggestion-pill" data-modifier="chill vibes">chill vibes</span>
                                 <span class="suggestion-pill" data-modifier="1 hour">1 hour</span>
                                 <span class="suggestion-pill" data-modifier="only hits">only hits</span>
-                                <span class="suggestion-pill" data-modifier="famous songs">famous songs</span>
+                                <span class="suggestion-pill" data-modifier="deep cuts">deep cuts</span>
                                 <span class="suggestion-pill" data-modifier="underground">underground</span>
+                                <span class="suggestion-pill" data-modifier="mix decades">mix decades</span>
+                                <span class="suggestion-pill" data-modifier="discover new">discover new</span>
                             {% else %}
-                                <span class="suggestion-pill" data-modifier="20 brani">20 brani</span>
-                                <span class="suggestion-pill" data-modifier="30 brani">30 brani</span>
+                                <span class="suggestion-pill" data-modifier="alta energia">alta energia</span>
+                                <span class="suggestion-pill" data-modifier="atmosfera rilassante">atmosfera rilassante</span>
                                 <span class="suggestion-pill" data-modifier="1 ora">1 ora</span>
                                 <span class="suggestion-pill" data-modifier="solo hit">solo hit</span>
-                                <span class="suggestion-pill" data-modifier="brani famosi">brani famosi</span>
+                                <span class="suggestion-pill" data-modifier="brani profondi">brani profondi</span>
                                 <span class="suggestion-pill" data-modifier="underground">underground</span>
+                                <span class="suggestion-pill" data-modifier="mix di decenni">mix di decenni</span>
+                                <span class="suggestion-pill" data-modifier="scopri nuovi">scopri nuovi</span>
                             {% endif %}
                         </div>
                     </div>
@@ -361,6 +412,22 @@
                             </label>
                         </div>
                         <small class="text-muted">{{ _('ai.bot_messages.charts_description') }}</small>
+                        
+                        <!-- Track Count Field -->
+                        <div class="mt-3">
+                            <label for="track_count" class="form-label">
+                                <i data-lucide="music" class="me-1" style="width: 16px; height: 16px; color: var(--accent-purple);"></i>
+                                <strong>{% if current_language == 'en' %}Number of Tracks{% else %}Numero di Brani{% endif %}</strong>
+                            </label>
+                            <input type="number" class="form-control" id="track_count" name="track_count" 
+                                   min="10" max="100" step="1" 
+                                   placeholder="{% if current_language == 'en' %}Leave empty for default (30-40){% else %}Lascia vuoto per predefinito (30-40){% endif %}"
+                                   style="max-width: 200px;">
+                            <small class="text-muted">
+                                {% if current_language == 'en' %}Specify 10-100 tracks. Empty = AI decides (30-40 tracks with more variety){% else %}Specifica 10-100 brani. Vuoto = l'AI decide (30-40 brani con più varietà){% endif %}
+                            </small>
+                        </div>
+                        
                         <div class="mt-2">
                             <button type="button" class="btn btn-sm btn-outline-info" id="previewChartsBtn">
                                 <i data-lucide="eye" style="width: 14px; height: 14px;"></i>
@@ -469,8 +536,13 @@ $(document).ready(function() {
         'rock-classics': 'Genera una playlist con 25 classici del rock di tutti i tempi. Include Led Zeppelin, Queen, AC/DC, Pink Floyd, Deep Purple e altre leggende del rock. Solo grandi successi!',
         'italian-music': 'Crea una playlist con 25 brani del meglio della musica italiana. Include cantautori, pop italiano, rock italiano e grandi classici da Battisti a Vasco Rossi.',
         'electronic': 'Genera una playlist elettronica di 20 brani con house, techno, progressive e EDM. Include sia classici che brani moderni del panorama electronic.',
-        '80s-90s': 'Crea una playlist nostalgica con 30 hit degli anni \'80 e \'90. Include new wave, synth-pop, eurodance e i grandi successi di queste due decadi.',
-        '2000s': 'Genera una playlist con 25 hit degli anni 2000. Include pop rock, alternative rock, RnB e tutti i successi che hanno definito il nuovo millennio.'
+        '1960s': 'Crea una playlist anni \'60 con rock \'n\' roll, Motown, folk rock e psychedelic. Include Beatles, Rolling Stones, Supremes e Bob Dylan che hanno rivoluzionato la musica.',
+        '1970s': 'Genera una playlist anni \'70 con disco, funk, progressive rock e glam. Include Pink Floyd, Donna Summer, Parliament-Funkadelic e David Bowie per catturare l\'essenza del decennio.',
+        '1980s': 'Crea una playlist anni \'80 con synth-pop, new wave, post-punk e early hip-hop. Include Depeche Mode, Duran Duran, The Cure e Run-DMC per l\'atmosfera MTV dell\'epoca.',
+        '1990s': 'Genera una playlist anni \'90 con grunge, alternative rock, hip-hop e R&B. Include Nirvana, Radiohead, Tupac e Whitney Houston che hanno definito il sound del decennio.',
+        '2000s': 'Crea una playlist anni 2000 con pop-punk, emo, nu-metal e R&B. Include Green Day, My Chemical Romance, Linkin Park e Beyoncé per l\'energia del nuovo millennio.',
+        '2010s': 'Genera una playlist anni 2010 con EDM, indie folk, pop e trap. Include Avicii, Mumford & Sons, Taylor Swift e Drake che hanno dominato l\'era dello streaming.',
+        '2020s': 'Crea una playlist anni 2020 con hyperpop, bedroom pop, drill e pop contemporaneo. Include 100 gecs, Clairo, artisti emergenti e i nuovi suoni della generazione Z.'
     };
     
     // Intelligent suggestions based on context

@@ -752,13 +752,14 @@ def refresh_managed_ai_playlists():
                                        f"Descrizione originale: {playlist_description}. " \
                                        f"Genera 25-30 brani che si adattano al tema della playlist."
                     
-                    # Generate new playlist content
+                    # Generate new playlist content with more tracks for variety
                     prompt = generate_playlist_prompt(
                         favorite_tracks or [],
                         custom_prompt=refresh_prompt,
                         previous_week_tracks=None,
                         include_charts_data=True,
-                        language=current_language
+                        language=current_language,
+                        requested_track_count=35  # Request more tracks for better variety
                     )
                     
                     # Get updated playlist data from Gemini

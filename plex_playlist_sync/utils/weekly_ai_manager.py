@@ -199,13 +199,13 @@ def create_new_weekly_playlist(
     
     # Generate localized prompt for new weekly playlist
     if current_language == 'en':
-        custom_prompt_text = f"Create a weekly playlist of 25 tracks for week {current_week_info['week']} of year {current_week_info['year']}. " \
-                           f"Base it on user preferences but add variety and novelty to make this specific week interesting. " \
-                           f"Include some tracks from current charts to keep the playlist up-to-date."
+        custom_prompt_text = f"Create a weekly playlist for week {current_week_info['week']} of year {current_week_info['year']}. " \
+                           f"Base it on user preferences but prioritize variety and musical discovery. " \
+                           f"Include some tracks from current charts and ensure 60-70% are different from the favorites list to encourage exploration."
     else:
-        custom_prompt_text = f"Crea una playlist settimanale di 25 brani per la settimana {current_week_info['week']} dell'anno {current_week_info['year']}. " \
-                           f"Basati sui gusti dell'utente ma aggiungi varietà e novità per rendere interessante questa settimana specifica. " \
-                           f"Includi alcuni brani dalle classifiche attuali per mantenere la playlist aggiornata."
+        custom_prompt_text = f"Crea una playlist settimanale per la settimana {current_week_info['week']} dell'anno {current_week_info['year']}. " \
+                           f"Basati sui gusti dell'utente ma prioritizza varietà e scoperta musicale. " \
+                           f"Includi alcuni brani dalle classifiche attuali e assicurati che il 60-70% siano diversi dalla lista preferiti per incoraggiare l'esplorazione."
     
     # Generate prompt for new weekly playlist with updated data
     prompt = generate_playlist_prompt(
@@ -213,7 +213,8 @@ def create_new_weekly_playlist(
         custom_prompt=custom_prompt_text,
         previous_week_tracks=previous_week_tracks,
         include_charts_data=True,
-        language=current_language
+        language=current_language,
+        requested_track_count=30  # Request 30 tracks for weekly playlists
     )
     
     # Request to Gemini

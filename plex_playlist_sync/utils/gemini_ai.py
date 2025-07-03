@@ -53,45 +53,73 @@ def get_localized_prompt_base(language: Optional[str] = None) -> str:
     lang = language or i18n.get_language()
     
     if lang == 'en':
-        return """You are an expert music curator creating playlists. Create a playlist with exactly 25 tracks based on the given information.
+        return """You are an expert music curator with vast knowledge of all genres and eras. Create a diverse, exciting playlist based on the given information.
 
-IMPORTANT FORMATTING RULES:
+CRITICAL PLAYLIST RULES:
+1. TRACK COUNT: Generate EXACTLY the number of tracks requested by the user (if specified), otherwise default to 30-40 tracks
+2. VARIETY IS KEY: Use favorites as a STARTING POINT for taste, but explore widely beyond them
+3. DISCOVERY FOCUS: 60-70% should be tracks NOT in the favorites list to encourage musical discovery
+4. GENRE EXPANSION: If user likes rock, include subgenres (indie rock, alternative, classic rock, etc.)
+5. ERA MIXING: Blend different decades while respecting the user's taste profile
+6. HIDDEN GEMS: Include some lesser-known tracks alongside popular ones
+
+MUSIC CURATION STRATEGY:
+- Favorites = taste indicators, NOT a shopping list to repeat
+- Think like a radio DJ: surprise and delight while staying true to preferences
+- Include artists similar to favorites but not necessarily the same songs
+- Add complementary genres that flow well together
+- Balance energy levels throughout the playlist
+
+FORMATTING RULES:
 1. Respond ONLY in valid JSON format
-2. Include a creative, catchy title 
-3. Add a brief description (2-3 sentences)
-4. List exactly 25 tracks with artist and title
-5. If a specific genre/style is requested, PRIORITIZE that above all else
-6. Prioritize tracks that are likely to exist in a music library
-7. When given a specific user request, fulfill it EXACTLY - ignore trends that don't match
+2. Include a creative, catchy title that reflects the playlist's unique character
+3. Add an engaging description (2-3 sentences) that explains the playlist's journey
+4. Each track must have "title" and "artist" fields
+5. Prioritize tracks likely to exist in a typical music library
+6. When given a specific request, fulfill it EXACTLY while adding creative touches
 
 JSON Format:
 {
   "title": "Creative Playlist Title",
-  "description": "Brief description of the playlist theme and vibe",
+  "description": "Brief description of the playlist theme and musical journey",
   "tracks": [
     {"artist": "Artist Name", "title": "Song Title"},
     // ... 25 tracks total
   ]
 }"""
     else:
-        return """Sei un esperto curatore musicale che crea playlist. Crea una playlist con esattamente 25 brani basata sulle informazioni fornite.
+        return """Sei un esperto curatore musicale con vasta conoscenza di tutti i generi ed epoche. Crea una playlist diversificata ed entusiasmante basata sulle informazioni fornite.
 
-REGOLE DI FORMATTAZIONE IMPORTANTI:
+REGOLE CRITICHE PER LA PLAYLIST:
+1. NUMERO BRANI: Genera ESATTAMENTE il numero di tracce richiesto dall'utente (se specificato), altrimenti 30-40 brani
+2. LA VARIETÀ È FONDAMENTALE: Usa i preferiti come PUNTO DI PARTENZA per i gusti, ma esplora ampiamente oltre di essi
+3. FOCUS SULLA SCOPERTA: 60-70% dovrebbero essere brani NON nella lista dei preferiti per incoraggiare la scoperta musicale
+4. ESPANSIONE DEI GENERI: Se l'utente ama il rock, includi sottogeneri (indie rock, alternative, classic rock, ecc.)
+5. MIXAGGIO DI EPOCHE: Mescola decenni diversi rispettando il profilo dei gusti dell'utente
+6. GEMME NASCOSTE: Includi alcuni brani meno conosciuti insieme a quelli popolari
+
+STRATEGIA DI CURATELA MUSICALE:
+- Preferiti = indicatori di gusto, NON una lista della spesa da ripetere
+- Pensa come un DJ radiofonico: sorprendi e diletta rimanendo fedele alle preferenze
+- Includi artisti simili ai preferiti ma non necessariamente le stesse canzoni
+- Aggiungi generi complementari che fluiscono bene insieme
+- Bilancia i livelli di energia in tutta la playlist
+
+REGOLE DI FORMATTAZIONE:
 1. Rispondi SOLO in formato JSON valido
-2. Includi un titolo creativo e accattivante
-3. Aggiungi una breve descrizione (2-3 frasi)
-4. Elenca esattamente 25 brani con artista e titolo
-5. Se viene richiesto un genere/stile specifico, PRIORITIZZA quello sopra tutto
-6. Prioritizza brani che probabilmente esistono in una libreria musicale
-7. Quando ricevi una richiesta specifica, soddisfala ESATTAMENTE - ignora tendenze che non corrispondono
+2. Includi un titolo creativo e accattivante che riflette il carattere unico della playlist
+3. Aggiungi una descrizione coinvolgente (2-3 frasi) che spiega il viaggio della playlist
+4. Ogni brano deve avere i campi "title" e "artist"
+5. Prioritizza brani che probabilmente esistono in una libreria musicale tipica
+6. Quando ricevi una richiesta specifica, soddisfala ESATTAMENTE aggiungendo tocchi creativi
 
 Formato JSON:
 {
   "title": "Titolo Creativo della Playlist",
-  "description": "Breve descrizione del tema e dell'atmosfera della playlist",
+  "description": "Breve descrizione del tema e del viaggio musicale della playlist",
   "tracks": [
     {"artist": "Nome Artista", "title": "Titolo Canzone"},
-    // ... 25 brani totali
+    // ... numero di brani richiesto
   ]
 }"""
 
@@ -100,7 +128,8 @@ def generate_playlist_prompt(
     custom_prompt: Optional[str] = None,
     previous_week_tracks: Optional[List[Dict]] = None,
     include_charts_data: bool = True,
-    language: Optional[str] = None
+    language: Optional[str] = None,
+    requested_track_count: Optional[int] = None
 ) -> str:
     """Crea un prompt robusto per produrre una playlist in JSON valido con dati di classifiche aggiornati."""
     tracks_str = "\n".join(favorite_tracks)
@@ -172,11 +201,21 @@ ISTRUZIONE: Usa questi dati SOLO se compatibili con la richiesta specifica dell'
             logger.warning(f"Impossibile recuperare dati musicali aggiornati: {e}")
             charts_section = ""
     
+    # Determina il numero di tracce da generare
+    if requested_track_count:
+        track_count_instruction = f"ESATTAMENTE {requested_track_count} brani"
+    else:
+        track_count_instruction = "35-40 brani"
+    
     if custom_prompt:
-        core_prompt = custom_prompt.strip()
+        # Assicurati che il prompt custom includa il numero di tracce richiesto
+        if requested_track_count and str(requested_track_count) not in custom_prompt:
+            core_prompt = f"{custom_prompt.strip()}. Genera {track_count_instruction}."
+        else:
+            core_prompt = custom_prompt.strip()
         previous_week_section = ""
     else:
-        core_prompt = "Genera una playlist completamente nuova di 50 canzoni basata sui gusti dimostrati nella lista sottostante. Includi un mix di classici e novità."
+        core_prompt = f"Genera una playlist completamente nuova di {track_count_instruction} basata sui gusti dimostrati nella lista sottostante. Prioritizza la scoperta di nuovi brani (60-70% dovrebbero essere diversi dai preferiti) mantenendo coerenza con i gusti. Includi un mix equilibrato di classici, novità, e gemme nascoste."
         if previous_week_tracks:
             previous_tracks_str = "\n".join([f"- {track['artist']} - {track['title']}" for track in previous_week_tracks])
             previous_week_section = f"""
@@ -225,12 +264,15 @@ ISTRUZIONE SPECIALE: Per creare una "storia musicale", includi nella nuova playl
         previous_week_section = previous_week_section.replace("LISTA TRACCE SETTIMANA PRECEDENTE", "PREVIOUS WEEK TRACKS")
         previous_week_section = previous_week_section.replace("ISTRUZIONE SPECIALE", "SPECIAL INSTRUCTION")
 
+    # Aggiungi enfasi sul numero di tracce al prompt finale
+    track_emphasis = f"\n🎵 CRITICAL: Generate {track_count_instruction} - this is mandatory!"
+    
     # Riordina prompt per dare priorità alla richiesta utente
     if custom_prompt:
         prompt = f"""{base_prompt}
 
 CUSTOM USER REQUEST (THIS IS THE PRIMARY GOAL):
-{custom_prompt}
+{core_prompt}{track_emphasis}
 
 {favorites_header}
 ---
@@ -240,11 +282,13 @@ CUSTOM USER REQUEST (THIS IS THE PRIMARY GOAL):
 {charts_section}
 
 {balance_note}
+
+FINAL REMINDER: Respect the exact number of tracks requested and prioritize discovery over repetition of favorites!
 """
     else:
         prompt = f"""{base_prompt}
 
-{i18n.get_translation('ai.prompts.weekly_playlist', language, week=1, year=2025)}
+{core_prompt}{track_emphasis}
 
 {favorites_header}
 ---
@@ -254,6 +298,8 @@ CUSTOM USER REQUEST (THIS IS THE PRIMARY GOAL):
 {previous_week_section}
 
 {balance_note}
+
+FINAL REMINDER: Generate the exact number of tracks specified and focus on musical discovery!
 """
     return prompt.strip()
 
@@ -326,7 +372,8 @@ def generate_on_demand_playlist(
     favorites_playlist_id: str,
     custom_prompt: Optional[str],
     selected_user_key: str,
-    include_charts_data: bool = True
+    include_charts_data: bool = True,
+    requested_track_count: Optional[int] = None
 ):
     """Genera una playlist on-demand, la crea su Plex e la salva nel DB locale."""
     logger.info(f"Generazione playlist on-demand avviata per utente {selected_user_key}…")
@@ -342,7 +389,7 @@ def generate_on_demand_playlist(
         logger.info("Detected specific genre request - minimizing chart data influence")
         include_charts_data = False
 
-    prompt = generate_playlist_prompt(favorite_tracks, custom_prompt, language='en', include_charts_data=include_charts_data)
+    prompt = generate_playlist_prompt(favorite_tracks, custom_prompt, language='en', include_charts_data=include_charts_data, requested_track_count=requested_track_count)
     playlist_data = get_gemini_playlist_data(model, prompt)
 
     if not (playlist_data and playlist_data.get("tracks") and playlist_data.get("playlist_name")):

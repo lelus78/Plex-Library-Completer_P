@@ -20,5 +20,5 @@ services:
       - ./app.py:/app/app.py
       - ./.env:/app/.env
       - ./config.toml:/root/.config/streamrip/config.toml
-      - /mnt/m/Organizzata:/music
+      - m:/Organizzata:/music
     restart: on-failure

@@ -287,9 +287,18 @@ def ai_lab():
         # Verifica se includere dati classifiche (nuovo parametro)
         include_charts = request.form.get('include_charts', 'on') == 'on'
         
+        # Ottieni il numero di tracce richiesto dall'utente
+        requested_tracks = request.form.get('track_count', '').strip()
+        track_count = None
+        if requested_tracks and requested_tracks.isdigit():
+            track_count = int(requested_tracks)
+            if track_count < 10 or track_count > 100:
+                flash("Numero di tracce deve essere tra 10 e 100. Usando valore predefinito.", "warning")
+                track_count = None
+        
         def generate_and_download_task(plex, user_inputs, fav_id, prompt, user_key):
             log.info("PHASE 1: On-demand AI playlist generation...")
-            generate_on_demand_playlist(plex, user_inputs, fav_id, prompt, user_key, include_charts_data=include_charts)
+            generate_on_demand_playlist(plex, user_inputs, fav_id, prompt, user_key, include_charts_data=include_charts, requested_track_count=track_count)
             log.info("PHASE 2: Starting automatic download...")
             download_attempted = run_downloader_only()
             
