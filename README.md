@@ -67,6 +67,7 @@ You'll need to obtain several API keys and tokens:
 2. Click "Create App"
 3. Fill in app name and description (any values work)
 4. Note down your **Client ID** and **Client Secret**
+5. Open your [Spotify Profile](https://open.spotify.com/) and copy the user ID from the URL
 
 #### 🎧 Deezer ARL (Required for downloads)
 1. Log into [Deezer](https://www.deezer.com) in your browser
@@ -682,6 +683,7 @@ This is the complete list of variables to configure in the `.env` file.
 | `LIBRARY_NAME`                  | Exact name of your music library on Plex                                                               | `Music` or `Musica`                           | ✅ |
 | `SPOTIFY_CLIENT_ID`             | Client ID obtained from Spotify for Developers dashboard                                              | `yourSpotifyClientID`                         | ✅ |
 | `SPOTIFY_CLIENT_SECRET`         | Client Secret obtained from Spotify for Developers dashboard                                          | `yourSpotifyClientSecret`                     | ✅ |
+| `SPOTIFY_USER_ID`               | User ID whose public playlists will be synced                                                         | `yourSpotifyUserID`                           | ✅ |
 | `PUID`                          | User ID that the container should run as                                                           | `1000`                                        | ✅ |
 | `PGID`                          | Group ID that the container should run as                                                          | `1000`                                        | ✅ |
 | `PLEX_TOKEN_USERS`              | Access token for the secondary Plex user (optional)                                                    | `secondaryUserPlexToken`                      | ❌ |
@@ -756,6 +758,9 @@ sudo chown -R $(id -u):$(id -g) /path/to/your/music
 SKIP_SPOTIFY_SYNC=0  # 0 = enabled, 1 = disabled
 SKIP_DEEZER_SYNC=0   # 0 = enabled, 1 = disabled
 ```
+#### ❌ Playlists not retrieved from Spotify
+**Cause**: `SPOTIFY_USER_ID` variable is missing
+**Solution**: Add your Spotify user ID to `.env`
 
 #### ❌ AI playlists not updating
 **Cause**: Missing Gemini API key or favorites playlist ID
@@ -785,7 +790,7 @@ Before starting the container, validate your setup:
 ```bash
 # Check required environment variables are set
 echo "Checking .env file..."
-required_vars=("PLEX_URL" "PLEX_TOKEN" "LIBRARY_NAME" "SPOTIFY_CLIENT_ID" "SPOTIFY_CLIENT_SECRET")
+required_vars=("PLEX_URL" "PLEX_TOKEN" "LIBRARY_NAME" "SPOTIFY_CLIENT_ID" "SPOTIFY_CLIENT_SECRET" "SPOTIFY_USER_ID")
 for var in "${required_vars[@]}"; do
     if grep -q "^${var}=" .env; then
         echo "✅ $var is set"
