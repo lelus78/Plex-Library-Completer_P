@@ -165,40 +165,110 @@
 .timeline-item:last-child:after {
     display: none;
 }
+
+/* Compact Preset Tabs */
+.preset-tabs {
+    border-bottom: 1px solid rgba(255,255,255,0.1);
+    margin-bottom: 1rem;
+}
+
+.preset-tab {
+    display: inline-block;
+    padding: 0.5rem 1rem;
+    margin-right: 0.5rem;
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: all var(--transition-fast);
+    font-size: 0.85rem;
+    font-weight: 500;
+}
+
+.preset-tab.active {
+    color: var(--spotify-green);
+    border-bottom-color: var(--spotify-green);
+}
+
+.preset-tab:hover {
+    color: var(--spotify-green);
+    background: rgba(29, 185, 84, 0.1);
+}
+
+.preset-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 0.75rem;
+}
+
+.preset-card-compact {
+    background: var(--bg-tertiary);
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: var(--radius-md);
+    padding: 0.75rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    min-height: 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+}
+
+.preset-card-compact:hover {
+    border-color: var(--spotify-green);
+    background: rgba(29, 185, 84, 0.1);
+    transform: translateY(-2px);
+}
+
+.preset-card-compact.selected {
+    border-color: var(--spotify-green);
+    background: rgba(29, 185, 84, 0.2);
+}
+
+.preset-card-compact .preset-icon {
+    margin-bottom: 0.5rem;
+}
+
+.preset-card-compact h6 {
+    font-size: 0.8rem;
+    margin-bottom: 0.25rem;
+}
+
+.preset-card-compact p {
+    font-size: 0.7rem;
+    margin-bottom: 0;
+    opacity: 0.8;
+}
+
 {% endblock %}
 
 {% block content %}
-<!-- Header Section with Modern Design -->
-<div class="d-flex align-items-center mb-4 animate-slide-up">
-    <div class="me-4">
-        <div style="width: 80px; height: 80px; background: var(--gradient-primary); border-radius: var(--radius-lg); display: flex; align-items: center; justify-content: center;">
-            <i data-lucide="brain" style="width: 40px; height: 40px; color: #000;"></i>
+<!-- Compact Header -->
+<div class="d-flex align-items-center justify-content-between mb-3 animate-slide-up">
+    <div class="d-flex align-items-center">
+        <div class="me-3" style="width: 50px; height: 50px; background: var(--gradient-primary); border-radius: var(--radius-md); display: flex; align-items: center; justify-content: center;">
+            <i data-lucide="brain" style="width: 24px; height: 24px; color: #000;"></i>
+        </div>
+        <div>
+            <h1 class="mb-1" style="font-size: 1.8rem; font-weight: 700;">{{ _('ai_lab.title') }}</h1>
+            <p class="text-secondary mb-0 small">{{ _('ai_lab.subtitle') }}</p>
         </div>
     </div>
-    <div>
-        <h1 class="mb-2" style="font-size: 2.5rem; font-weight: 700;">{{ _('ai_lab.title') }}</h1>
-        <p class="text-secondary mb-0">{{ _('ai_lab.subtitle') }}</p>
-    </div>
-</div>
-
-<!-- User Selection -->
-<div class="card mb-4 animate-slide-up" style="animation-delay: 0.1s;">
-    <div class="card-body">
-        <form class="d-flex align-items-center gap-3" id="user-filter-form" method="get" action="{{ url_for('ai_lab') }}">
-            <div class="d-flex align-items-center">
-                <i data-lucide="user" class="me-2" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
-                <label for="user-select" class="form-label mb-0 fw-medium">{{ _('ai_lab.generate_for') }}:</label>
-            </div>
-            <select name="user" id="user-select" class="form-select" style="max-width: 200px;" onchange="this.form.submit()">
-                <option value="main" {% if selected_user == 'main' %}selected{% endif %}>{{ aliases.main }}</option>
-                <option value="secondary" {% if selected_user == 'secondary' %}selected{% endif %}>{{ aliases.secondary }}</option>
-            </select>
-        </form>
-    </div>
+    
+    <!-- User Selection in Header -->
+    <form class="d-flex align-items-center gap-2" id="user-filter-form" method="get" action="{{ url_for('ai_lab') }}">
+        <i data-lucide="user" style="width: 16px; height: 16px; color: var(--spotify-green);"></i>
+        <select name="user" id="user-select" class="form-select form-select-sm" style="max-width: 150px;" onchange="this.form.submit()">
+            <option value="main" {% if selected_user == 'main' %}selected{% endif %}>{{ aliases.main }}</option>
+            <option value="secondary" {% if selected_user == 'secondary' %}selected{% endif %}>{{ aliases.secondary }}</option>
+        </select>
+    </form>
 </div>
 
 <div class="row">
-    <!-- AI Presets Section -->
+    <!-- AI Presets Section - Compact Tabbed Version -->
     <div class="col-lg-4 mb-4">
         <div class="card h-100 animate-slide-up" style="animation-delay: 0.2s;">
             <div class="card-body">
@@ -206,134 +276,99 @@
                     <i data-lucide="sparkles" class="me-3" style="width: 24px; height: 24px; color: var(--accent-yellow);"></i>
                     <h3 class="card-title mb-0">{{ _('ai_lab.preset_title') }}</h3>
                 </div>
-                <p class="text-secondary small mb-4">{{ _('ai_lab.quick_presets_desc') }}</p>
+                <p class="text-secondary small mb-3">{{ _('ai_lab.quick_presets_desc') }}</p>
                 
-                <!-- Mood Presets -->
-                <div class="mb-4">
-                    <h6 class="text-uppercase fw-bold mb-3" style="color: var(--accent-blue); font-size: 0.75rem; letter-spacing: 1px;">🎵 MOOD</h6>
-                    <div class="preset-category">
-                        <div class="ai-preset-card" data-preset="energia" data-category="mood">
-                            <div class="preset-icon">
-                                <i data-lucide="zap" style="width: 24px; height: 24px;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{{ _('ai_lab.presets.workout.title') }}</h6>
-                            <p class="text-secondary small mb-0">{{ _('ai_lab.presets.workout.description') }}</p>
-                        </div>
-                        
-                        <div class="ai-preset-card" data-preset="relax" data-category="mood">
-                            <div class="preset-icon">
-                                <i data-lucide="moon" style="width: 24px; height: 24px;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{{ _('ai_lab.presets.chill.title') }}</h6>
-                            <p class="text-secondary small mb-0">{{ _('ai_lab.presets.chill.description') }}</p>
-                        </div>
-                        
-                        <div class="ai-preset-card" data-preset="party" data-category="mood">
-                            <div class="preset-icon">
-                                <i data-lucide="party-popper" style="width: 24px; height: 24px;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{{ _('ai_lab.presets.party.title') }}</h6>
-                            <p class="text-secondary small mb-0">{{ _('ai_lab.presets.party.description') }}</p>
-                        </div>
+                <!-- Compact Preset Tabs -->
+                <div class="preset-tabs">
+                    <button class="preset-tab active" data-category="mood">
+                        🎵 {% if current_language == 'en' %}Mood{% else %}Mood{% endif %}
+                    </button>
+                    <button class="preset-tab" data-category="genre">
+                        🎸 {% if current_language == 'en' %}Genre{% else %}Generi{% endif %}
+                    </button>
+                    <button class="preset-tab" data-category="era">
+                        📅 {% if current_language == 'en' %}Era{% else %}Epoca{% endif %}
+                    </button>
+                </div>
+                
+                <!-- Mood Presets Grid -->
+                <div class="preset-grid" id="mood-presets">
+                    <div class="preset-card-compact" data-preset="energia" data-category="mood">
+                        <i data-lucide="zap" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{{ _('ai_lab.presets.workout.title') }}</h6>
+                        <p class="text-secondary">{{ _('ai_lab.presets.workout.description') }}</p>
+                    </div>
+                    
+                    <div class="preset-card-compact" data-preset="relax" data-category="mood">
+                        <i data-lucide="moon" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{{ _('ai_lab.presets.chill.title') }}</h6>
+                        <p class="text-secondary">{{ _('ai_lab.presets.chill.description') }}</p>
+                    </div>
+                    
+                    <div class="preset-card-compact" data-preset="focus" data-category="mood">
+                        <i data-lucide="brain" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{{ _('ai_lab.presets.focus.title') }}</h6>
+                        <p class="text-secondary">{{ _('ai_lab.presets.focus.description') }}</p>
+                    </div>
+                    
+                    <div class="preset-card-compact" data-preset="party" data-category="mood">
+                        <i data-lucide="party-popper" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{{ _('ai_lab.presets.party.title') }}</h6>
+                        <p class="text-secondary">{{ _('ai_lab.presets.party.description') }}</p>
                     </div>
                 </div>
                 
-                <!-- Genre Presets -->
-                <div class="mb-4">
-                    <h6 class="text-uppercase fw-bold mb-3" style="color: var(--accent-purple); font-size: 0.75rem; letter-spacing: 1px;">🎸 {% if current_language == 'en' %}GENRES{% else %}GENERI{% endif %}</h6>
-                    <div class="preset-category">
-                        <div class="ai-preset-card" data-preset="rock-classics" data-category="genre">
-                            <div class="preset-icon">
-                                <i data-lucide="guitar" style="width: 24px; height: 24px;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{{ _('ai_lab.genres.rock_classic') }}</h6>
-                            <p class="text-secondary small mb-0">{{ _('ai_lab.genres.rock_classic_desc') }}</p>
-                        </div>
-                        
-                        <div class="ai-preset-card" data-preset="italian-music" data-category="genre">
-                            <div class="preset-icon">
-                                <i data-lucide="heart" style="width: 24px; height: 24px;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{{ _('ai_lab.genres.italian_music') }}</h6>
-                            <p class="text-secondary small mb-0">{{ _('ai_lab.genres.italian_music_desc') }}</p>
-                        </div>
-                        
-                        <div class="ai-preset-card" data-preset="electronic" data-category="genre">
-                            <div class="preset-icon">
-                                <i data-lucide="radio" style="width: 24px; height: 24px;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{{ _('ai_lab.genres.electronic_edm') }}</h6>
-                            <p class="text-secondary small mb-0">{{ _('ai_lab.genres.electronic_edm_desc') }}</p>
-                        </div>
+                <!-- Genre Presets Grid -->
+                <div class="preset-grid" id="genre-presets" style="display: none;">
+                    <div class="preset-card-compact" data-preset="rock-classics" data-category="genre">
+                        <i data-lucide="guitar" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{{ _('ai_lab.genres.rock_classic') }}</h6>
+                        <p class="text-secondary">{{ _('ai_lab.genres.rock_classic_desc') }}</p>
+                    </div>
+                    
+                    <div class="preset-card-compact" data-preset="italian-music" data-category="genre">
+                        <i data-lucide="heart" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{{ _('ai_lab.genres.italian_music') }}</h6>
+                        <p class="text-secondary">{{ _('ai_lab.genres.italian_music_desc') }}</p>
+                    </div>
+                    
+                    <div class="preset-card-compact" data-preset="electronic" data-category="genre">
+                        <i data-lucide="radio" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{{ _('ai_lab.genres.electronic_edm') }}</h6>
+                        <p class="text-secondary">{{ _('ai_lab.genres.electronic_edm_desc') }}</p>
+                    </div>
+                    
+                    <div class="preset-card-compact" data-preset="jazz" data-category="genre">
+                        <i data-lucide="music" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{% if current_language == 'en' %}Jazz{% else %}Jazz{% endif %}</h6>
+                        <p class="text-secondary">{% if current_language == 'en' %}Smooth jazz and classics{% else %}Jazz raffinato e classici{% endif %}</p>
                     </div>
                 </div>
                 
-                <!-- Era Presets -->
-                <div class="mb-3">
-                    <h6 class="text-uppercase fw-bold mb-3" style="color: var(--accent-red); font-size: 0.75rem; letter-spacing: 1px;">📅 {% if current_language == 'en' %}ERAS{% else %}EPOCHE{% endif %}</h6>
-                    <div class="preset-category">
-                        <!-- 1960s -->
-                        <div class="ai-preset-card" data-preset="1960s" data-category="era">
-                            <div class="preset-icon">
-                                <i data-lucide="flower" style="width: 24px; height: 24px; color: #FF6B6B;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}1960s{% else %}Anni '60{% endif %}</h6>
-                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Flower power, rock 'n' roll, Motown{% else %}Flower power, rock 'n' roll, Motown{% endif %}</p>
-                        </div>
-                        
-                        <!-- 1970s -->
-                        <div class="ai-preset-card" data-preset="1970s" data-category="era">
-                            <div class="preset-icon">
-                                <i data-lucide="disc" style="width: 24px; height: 24px; color: #4ECDC4;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}1970s{% else %}Anni '70{% endif %}</h6>
-                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Disco, funk, progressive rock{% else %}Disco, funk, rock progressive{% endif %}</p>
-                        </div>
-                        
-                        <!-- 1980s -->
-                        <div class="ai-preset-card" data-preset="1980s" data-category="era">
-                            <div class="preset-icon">
-                                <i data-lucide="zap" style="width: 24px; height: 24px; color: #FF9F43;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}1980s{% else %}Anni '80{% endif %}</h6>
-                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Synth-pop, new wave, MTV era{% else %}Synth-pop, new wave, era MTV{% endif %}</p>
-                        </div>
-                        
-                        <!-- 1990s -->
-                        <div class="ai-preset-card" data-preset="1990s" data-category="era">
-                            <div class="preset-icon">
-                                <i data-lucide="guitar" style="width: 24px; height: 24px; color: #A55EEA;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}1990s{% else %}Anni '90{% endif %}</h6>
-                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Grunge, alternative, hip-hop rise{% else %}Grunge, alternative, ascesa hip-hop{% endif %}</p>
-                        </div>
-                        
-                        <!-- 2000s -->
-                        <div class="ai-preset-card" data-preset="2000s" data-category="era">
-                            <div class="preset-icon">
-                                <i data-lucide="play-circle" style="width: 24px; height: 24px; color: #26C6DA;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}2000s{% else %}Anni 2000{% endif %}</h6>
-                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Pop-punk, emo, R&B golden age{% else %}Pop-punk, emo, età d'oro R&B{% endif %}</p>
-                        </div>
-                        
-                        <!-- 2010s -->
-                        <div class="ai-preset-card" data-preset="2010s" data-category="era">
-                            <div class="preset-icon">
-                                <i data-lucide="smartphone" style="width: 24px; height: 24px; color: #FD79A8;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}2010s{% else %}Anni 2010{% endif %}</h6>
-                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}EDM boom, indie folk, streaming era{% else %}Boom EDM, indie folk, era streaming{% endif %}</p>
-                        </div>
-                        
-                        <!-- 2020s -->
-                        <div class="ai-preset-card" data-preset="2020s" data-category="era">
-                            <div class="preset-icon">
-                                <i data-lucide="headphones" style="width: 24px; height: 24px; color: #00D2D3;"></i>
-                            </div>
-                            <h6 class="fw-bold mb-2">{% if current_language == 'en' %}2020s{% else %}Anni 2020{% endif %}</h6>
-                            <p class="text-secondary small mb-0">{% if current_language == 'en' %}Hyperpop, bedroom pop, TikTok hits{% else %}Hyperpop, bedroom pop, hit TikTok{% endif %}</p>
-                        </div>
+                <!-- Era Presets Grid -->
+                <div class="preset-grid" id="era-presets" style="display: none;">
+                    <div class="preset-card-compact" data-preset="80s-90s" data-category="era">
+                        <i data-lucide="disc" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{{ _('ai_lab.eras.80s_90s') }}</h6>
+                        <p class="text-secondary">{{ _('ai_lab.eras.80s_90s_desc') }}</p>
+                    </div>
+                    
+                    <div class="preset-card-compact" data-preset="2000s" data-category="era">
+                        <i data-lucide="play-circle" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{{ _('ai_lab.eras.2000s') }}</h6>
+                        <p class="text-secondary">{{ _('ai_lab.eras.2000s_desc') }}</p>
+                    </div>
+                    
+                    <div class="preset-card-compact" data-preset="2010s" data-category="era">
+                        <i data-lucide="smartphone" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{% if current_language == 'en' %}2010s{% else %}Anni 2010{% endif %}</h6>
+                        <p class="text-secondary">{% if current_language == 'en' %}Streaming era hits{% else %}Hit era streaming{% endif %}</p>
+                    </div>
+                    
+                    <div class="preset-card-compact" data-preset="2020s" data-category="era">
+                        <i data-lucide="headphones" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                        <h6 class="fw-bold mb-1">{% if current_language == 'en' %}2020s{% else %}Anni 2020{% endif %}</h6>
+                        <p class="text-secondary">{% if current_language == 'en' %}Modern hits{% else %}Hit moderni{% endif %}</p>
                     </div>
                 </div>
             </div>
@@ -525,14 +560,64 @@
 {% block scripts %}
 <script>
 $(document).ready(function() {
+    // Translations for JavaScript - hardcoded based on current language
+    const translations = {
+        {% if current_language == 'en' %}
+        preset_selected_user: "I selected the preset: {preset}",
+        preset_selected_assistant: "Perfect! I've prepared an optimized prompt for {preset}. You can modify it or generate the playlist directly.",
+        suggestion_selected: "Great choice! This playlist will be perfect for your needs.",
+        generating_playlist: "🎵 Perfect! I'm generating your personalized playlist. I'll monitor the progress...",
+        waiting_scan: "⏳ Waiting 5 minutes to give Plex time to scan the new downloaded files...",
+        playlist_success: "✅ Playlist created and updated successfully! Check the tracks that were missing - they should now be in the playlist.",
+        charts_preview_user: "Charts preview request",
+        charts_loading: "🔄 Loading music data...",
+        charts_error: "❌ Error loading charts preview: {error}",
+        charts_test_error: "❌ Error during charts test.",
+        charts_data_error: "❌ Error loading charts data: {error}"
+        {% else %}
+        preset_selected_user: "Ho selezionato il preset: {preset}",
+        preset_selected_assistant: "Perfetto! Ho preparato un prompt ottimizzato per {preset}. Puoi modificarlo o generare direttamente la playlist.",
+        suggestion_selected: "Ottima scelta! Questa playlist sarà perfetta per le tue esigenze.",
+        generating_playlist: "🎵 Perfetto! Sto generando la tua playlist personalizzata. Monitorerò il progresso...",
+        waiting_scan: "⏳ Attendo 5 minuti per dare a Plex il tempo di scansionare i nuovi file scaricati...",
+        playlist_success: "✅ Playlist creata e aggiornata con successo! Controlla i brani che erano mancanti - dovrebbero ora essere presenti nella playlist.",
+        charts_preview_user: "Richiesta anteprima classifiche",
+        charts_loading: "🔄 Caricamento dati musicali in corso...",
+        charts_error: "❌ Errore nel caricamento anteprima classifiche: {error}",
+        charts_test_error: "❌ Errore durante il test delle classifiche.",
+        charts_data_error: "❌ Errore nel caricamento dati classifiche: {error}"
+        {% endif %}
+    };
+    
     let selectedPreset = null;
     let activeSuggestions = [];
     
     // Preset data with enhanced prompts
     const presetPrompts = {
+        {% if current_language == 'en' %}
+        'energia': 'Create an energetic 25-track playlist perfect for gym workouts. Include alternative rock, energetic pop and electronic dance music. Prioritize tracks with fast tempo (130+ BPM) and motivational lyrics.',
+        'relax': 'Generate a relaxing 20-track playlist for meditation and relaxation. Include ambient, acoustic, indie folk and instrumental music. Choose tracks with calming atmospheres and gentle melodies.',
+        'focus': 'Create a focus playlist of 20 tracks perfect for studying and working. Include ambient instrumental, lo-fi hip-hop, classical and minimal electronic music for concentration.',
+        'party': 'Create a party playlist of 30 tracks with the best dancefloor hits. Include pop dance, house music, reggaeton and party anthems. Perfect for getting everyone dancing!',
+        'jazz': 'Generate a sophisticated jazz playlist of 25 tracks. Include smooth jazz, bebop, swing and contemporary jazz from Miles Davis to modern artists.',
+        '80s-90s': 'Create a nostalgic playlist with 30 hits from the 80s and 90s. Include synth-pop, rock, dance and the biggest songs that defined those decades.',
+        'rock-classics': 'Generate a playlist with 25 classic rock hits of all time. Include Led Zeppelin, Queen, AC/DC, Pink Floyd, Deep Purple and other rock legends. Only great hits!',
+        'italian-music': 'Create a playlist with 25 tracks of the best Italian music. Include singer-songwriters, Italian pop, Italian rock and great classics from Battisti to Vasco Rossi.',
+        'electronic': 'Generate an electronic playlist of 20 tracks with house, techno, progressive and EDM. Include both classics and modern tracks from the electronic scene.',
+        '1960s': 'Create a \'60s playlist with rock \'n\' roll, Motown, folk rock and psychedelic. Include Beatles, Rolling Stones, Supremes and Bob Dylan who revolutionized music.',
+        '1970s': 'Generate a \'70s playlist with disco, funk, progressive rock and glam. Include Pink Floyd, Donna Summer, Parliament-Funkadelic and David Bowie to capture the essence of the decade.',
+        '1980s': 'Create an \'80s playlist with synth-pop, new wave, post-punk and early hip-hop. Include Depeche Mode, Duran Duran, The Cure and Run-DMC for the MTV atmosphere of the era.',
+        '1990s': 'Generate a \'90s playlist with grunge, alternative rock, hip-hop and R&B. Include Nirvana, Radiohead, Tupac and Whitney Houston who defined the sound of the decade.',
+        '2000s': 'Create a 2000s playlist with pop-punk, emo, nu-metal and R&B. Include Green Day, My Chemical Romance, Linkin Park and Beyoncé for the energy of the new millennium.',
+        '2010s': 'Generate a 2010s playlist with EDM, indie folk, pop and trap. Include Avicii, Mumford & Sons, Taylor Swift and Drake who dominated the streaming era.',
+        '2020s': 'Create a 2020s playlist with hyperpop, bedroom pop, drill and contemporary pop. Include 100 gecs, Clairo, emerging artists and the new sounds of generation Z.'
+        {% else %}
         'energia': 'Crea una playlist energica di 25 brani perfetta per allenarsi in palestra. Include rock alternativo, pop energico e electronic dance music. Privilegia brani con un ritmo veloce (130+ BPM) e testi motivazionali.',
         'relax': 'Genera una playlist rilassante di 20 brani per meditazione e relax. Include ambient, acoustic, indie folk e musica strumentale. Scegli brani con atmosfere calmanti e melodie dolci.',
+        'focus': 'Crea una playlist per la concentrazione di 20 brani perfetta per studiare e lavorare. Include strumentale ambient, lo-fi hip-hop, classica e electronic minimale per la concentrazione.',
         'party': 'Crea una playlist da festa di 30 brani con i migliori hit dancefloor. Include pop dance, house music, reggaeton e tormentoni italiani. Perfetta per far ballare tutti!',
+        'jazz': 'Genera una playlist jazz sofisticata di 25 brani. Include smooth jazz, bebop, swing e jazz contemporaneo da Miles Davis agli artisti moderni.',
+        '80s-90s': 'Crea una playlist nostalgica con 30 hit degli anni 80 e 90. Include synth-pop, rock, dance e le più grandi canzoni che hanno definito quei decenni.',
         'rock-classics': 'Genera una playlist con 25 classici del rock di tutti i tempi. Include Led Zeppelin, Queen, AC/DC, Pink Floyd, Deep Purple e altre leggende del rock. Solo grandi successi!',
         'italian-music': 'Crea una playlist con 25 brani del meglio della musica italiana. Include cantautori, pop italiano, rock italiano e grandi classici da Battisti a Vasco Rossi.',
         'electronic': 'Genera una playlist elettronica di 20 brani con house, techno, progressive e EDM. Include sia classici che brani moderni del panorama electronic.',
@@ -543,30 +628,56 @@ $(document).ready(function() {
         '2000s': 'Crea una playlist anni 2000 con pop-punk, emo, nu-metal e R&B. Include Green Day, My Chemical Romance, Linkin Park e Beyoncé per l\'energia del nuovo millennio.',
         '2010s': 'Genera una playlist anni 2010 con EDM, indie folk, pop e trap. Include Avicii, Mumford & Sons, Taylor Swift e Drake che hanno dominato l\'era dello streaming.',
         '2020s': 'Crea una playlist anni 2020 con hyperpop, bedroom pop, drill e pop contemporaneo. Include 100 gecs, Clairo, artisti emergenti e i nuovi suoni della generazione Z.'
+        {% endif %}
     };
     
     // Intelligent suggestions based on context
     const contextualSuggestions = {
+        {% if current_language == 'en' %}
+        workout: ['high BPM tracks', 'energetic rock', 'electronic dance', 'motivational rap'],
+        mood: ['relaxing atmosphere', 'emotional tracks', 'positive music', 'chill sounds'],
+        party: ['disco hits', 'danceable music', 'summer anthems', 'reggaeton hits'],
+        discovery: ['little known tracks', 'emerging artists', 'hidden gems', 'deep cuts'],
+        classics: ['greatest hits', 'evergreen', 'timeless classics', 'greatest hits']
+        {% else %}
         workout: ['brani ad alto BPM', 'rock energico', 'electronic dance', 'rap motivazionale'],
         mood: ['atmosfera rilassante', 'brani emotivi', 'musica positiva', 'sonorità chill'],
         party: ['hit da discoteca', 'musica ballabile', 'tormentoni estate', 'reggaeton hits'],
         discovery: ['brani poco conosciuti', 'artisti emergenti', 'hidden gems', 'deep cuts'],
         classics: ['grandi successi', 'evergreen', 'classici intramontabili', 'greatest hits']
+        {% endif %}
     };
     
     // Initialize
+    setupPresetTabs();
     setupPresetHandlers();
     setupPromptAutocomplete();
     setupModifierPills();
     setupChartsIntegration();
     
+    function setupPresetTabs() {
+        $('.preset-tab').on('click', function() {
+            const category = $(this).data('category');
+            
+            // Update tab appearance
+            $('.preset-tab').removeClass('active');
+            $(this).addClass('active');
+            
+            // Hide all preset grids
+            $('.preset-grid').hide();
+            
+            // Show selected category grid
+            $('#' + category + '-presets').show();
+        });
+    }
+    
     function setupPresetHandlers() {
-        $('.ai-preset-card').on('click', function() {
+        $('.preset-card-compact').on('click', function() {
             const preset = $(this).data('preset');
             const category = $(this).data('category');
             
             // Visual feedback
-            $('.ai-preset-card').removeClass('selected');
+            $('.preset-card-compact').removeClass('selected');
             $(this).addClass('selected');
             
             selectedPreset = preset;
@@ -576,8 +687,9 @@ $(document).ready(function() {
             $('#custom_prompt').val(promptText);
             
             // Add to chat
-            addChatMessage('user', `Ho selezionato il preset: ${$(this).find('h6').text()}`);
-            addChatMessage('assistant', `Perfetto! Ho preparato un prompt ottimizzato per ${$(this).find('h6').text().toLowerCase()}. Puoi modificarlo o generare direttamente la playlist.`);
+            const presetName = $(this).find('h6').text();
+            addChatMessage('user', translations.preset_selected_user.replace('{preset}', presetName));
+            addChatMessage('assistant', translations.preset_selected_assistant.replace('{preset}', presetName.toLowerCase()));
             
             // Show contextual suggestions
             showContextualSuggestions(category, preset);
@@ -632,7 +744,7 @@ $(document).ready(function() {
                 $('#custom_prompt').val(suggestion);
                 hidePromptSuggestions();
                 addChatMessage('user', suggestion);
-                addChatMessage('assistant', 'Ottima scelta! Questa playlist sarà perfetta per le tue esigenze.');
+                addChatMessage('assistant', translations.suggestion_selected);
             });
             container.append(item);
         });
@@ -737,7 +849,7 @@ $(document).ready(function() {
         const prompt = $('#custom_prompt').val().trim();
         if (prompt) {
             addChatMessage('user', prompt);
-            addChatMessage('assistant', '🎵 Perfetto! Sto generando la tua playlist personalizzata. Monitorerò il progresso...');
+            addChatMessage('assistant', translations.generating_playlist);
             
             // Show progress and disable button
             showProgress();
@@ -784,7 +896,7 @@ $(document).ready(function() {
                 
                 // Aggiungi messaggio specifico per l'attesa
                 if (currentStep === 4) { // Attesa scansione Plex
-                    addChatMessage('assistant', '⏳ Attendo 5 minuti per dare a Plex il tempo di scansionare i nuovi file scaricati...');
+                    addChatMessage('assistant', translations.waiting_scan);
                 }
                 
                 currentStep++;
@@ -793,7 +905,7 @@ $(document).ready(function() {
                     setTimeout(() => {
                         checkForNewPlaylist();
                         hideProgress();
-                        addChatMessage('assistant', '✅ Playlist creata e aggiornata con successo! Controlla i brani che erano mancanti - dovrebbero ora essere presenti nella playlist.');
+                        addChatMessage('assistant', translations.playlist_success);
                     }, step.duration);
                 } else {
                     setTimeout(processNextStep, step.duration);
@@ -821,8 +933,8 @@ $(document).ready(function() {
             $(this).prop('disabled', true).html('<div class="spinner-border spinner-border-sm me-1"></div>Caricamento...');
             
             // Add immediate feedback
-            addChatMessage('user', 'Richiesta anteprima classifiche');
-            addChatMessage('assistant', '🔄 Caricamento dati musicali in corso...');
+            addChatMessage('user', translations.charts_preview_user);
+            addChatMessage('assistant', translations.charts_loading);
             
             $.get('/api/music_charts_preview')
                 .done(function(data) {
@@ -831,7 +943,7 @@ $(document).ready(function() {
                 })
                 .fail(function(xhr, status, error) {
                     console.error('Charts API error:', xhr, status, error);
-                    addChatMessage('assistant', '❌ Errore nel caricamento anteprima classifiche: ' + error);
+                    addChatMessage('assistant', translations.charts_error.replace('{error}', error));
                 })
                 .always(function() {
                     $('#previewChartsBtn').prop('disabled', false).html('<i data-lucide="eye" style="width: 14px; height: 14px;"></i> Anteprima Classifiche');
@@ -851,7 +963,7 @@ $(document).ready(function() {
                     addChatMessage('assistant', message);
                 })
                 .fail(function() {
-                    addChatMessage('assistant', '❌ Errore durante il test delle classifiche.');
+                    addChatMessage('assistant', translations.charts_test_error);
                 })
                 .always(function() {
                     $('#testChartsBtn').prop('disabled', false).html('<i data-lucide="check-circle" style="width: 14px; height: 14px;"></i> Test Integrazione');
@@ -862,7 +974,7 @@ $(document).ready(function() {
     
     function showChartsPreview(data) {
         if (data.error) {
-            addChatMessage('assistant', '❌ Errore nel caricamento dati classifiche: ' + data.error);
+            addChatMessage('assistant', translations.charts_data_error.replace('{error}', data.error));
             return;
         }
         

@@ -36,7 +36,7 @@ from plex_playlist_sync.stats_generator import (
     generate_top_artists_chart, generate_duration_distribution, generate_year_trend_chart,
     get_library_statistics
 )
-from plex_playlist_sync.utils.gemini_ai import list_ai_playlists, generate_on_demand_playlist
+from plex_playlist_sync.utils.gemini_ai import list_ai_playlists, generate_on_demand_playlist, test_ai_services, get_gemini_status
 from plex_playlist_sync.utils.helperClasses import UserInputs
 from plex_playlist_sync.utils.database import (
     initialize_db, get_missing_tracks, update_track_status, get_missing_track_by_id, 
@@ -349,6 +349,85 @@ def delete_ai_playlist_route(playlist_db_id):
     
     return redirect(url_for('ai_lab', user=user_key))
 
+@app.route('/test_ai_services')
+def test_ai_services_route():
+    """Endpoint per testare la disponibilità dei servizi AI."""
+    try:
+        results = test_ai_services()
+        return jsonify({
+            "success": True,
+            "results": results,
+            "message": "Test completato"
+        })
+    except Exception as e:
+        log.error(f"Errore durante il test dei servizi AI: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e),
+            "message": "Errore durante il test"
+        }), 500
+
+@app.route('/get_notifications')
+def get_notifications_route():
+    """Endpoint per ottenere le notifiche dell'applicazione."""
+    try:
+        # Per ora restituiamo una lista vuota di notifiche
+        # In futuro si possono aggiungere notifiche reali
+        notifications = []
+        return jsonify({
+            "success": True,
+            "notifications": notifications,
+            "count": len(notifications)
+        })
+    except Exception as e:
+        log.error(f"Errore durante il recupero delle notifiche: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/gemini_status')
+def gemini_status_route():
+    """Endpoint per ottenere lo stato dettagliato di Gemini."""
+    try:
+        status = get_gemini_status()
+        return jsonify({
+            "success": True,
+            "status": status
+        })
+    except Exception as e:
+        log.error(f"Errore durante il recupero dello stato Gemini: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/simulate_gemini_error/<error_type>')
+def simulate_gemini_error_route(error_type):
+    """Endpoint per simulare errori Gemini per testing."""
+    try:
+        from plex_playlist_sync.utils.gemini_ai import gemini_state
+        
+        if error_type == "daily_limit":
+            gemini_state.record_failure("429 You exceeded your current quota, please check your plan and billing details. quota_value: 50", True)
+        elif error_type == "rate_limit":
+            gemini_state.record_failure("429 Rate limit exceeded", True)
+        elif error_type == "reset":
+            gemini_state.is_blocked = False
+            gemini_state.blocked_until = None
+            gemini_state.last_error = None
+            
+        return jsonify({
+            "success": True,
+            "message": f"Simulated {error_type} error",
+            "status": get_gemini_status()
+        })
+    except Exception as e:
+        log.error(f"Errore durante la simulazione: {e}")
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
 
 @app.route('/delete_missing_track/<int:track_id>', methods=['POST'])
 def delete_missing_track_route(track_id):

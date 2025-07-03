@@ -15,7 +15,7 @@ A comprehensive Python application, executed via Docker, that keeps your Plex mu
 
 - **🎵 Multi-Platform Synchronization**: Automatically syncs playlists from **Spotify** and **Deezer** to your Plex library
 - **👥 Multi-User Management**: Supports multiple Plex users with individual configurations and playlists
-- **🤖 AI Playlist Generation**: Uses **Google Gemini** to create personalized weekly playlists and refresh existing AI playlists
+- **🤖 AI Playlist Generation**: Uses **Google Gemini** with **Ollama fallback** to create personalized weekly playlists and refresh existing AI playlists
 - **🔍 Smart Missing Track Detection**: Identifies songs missing from your library with advanced matching algorithms
 - **⬬ Automatic Downloads**: Uses **streamrip** to download missing tracks from Deezer automatically
 - **🗑️ Automated Cleanup**: Removes old playlists while preserving important ones with protection tags
@@ -79,6 +79,33 @@ You'll need to obtain several API keys and tokens:
 1. Visit [Google AI Studio](https://aistudio.google.com/)
 2. Click "Get API Key" and create a new project
 3. Generate and copy your API key
+
+#### 🤖 Ollama AI (Optional fallback for AI playlists)
+**Ollama** serves as a local AI fallback when Gemini reaches rate limits or is unavailable.
+
+**Setup Ollama:**
+1. Install Ollama: [https://ollama.ai](https://ollama.ai)
+2. Pull a compatible model:
+   ```bash
+   ollama pull hermes3:8b
+   # or
+   ollama pull llama3.1:8b
+   ```
+3. Verify it's running:
+   ```bash
+   ollama list
+   ```
+4. Configure in `.env`:
+   ```bash
+   OLLAMA_URL=http://localhost:11434
+   OLLAMA_MODEL=hermes3:8b
+   ```
+
+**Benefits:**
+- ✅ No API rate limits
+- ✅ Works offline
+- ✅ Free to use
+- ✅ Automatic fallback when Gemini fails
 
 #### 🎬 Plex Token (Required)
 1. Open Plex in your browser

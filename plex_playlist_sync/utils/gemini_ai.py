@@ -1,7 +1,10 @@
 import os
 import logging
 import json
+import requests
+import time
 from typing import List, Dict, Optional
+from datetime import datetime, timedelta
 
 import google.generativeai as genai
 from plexapi.server import PlexServer
@@ -16,18 +19,383 @@ from .i18n import i18n, translate_genre
 # Otteniamo il logger che è già stato configurato in app.py
 logger = logging.getLogger(__name__)
 
-def configure_gemini() -> Optional[genai.GenerativeModel]:
-    """Configura e restituisce il modello Gemini se la chiave API è presente."""
+# Global state manager for Gemini availability
+class GeminiStateManager:
+    def __init__(self):
+        # Primary model state (Gemini 2.5 Flash - 250 RPD, 10 RPM)
+        self.is_blocked = False
+        self.blocked_until = None
+        self.last_error = None
+        self.consecutive_failures = 0
+        self.total_requests_today = 0
+        self.daily_limit_reached = False
+        self.last_reset_date = datetime.now().date()
+        
+        # Secondary model state (Gemini 2.0 Flash - 200 RPD, 15 RPM)
+        self.secondary_is_blocked = False
+        self.secondary_blocked_until = None
+        self.secondary_last_error = None
+        self.secondary_consecutive_failures = 0
+        self.secondary_requests_today = 0
+        self.secondary_daily_limit_reached = False
+    
+    def record_success(self, model_type: str = "primary"):
+        """Record a successful Gemini request"""
+        if model_type == "primary":
+            self.is_blocked = False
+            self.blocked_until = None
+            self.consecutive_failures = 0
+            self.total_requests_today += 1
+        else:
+            self.secondary_is_blocked = False
+            self.secondary_blocked_until = None
+            self.secondary_consecutive_failures = 0
+            self.secondary_requests_today += 1
+        
+    def record_failure(self, error_message: str, is_rate_limit: bool = False, model_type: str = "primary"):
+        """Record a failed Gemini request"""
+        if model_type == "primary":
+            self.last_error = error_message
+            self.consecutive_failures += 1
+            
+            # Check if it's a daily limit or quota error
+            if is_rate_limit or "quota" in error_message.lower() or "rate limit" in error_message.lower():
+                if "per day" in error_message.lower() or "daily" in error_message.lower():
+                    # Daily limit reached - block until tomorrow
+                    self.daily_limit_reached = True
+                    tomorrow = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+                    self.blocked_until = tomorrow
+                    logger.warning(f"🚫 Gemini 2.5 Flash daily limit reached (250 RPD). Blocked until {tomorrow}")
+                else:
+                    # Temporary rate limit - block for 1 hour
+                    self.blocked_until = datetime.now() + timedelta(hours=1)
+                    logger.warning(f"⏸️ Gemini 2.5 Flash rate limited. Blocked until {self.blocked_until}")
+            
+            self.is_blocked = True
+        else:
+            self.secondary_last_error = error_message
+            self.secondary_consecutive_failures += 1
+            
+            # Check if it's a daily limit or quota error for secondary model
+            if is_rate_limit or "quota" in error_message.lower() or "rate limit" in error_message.lower():
+                if "per day" in error_message.lower() or "daily" in error_message.lower():
+                    # Daily limit reached - block until tomorrow
+                    self.secondary_daily_limit_reached = True
+                    tomorrow = datetime.now().replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+                    self.secondary_blocked_until = tomorrow
+                    logger.warning(f"🚫 Gemini 2.0 Flash daily limit reached (200 RPD). Blocked until {tomorrow}")
+                else:
+                    # Temporary rate limit - block for 1 hour
+                    self.secondary_blocked_until = datetime.now() + timedelta(hours=1)
+                    logger.warning(f"⏸️ Gemini 2.0 Flash rate limited. Blocked until {self.secondary_blocked_until}")
+            
+            self.secondary_is_blocked = True
+    
+    def is_available(self, model_type: str = "primary") -> bool:
+        """Check if Gemini is currently available"""
+        # Reset daily counters if new day
+        if datetime.now().date() > self.last_reset_date:
+            self.daily_limit_reached = False
+            self.secondary_daily_limit_reached = False
+            self.total_requests_today = 0
+            self.secondary_requests_today = 0
+            self.last_reset_date = datetime.now().date()
+            if self.daily_limit_reached:
+                self.is_blocked = False
+                self.blocked_until = None
+            if self.secondary_daily_limit_reached:
+                self.secondary_is_blocked = False
+                self.secondary_blocked_until = None
+        
+        if model_type == "primary":
+            # Check if block period has expired for primary
+            if self.blocked_until and datetime.now() >= self.blocked_until:
+                self.is_blocked = False
+                self.blocked_until = None
+                logger.info("✅ Gemini 2.5 Flash block period expired. Service available again.")
+            
+            return not self.is_blocked
+        else:
+            # Check if block period has expired for secondary
+            if self.secondary_blocked_until and datetime.now() >= self.secondary_blocked_until:
+                self.secondary_is_blocked = False
+                self.secondary_blocked_until = None
+                logger.info("✅ Gemini 2.0 Flash block period expired. Service available again.")
+            
+            return not self.secondary_is_blocked
+    
+    def get_best_available_model(self) -> tuple[str, bool]:
+        """Get the best available Gemini model"""
+        if self.is_available("primary"):
+            return "gemini-2.5-flash", True
+        elif self.is_available("secondary"):
+            return "gemini-2.0-flash", True
+        else:
+            return None, False
+    
+    def get_status_info(self) -> Dict:
+        """Get current status information for UI"""
+        return {
+            "primary": {
+                "available": self.is_available("primary"),
+                "blocked": self.is_blocked,
+                "blocked_until": self.blocked_until.isoformat() if self.blocked_until else None,
+                "last_error": self.last_error,
+                "consecutive_failures": self.consecutive_failures,
+                "requests_today": self.total_requests_today,
+                "daily_limit_reached": self.daily_limit_reached,
+                "model": "gemini-2.5-flash"
+            },
+            "secondary": {
+                "available": self.is_available("secondary"),
+                "blocked": self.secondary_is_blocked,
+                "blocked_until": self.secondary_blocked_until.isoformat() if self.secondary_blocked_until else None,
+                "last_error": self.secondary_last_error,
+                "consecutive_failures": self.secondary_consecutive_failures,
+                "requests_today": self.secondary_requests_today,
+                "daily_limit_reached": self.secondary_daily_limit_reached,
+                "model": "gemini-2.0-flash"
+            },
+            "any_available": self.is_available("primary") or self.is_available("secondary"),
+            "best_model": self.get_best_available_model()[0]
+        }
+
+# Global instance
+gemini_state = GeminiStateManager()
+
+def configure_gemini() -> tuple[Optional[genai.GenerativeModel], str]:
+    """Configura e restituisce il miglior modello Gemini disponibile per retrocompatibilità."""
     api_key = os.getenv("GEMINI_API_KEY")
     if not api_key:
         logger.warning("GEMINI_API_KEY non trovata nel file .env. La creazione della playlist AI verrà saltata.")
-        return None
+        return None, ""
+    
+    # Get best available model
+    model_name, is_available = gemini_state.get_best_available_model()
+    
+    if not is_available:
+        logger.warning("🚫 Tutti i modelli Gemini sono temporaneamente non disponibili")
+        return None, ""
+    
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-1.5-flash')
-        return model
+        model = genai.GenerativeModel(model_name)
+        logger.info(f"✅ Configurato modello Gemini: {model_name}")
+        return model, model_name
     except Exception as e:
-        logger.error(f"Errore nella configurazione di Gemini: {e}")
+        logger.error(f"Errore nella configurazione di Gemini {model_name}: {e}")
+        model_type = "primary" if model_name == "gemini-2.5-flash" else "secondary"
+        gemini_state.record_failure(str(e), model_type=model_type)
+        return None, ""
+
+def configure_gemini_simple() -> Optional[genai.GenerativeModel]:
+    """Versione semplificata per retrocompatibilità che restituisce solo il modello."""
+    model, _ = configure_gemini()
+    return model
+
+def configure_ollama() -> bool:
+    """Verifica se Ollama è disponibile come fallback."""
+    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    ollama_model = os.getenv("OLLAMA_MODEL", "hermes3:8b")
+    
+    try:
+        # Test di connessione a Ollama
+        response = requests.get(f"{ollama_url}/api/tags", timeout=5)
+        if response.status_code == 200:
+            models = response.json().get("models", [])
+            model_names = [model["name"] for model in models]
+            if any(ollama_model in name for name in model_names):
+                logger.info(f"✅ Ollama disponibile: {ollama_model} su {ollama_url}")
+                return True
+            else:
+                logger.warning(f"⚠️ Modello {ollama_model} non trovato in Ollama. Modelli disponibili: {model_names}")
+                return False
+        else:
+            logger.warning(f"⚠️ Ollama non risponde su {ollama_url}")
+            return False
+    except Exception as e:
+        logger.warning(f"⚠️ Ollama non disponibile: {e}")
+        return False
+
+def get_gemini_status() -> Dict:
+    """Ottiene lo stato dettagliato di Gemini per l'interfaccia web."""
+    status_info = gemini_state.get_status_info()
+    
+    # Aggiungi informazioni sulla disponibilità generale
+    primary_available = status_info["primary"]["available"]
+    secondary_available = status_info["secondary"]["available"]
+    
+    # Determina lo stato generale per l'UI
+    if primary_available:
+        current_status = "available"
+        active_model = "gemini-2.5-flash"
+        blocked = False
+        blocked_until = None
+    elif secondary_available:
+        current_status = "available"
+        active_model = "gemini-2.0-flash"
+        blocked = False
+        blocked_until = None
+    else:
+        current_status = "blocked"
+        active_model = None
+        blocked = True
+        # Usa il tempo di blocco del modello primario se disponibile
+        blocked_until = status_info["primary"]["blocked_until"]
+    
+    # Aggiungi informazioni compatibili con l'UI esistente
+    status_info.update({
+        "available": current_status == "available",
+        "blocked": blocked,
+        "blocked_until": blocked_until,
+        "active_model": active_model,
+        "daily_limit_reached": status_info["primary"]["daily_limit_reached"] and status_info["secondary"]["daily_limit_reached"],
+        "last_error": status_info["primary"]["last_error"] or status_info["secondary"]["last_error"]
+    })
+    
+    return status_info
+
+def test_ai_services() -> Dict[str, bool]:
+    """Testa la disponibilità di entrambi i servizi AI (Gemini e Ollama)."""
+    results = {
+        "gemini": False,
+        "gemini_primary": False,
+        "gemini_secondary": False,
+        "ollama": False,
+        "gemini_error": None,
+        "ollama_error": None,
+        "gemini_status": get_gemini_status()
+    }
+    
+    # Test Gemini 2.5 Flash (primary)
+    try:
+        if gemini_state.is_available("primary"):
+            genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            results["gemini_primary"] = True
+            logger.info("✅ Gemini 2.5 Flash disponibile")
+        else:
+            logger.info("⚠️ Gemini 2.5 Flash temporaneamente bloccato")
+    except Exception as e:
+        logger.warning(f"⚠️ Errore test Gemini 2.5 Flash: {e}")
+    
+    # Test Gemini 2.0 Flash (secondary)
+    try:
+        if gemini_state.is_available("secondary"):
+            genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+            model = genai.GenerativeModel("gemini-2.0-flash")
+            results["gemini_secondary"] = True
+            logger.info("✅ Gemini 2.0 Flash disponibile")
+        else:
+            logger.info("⚠️ Gemini 2.0 Flash temporaneamente bloccato")
+    except Exception as e:
+        logger.warning(f"⚠️ Errore test Gemini 2.0 Flash: {e}")
+    
+    # Test generale Gemini
+    results["gemini"] = results["gemini_primary"] or results["gemini_secondary"]
+    
+    if not results["gemini"]:
+        if not gemini_state.is_available("primary") and not gemini_state.is_available("secondary"):
+            results["gemini_error"] = "Tutti i modelli Gemini sono temporaneamente bloccati per rate limits"
+        else:
+            results["gemini_error"] = "Configurazione fallita per tutti i modelli"
+    else:
+        logger.info("✅ Almeno un modello Gemini è disponibile")
+    
+    # Test Ollama
+    try:
+        if configure_ollama():
+            results["ollama"] = True
+            logger.info("✅ Ollama configurato correttamente")
+        else:
+            results["ollama_error"] = "Servizio non disponibile"
+    except Exception as e:
+        results["ollama_error"] = str(e)
+        logger.error(f"❌ Errore test Ollama: {e}")
+    
+    return results
+
+def generate_playlist_with_ollama(prompt: str, track_count: int = 25) -> Optional[Dict]:
+    """Genera una playlist usando Ollama come fallback."""
+    ollama_url = os.getenv("OLLAMA_URL", "http://localhost:11434")
+    ollama_model = os.getenv("OLLAMA_MODEL", "hermes3:8b")
+    
+    # Schema JSON per forzare il formato di output
+    json_schema = {
+        "type": "object",
+        "properties": {
+            "playlist_name": {"type": "string"},
+            "description": {"type": "string"},
+            "genre": {"type": "string"},
+            "tracks": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "title": {"type": "string"},
+                        "artist": {"type": "string"},
+                        "year": {"type": "integer"}
+                    },
+                    "required": ["title", "artist"]
+                }
+            }
+        },
+        "required": ["playlist_name", "tracks"]
+    }
+    
+    # Prompt ottimizzato per Ollama con schema JSON
+    ollama_prompt = f"""Genera una playlist di {track_count} brani basata su questa richiesta:
+{prompt}
+
+Rispondi SOLO con un JSON valido nel formato esatto:
+{{
+  "playlist_name": "Nome della playlist",
+  "description": "Breve descrizione",
+  "genre": "Genere principale",
+  "tracks": [
+    {{"title": "Titolo Canzone", "artist": "Nome Artista", "year": 2020}}
+  ]
+}}
+
+IMPORTANTE:
+- Includi ESATTAMENTE {track_count} tracce
+- JSON valido senza testo aggiuntivo
+- Diversifica gli artisti
+- Rispetta le preferenze musicali nella richiesta"""
+
+    try:
+        payload = {
+            "model": ollama_model,
+            "prompt": ollama_prompt,
+            "format": "json",
+            "stream": False,
+            "options": {
+                "temperature": 0.7,
+                "top_p": 0.9
+            }
+        }
+        
+        logger.info(f"🤖 Generando playlist con Ollama ({ollama_model})...")
+        response = requests.post(f"{ollama_url}/api/generate", json=payload, timeout=60)
+        
+        if response.status_code == 200:
+            result = response.json()
+            playlist_json = result.get("response", "")
+            
+            try:
+                playlist_data = json.loads(playlist_json)
+                logger.info(f"✅ Playlist generata con Ollama: {playlist_data.get('playlist_name', 'Senza nome')}")
+                return playlist_data
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ Errore parsing JSON da Ollama: {e}")
+                logger.debug(f"Risposta raw: {playlist_json}")
+                return None
+        else:
+            logger.error(f"❌ Errore Ollama: {response.status_code} - {response.text}")
+            return None
+            
+    except Exception as e:
+        logger.error(f"❌ Errore nella chiamata a Ollama: {e}")
         return None
 
 def get_plex_favorites_by_id(plex: PlexServer, playlist_id: str) -> Optional[List[str]]:
@@ -303,7 +671,7 @@ FINAL REMINDER: Generate the exact number of tracks specified and focus on music
 """
     return prompt.strip()
 
-def get_gemini_playlist_data(model: genai.GenerativeModel, prompt: str) -> Optional[Dict]:
+def get_gemini_playlist_data(model: genai.GenerativeModel, prompt: str, model_name: str = "gemini-1.5-flash") -> Optional[Dict]:
     """Invia il prompt a Gemini e restituisce il JSON parsificato."""
     logger.info("Invio richiesta a Gemini per la creazione della playlist...")
     try:
@@ -347,16 +715,26 @@ def get_gemini_playlist_data(model: genai.GenerativeModel, prompt: str) -> Optio
             'title': title
         }
         
-        logger.info(f"Playlist generata da Gemini: '{title}' con {len(tracks)} tracce")
+        logger.info(f"Playlist generata da {model_name}: '{title}' con {len(tracks)} tracce")
+        model_type = "primary" if model_name == "gemini-2.5-flash" else "secondary"
+        gemini_state.record_success(model_type)  # Record successful request
         return normalized_data
         
     except json.JSONDecodeError as e:
-        logger.error(f"Errore parsing JSON: {e}")
+        logger.error(f"Errore parsing JSON da {model_name}: {e}")
         logger.error(f"JSON che ha causato l'errore:\n{json_str if 'json_str' in locals() else 'Non disponibile'}")
+        model_type = "primary" if model_name == "gemini-2.5-flash" else "secondary"
+        gemini_state.record_failure(f"JSON parsing error: {e}", model_type=model_type)
         return None
     except Exception as e:
-        logger.error(f"Errore nel parsing della risposta di Gemini: {e}")
+        error_msg = str(e)
+        logger.error(f"Errore nel parsing della risposta di {model_name}: {error_msg}")
         logger.error(f"Risposta ricevuta:\n{response.text if 'response' in locals() else 'Nessuna risposta ricevuta'}")
+        
+        # Check if it's a rate limit error
+        is_rate_limit = "429" in error_msg or "quota" in error_msg.lower() or "rate limit" in error_msg.lower()
+        model_type = "primary" if model_name == "gemini-2.5-flash" else "secondary"
+        gemini_state.record_failure(error_msg, is_rate_limit, model_type)
         return None
 
 def list_ai_playlists(plex: PlexServer) -> List[Dict]:
@@ -378,11 +756,14 @@ def generate_on_demand_playlist(
     """Genera una playlist on-demand, la crea su Plex e la salva nel DB locale."""
     logger.info(f"Generazione playlist on-demand avviata per utente {selected_user_key}…")
 
-    model = configure_gemini()
-    if not model: return False
-
+    # Implementa cascading fallback: Gemini 1.5-flash → Gemini 1.5-pro → Ollama
+    playlist_data = None
+    
+    # Ottieni i preferiti una volta sola
     favorite_tracks = get_plex_favorites_by_id(plex, favorites_playlist_id)
-    if not favorite_tracks: return False
+    if not favorite_tracks: 
+        logger.error("❌ Impossibile recuperare i preferiti dall'utente")
+        return False
 
     # Per richieste specifiche, riduci l'influenza dei chart data
     if custom_prompt and any(keyword in custom_prompt.lower() for keyword in ['anime', 'giapponesi', 'japanese', 'k-pop', 'metal', 'classical', 'jazz', 'blues']):
@@ -390,11 +771,58 @@ def generate_on_demand_playlist(
         include_charts_data = False
 
     prompt = generate_playlist_prompt(favorite_tracks, custom_prompt, language='en', include_charts_data=include_charts_data, requested_track_count=requested_track_count)
-    playlist_data = get_gemini_playlist_data(model, prompt)
-
-    if not (playlist_data and playlist_data.get("tracks") and playlist_data.get("playlist_name")):
-        logger.error("Dati playlist Gemini mancanti o non validi.")
-        return False
+    
+    # Step 1: Prova con Gemini 2.5 Flash (primary model - 250 RPD, 10 RPM)
+    if gemini_state.is_available("primary"):
+        logger.info("🔄 Tentativo con Gemini 2.5 Flash...")
+        try:
+            genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+            model = genai.GenerativeModel("gemini-2.5-flash")
+            playlist_data = get_gemini_playlist_data(model, prompt, "gemini-2.5-flash")
+            
+            if playlist_data and playlist_data.get("tracks") and playlist_data.get("playlist_name"):
+                logger.info("✅ Playlist generata con successo usando Gemini 2.5 Flash")
+            else:
+                raise Exception("Dati playlist Gemini 2.5 Flash mancanti o non validi")
+        except Exception as e:
+            logger.warning(f"⚠️ Gemini 2.5 Flash fallito: {e}")
+            playlist_data = None
+    
+    # Step 2: Fallback su Gemini 2.0 Flash (secondary model - 200 RPD, 15 RPM)
+    if not playlist_data and gemini_state.is_available("secondary"):
+        logger.info("🔄 Tentativo con Gemini 2.0 Flash...")
+        try:
+            genai.configure(api_key=os.getenv("GEMINI_API_KEY"))
+            model = genai.GenerativeModel("gemini-2.0-flash")
+            playlist_data = get_gemini_playlist_data(model, prompt, "gemini-2.0-flash")
+            
+            if playlist_data and playlist_data.get("tracks") and playlist_data.get("playlist_name"):
+                logger.info("✅ Playlist generata con successo usando Gemini 2.0 Flash")
+            else:
+                raise Exception("Dati playlist Gemini 2.0 Flash mancanti o non validi")
+        except Exception as e:
+            logger.warning(f"⚠️ Gemini 2.0 Flash fallito: {e}")
+            playlist_data = None
+    
+    # Step 3: Fallback finale su Ollama
+    if not playlist_data:
+        if configure_ollama():
+            logger.info("🤖 Usando Ollama come fallback finale per la generazione playlist...")
+            
+            # Semplifica il prompt per Ollama
+            simple_prompt = custom_prompt if custom_prompt else "Genera una playlist di musica popolare varia e bilanciata"
+            track_count = requested_track_count if requested_track_count else 25
+            
+            playlist_data = generate_playlist_with_ollama(simple_prompt, track_count)
+            
+            if playlist_data and playlist_data.get("tracks") and playlist_data.get("playlist_name"):
+                logger.info("✅ Playlist generata con successo usando Ollama")
+            else:
+                logger.error("❌ Anche Ollama ha fallito nella generazione della playlist")
+                return False
+        else:
+            logger.error("❌ Tutti i servizi AI sono non disponibili (Gemini 2.5 Flash, Gemini 2.0 Flash, Ollama)")
+            return False
 
     new_playlist_obj = PlexPlaylist(
         id=None,

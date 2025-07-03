@@ -422,7 +422,7 @@ def run_full_sync_cycle():
         {"name": "secondary user", "token": os.getenv("PLEX_TOKEN_USERS"), "favorites_id": os.getenv("PLEX_FAVORITES_PLAYLIST_ID_SECONDARY")}
     ]
     
-    gemini_model = configure_gemini() if RUN_GEMINI_PLAYLIST_CREATION else None
+    gemini_model, gemini_model_name = configure_gemini() if RUN_GEMINI_PLAYLIST_CREATION else (None, "")
     
     for user_config in user_configs:
         token = user_config["token"]
@@ -629,23 +629,18 @@ def auto_update_ai_playlists(plex, updated_tracks):
 
 def refresh_managed_ai_playlists():
     """
-    Refreshes managed AI playlists by regenerating them with new content from the library.
-    This ensures that AI playlists like 'Reggae Vibes' get updated with new tracks.
+    Refreshes managed AI playlists by rescanning existing tracks from the database.
+    This avoids wasting Gemini API calls and only searches for missing tracks from already generated playlists.
     """
-    logger.info("🔄 Refreshing managed AI playlists with new library content...")
+    logger.info("🔄 Rescanning managed AI playlists for missing tracks...")
     
     try:
         from .utils.database import get_managed_ai_playlists_for_user
-        from .utils.gemini_ai import configure_gemini, generate_playlist_prompt, get_gemini_playlist_data
-        from .utils.plex import update_or_create_plex_playlist
+        from .utils.plex import update_or_create_plex_playlist, search_plex_track
         from .utils.helperClasses import Playlist as PlexPlaylist, Track as PlexTrack, UserInputs
-        from .utils.i18n import i18n
+        import json
         
-        # Configure Gemini
-        model = configure_gemini()
-        if not model:
-            logger.warning("⚠️ Gemini not configured, skipping AI playlists refresh")
-            return
+        # NO GEMINI CALLS - just rescan existing tracks from database
         
         # Prepare connections for both users
         plex_url = os.getenv("PLEX_URL")
@@ -696,13 +691,7 @@ def refresh_managed_ai_playlists():
                 spotify_categories=[], country=os.getenv("COUNTRY")
             )
         
-        # Get current language (default to 'en' for background tasks)
-        try:
-            current_language = i18n.get_language()
-        except RuntimeError:
-            current_language = 'en'
-        
-        refreshed_count = 0
+        rescanned_count = 0
         
         # Process each user's managed AI playlists
         for user_type in ['main', 'secondary']:
@@ -728,93 +717,124 @@ def refresh_managed_ai_playlists():
                     logger.info(f"⏭️ Skipping weekly playlist: '{playlist_title}'")
                     continue
                 
-                logger.info(f"🎵 Refreshing AI playlist: '{playlist_title}' for user {user_type}")
+                logger.info(f"🔍 Rescanning AI playlist: '{playlist_title}' for user {user_type}")
                 
                 try:
-                    # Get current favorites for context (use appropriate favorites playlist)
-                    favorites_playlist_id = os.getenv("PLEX_FAVORITES_PLAYLIST_ID_MAIN") if user_type == 'main' else os.getenv("PLEX_FAVORITES_PLAYLIST_ID_SECONDARY")
+                    # Get the original tracklist from database (NO GEMINI CALLS!)
+                    original_tracklist = []
+                    if 'tracklist_json' in playlist_data:
+                        try:
+                            original_tracklist = json.loads(playlist_data['tracklist_json'])
+                            logger.info(f"📋 Found {len(original_tracklist)} tracks in database for '{playlist_title}'")
+                        except (json.JSONDecodeError, TypeError) as e:
+                            logger.warning(f"⚠️ Could not parse tracklist for '{playlist_title}': {e}")
+                            continue
                     
-                    if favorites_playlist_id:
-                        from .utils.weekly_ai_manager import read_no_delete_playlist_for_taste_analysis
-                        favorite_tracks = read_no_delete_playlist_for_taste_analysis(user_plex, favorites_playlist_id)
-                    else:
-                        favorite_tracks = []
-                    
-                    # Create refresh prompt with original playlist context
-                    if current_language == 'en':
-                        refresh_prompt = f"Refresh and update the playlist '{playlist_title}' with new tracks from the music library. " \
-                                       f"Maintain the original theme and style but add fresh content. " \
-                                       f"Original description: {playlist_description}. " \
-                                       f"Generate 25-30 tracks that fit the playlist theme."
-                    else:
-                        refresh_prompt = f"Aggiorna e rinnova la playlist '{playlist_title}' con nuovi brani dalla libreria musicale. " \
-                                       f"Mantieni il tema e lo stile originale ma aggiungi contenuti freschi. " \
-                                       f"Descrizione originale: {playlist_description}. " \
-                                       f"Genera 25-30 brani che si adattano al tema della playlist."
-                    
-                    # Generate new playlist content with more tracks for variety
-                    prompt = generate_playlist_prompt(
-                        favorite_tracks or [],
-                        custom_prompt=refresh_prompt,
-                        previous_week_tracks=None,
-                        include_charts_data=True,
-                        language=current_language,
-                        requested_track_count=35  # Request more tracks for better variety
-                    )
-                    
-                    # Get updated playlist data from Gemini
-                    updated_playlist_data = get_gemini_playlist_data(model, prompt)
-                    if not updated_playlist_data:
-                        logger.warning(f"⚠️ Failed to get updated content for playlist '{playlist_title}'")
+                    if not original_tracklist:
+                        logger.warning(f"⚠️ No tracks found in database for '{playlist_title}', skipping rescan")
                         continue
                     
-                    # Create Plex playlist object
+                    # Convert database tracks to PlexTrack objects for rescan
+                    rescan_tracks = []
+                    found_tracks = 0
+                    missing_tracks = 0
+                    
+                    for track_data in original_tracklist:
+                        track_title = track_data.get('title', '')
+                        track_artist = track_data.get('artist', '')
+                        
+                        if not track_title or not track_artist:
+                            continue
+                            
+                        # Search for track in Plex library
+                        found_plex_track = search_plex_track(user_plex, track_title, track_artist)
+                        
+                        if found_plex_track:
+                            # Track found in library
+                            rescan_tracks.append(PlexTrack(
+                                title=track_title, 
+                                artist=track_artist, 
+                                album=found_plex_track.album().title if hasattr(found_plex_track, 'album') else '',
+                                url=found_plex_track.getStreamURL() if hasattr(found_plex_track, 'getStreamURL') else ''
+                            ))
+                            found_tracks += 1
+                        else:
+                            # Track not found - add to missing for potential download
+                            missing_tracks += 1
+                            # Still add to playlist as placeholder
+                            rescan_tracks.append(PlexTrack(
+                                title=track_title, 
+                                artist=track_artist, 
+                                album=track_data.get('year', ''),
+                                url=''
+                            ))
+                    
+                    logger.info(f"📊 Rescan results for '{playlist_title}': {found_tracks} found, {missing_tracks} missing")
+                    
+                    if not rescan_tracks:
+                        logger.warning(f"⚠️ No valid tracks to rescan for '{playlist_title}'")
+                        continue
+                    
+                    # Create Plex playlist object using EXISTING data (NO AI CALLS!)
                     playlist_obj = PlexPlaylist(
                         id=None,
                         name=playlist_title,  # Keep original name
-                        description=updated_playlist_data.get("description", playlist_description),
+                        description=playlist_description,  # Keep original description
                         poster=None,
                     )
                     
-                    # Create track objects
-                    tracks = []
-                    for track_data in updated_playlist_data["tracks"]:
-                        track = PlexTrack(
-                            title=track_data.get("title", ""),
-                            artist=track_data.get("artist", ""),
-                            album=track_data.get("album", ""),
-                            url=""
-                        )
-                        tracks.append(track)
+                    # Update playlist on Plex with rescanned tracks
+                    updated_plex_playlist = update_or_create_plex_playlist(user_plex, playlist_obj, rescan_tracks, user_inputs)
                     
-                    # Update playlist on Plex (use SYNC mode to replace content)
-                    updated_playlist = update_or_create_plex_playlist(
-                        user_plex, playlist_obj, tracks, user_inputs, force_sync_mode=True
-                    )
-                    
-                    if updated_playlist:
-                        logger.info(f"✅ Refreshed AI playlist '{playlist_title}' with {len(tracks)} tracks")
-                        refreshed_count += 1
-                        
-                        # Update database with new content
-                        try:
-                            from .utils.database import update_managed_ai_playlist_content
-                            import json
-                            new_tracklist_json = json.dumps(updated_playlist_data["tracks"])
-                            update_managed_ai_playlist_content(playlist_data['id'], new_tracklist_json)
-                        except Exception as db_error:
-                            logger.warning(f"⚠️ Failed to update database for playlist '{playlist_title}': {db_error}")
+                    if updated_plex_playlist:
+                        logger.info(f"✅ Rescanned AI playlist '{playlist_title}' with {len(rescan_tracks)} tracks ({found_tracks} found, {missing_tracks} missing)")
+                        rescanned_count += 1
                     else:
                         logger.warning(f"⚠️ Failed to update playlist '{playlist_title}' on Plex")
                         
                 except Exception as playlist_error:
-                    logger.error(f"❌ Error refreshing playlist '{playlist_title}': {playlist_error}")
+                    logger.error(f"❌ Error rescanning playlist '{playlist_title}': {playlist_error}")
                     continue
         
-        if refreshed_count > 0:
-            logger.info(f"✅ AI playlists refresh completed: {refreshed_count} playlists updated")
+        if rescanned_count > 0:
+            logger.info(f"✅ AI playlists rescan completed: {rescanned_count} playlists rescanned without using AI quota")
         else:
-            logger.info("ℹ️ No AI playlists needed refreshing")
+            logger.info("ℹ️ No AI playlists needed rescanning")
             
     except Exception as e:
-        logger.error(f"❌ Error during AI playlists refresh: {e}", exc_info=True)
+        logger.error(f"❌ Error during AI playlists rescan: {e}", exc_info=True)
+
+
+def regenerate_managed_ai_playlists():
+    """
+    Regenerates managed AI playlists with completely new content using AI services.
+    This function WILL consume AI quota and should be used sparingly.
+    Use refresh_managed_ai_playlists() for rescanning existing content without AI calls.
+    """
+    logger.info("🤖 Regenerating managed AI playlists with new AI-generated content...")
+    logger.warning("⚠️ This operation will consume AI API quota!")
+    
+    try:
+        from .utils.database import get_managed_ai_playlists_for_user
+        from .utils.gemini_ai import configure_gemini, generate_playlist_prompt, get_gemini_playlist_data
+        from .utils.plex import update_or_create_plex_playlist
+        from .utils.helperClasses import Playlist as PlexPlaylist, Track as PlexTrack, UserInputs
+        from .utils.i18n import i18n
+        import json
+        
+        # Configure Gemini with cascading fallback support
+        model, model_name = configure_gemini()
+        if not model:
+            logger.warning("⚠️ Nessun modello Gemini disponibile, cannot regenerate AI playlists")
+            return
+        
+        logger.info(f"🤖 Usando modello Gemini: {model_name} per rigenerazione playlist")
+        
+        # This function would use the same structure as the old refresh_managed_ai_playlists
+        # but would actually call AI services to generate new content
+        # Implementation would be similar to the original function but clearly marked as AI-consuming
+        
+        logger.info("🚧 Function not fully implemented - use for complete playlist regeneration only")
+        
+    except Exception as e:
+        logger.error(f"❌ Error during AI playlists regeneration: {e}", exc_info=True)

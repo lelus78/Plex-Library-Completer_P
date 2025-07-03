@@ -422,6 +422,7 @@
                             <i data-lucide="brain" class="me-2" style="width: 18px; height: 18px;"></i>
                             {{ _('navigation.ai_lab') }}
                             <span id="newPlaylistBadge" class="badge bg-success ms-2" style="display: none;">NEW</span>
+                            <span id="geminiStatusBadge" class="badge ms-2" style="display: none;"></span>
                         </a>
                     </li>
                     <li class="nav-item dropdown">
@@ -617,6 +618,72 @@
                 showToast('Network error while changing language', 'error');
             });
         };
+
+        // Gemini Status Monitoring
+        function checkGeminiStatus() {
+            fetch('/gemini_status')
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success && data.status) {
+                        updateGeminiStatusBadge(data.status);
+                    }
+                })
+                .catch(error => {
+                    console.log('Error checking Gemini status:', error);
+                });
+        }
+
+        function updateGeminiStatusBadge(status) {
+            const badge = document.getElementById('geminiStatusBadge');
+            if (!badge) return;
+
+            if (!status.available && status.blocked) {
+                // Gemini is blocked
+                badge.style.display = 'inline-block';
+                badge.className = 'badge bg-warning ms-2';
+                
+                if (status.blocked_until) {
+                    const blockedUntil = new Date(status.blocked_until);
+                    const now = new Date();
+                    const diffHours = Math.ceil((blockedUntil - now) / (1000 * 60 * 60));
+                    
+                    if (status.daily_limit_reached) {
+                        badge.textContent = 'QUOTA LIMIT';
+                        badge.title = `Gemini quota raggiunta. Disponibile domani alle ${blockedUntil.toLocaleTimeString()}`;
+                    } else {
+                        badge.textContent = `RATE LIMIT ${diffHours}h`;
+                        badge.title = `Gemini rate limited. Disponibile alle ${blockedUntil.toLocaleTimeString()}`;
+                    }
+                } else {
+                    badge.textContent = 'AI LIMITED';
+                    badge.title = 'Gemini temporaneamente non disponibile';
+                }
+            } else if (status.available && status.active_model) {
+                // Gemini is available - show which model is active
+                badge.style.display = 'inline-block';
+                badge.className = 'badge bg-success ms-2';
+                
+                let modelDisplayName;
+                if (status.active_model === 'gemini-2.5-flash') {
+                    modelDisplayName = '2.5 FLASH';
+                } else if (status.active_model === 'gemini-2.0-flash') {
+                    modelDisplayName = '2.0 FLASH';
+                } else {
+                    modelDisplayName = 'AI';
+                }
+                badge.textContent = modelDisplayName;
+                badge.title = `Usando ${status.active_model}`;
+            } else {
+                // Gemini is available but no specific model info
+                badge.style.display = 'none';
+            }
+        }
+
+        // Check Gemini status on page load and every 5 minutes
+        document.addEventListener('DOMContentLoaded', function() {
+            checkGeminiStatus();
+            setInterval(checkGeminiStatus, 5 * 60 * 1000); // Every 5 minutes
+        });
     </script>
     {% block scripts %}{% endblock %}
 </body>

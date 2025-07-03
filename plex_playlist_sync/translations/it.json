@@ -132,7 +132,17 @@
       "80s_90s_desc": "Nostalgia musicale",
       "2000s": "Anni 2000",
       "2000s_desc": "I hits del nuovo millennio"
-    }
+    },
+    "preset_selected_user": "Ho selezionato il preset: {preset}",
+    "suggestion_selected": "Ottima scelta! Questa playlist sarà perfetta per le tue esigenze.",
+    "generating_playlist": "🎵 Perfetto! Sto generando la tua playlist personalizzata. Monitorerò il progresso...",
+    "waiting_scan": "⏳ Attendo 5 minuti per dare a Plex il tempo di scansionare i nuovi file scaricati...",
+    "playlist_success": "✅ Playlist creata e aggiornata con successo! Controlla i brani che erano mancanti - dovrebbero ora essere presenti nella playlist.",
+    "charts_preview_user": "Richiesta anteprima classifiche",
+    "charts_loading": "🔄 Caricamento dati musicali in corso...",
+    "charts_error": "❌ Errore nel caricamento anteprima classifiche: {error}",
+    "charts_test_error": "❌ Errore durante il test delle classifiche.",
+    "charts_data_error": "❌ Errore nel caricamento dati classifiche: {error}"
   },
   "stats": {
     "title": "Statistiche Musicali",

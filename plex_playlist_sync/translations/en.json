@@ -132,7 +132,17 @@
       "80s_90s_desc": "Musical nostalgia",
       "2000s": "2000s",
       "2000s_desc": "Hits of the new millennium"
-    }
+    },
+    "preset_selected_user": "I selected the preset: {preset}",
+    "suggestion_selected": "Great choice! This playlist will be perfect for your needs.",
+    "generating_playlist": "🎵 Perfect! I'm generating your personalized playlist. I'll monitor the progress...",
+    "waiting_scan": "⏳ Waiting 5 minutes to give Plex time to scan the new downloaded files...",
+    "playlist_success": "✅ Playlist created and updated successfully! Check the tracks that were missing - they should now be in the playlist.",
+    "charts_preview_user": "Charts preview request",
+    "charts_loading": "🔄 Loading music data...",
+    "charts_error": "❌ Error loading charts preview: {error}",
+    "charts_test_error": "❌ Error during charts test.",
+    "charts_data_error": "❌ Error loading charts data: {error}"
   },
   "stats": {
     "title": "Music Statistics",
