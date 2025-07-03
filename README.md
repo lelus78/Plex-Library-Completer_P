@@ -311,6 +311,166 @@ If you use Portainer for Docker management:
    - Click "Deploy the stack"
    - Monitor logs in Containers section
 
+#### 🖥️ Unraid Installation
+
+For Unraid users, here's a comprehensive step-by-step guide:
+
+##### Prerequisites
+- **Unraid Setup**: Ensure your Unraid server (version 6.9 or later) has Docker enabled and the Community Applications (CA) plugin installed
+- **Plex Media Server**: A running Plex server on Unraid
+- **API Keys**: Obtain required API credentials as per the Quick Start guide above
+
+##### Step-by-Step Installation
+
+**1. Add the Docker Container**
+
+Since `lelus78/plex-library-completer` is not in Unraid's Community Applications store, add it manually:
+
+1. Navigate to **Docker Tab** in Unraid WebGUI
+2. Ensure Docker is enabled ("Enable Docker: Yes" in Settings > Docker)
+3. Click **Add Container**
+4. **Repository**: `lelus78/plex-library-completer:latest`
+5. **Name**: `Plex-Library-Completer`
+6. **Network Type**: Bridge (default)
+
+**2. Configure Port Mappings**
+
+Add port mapping for the web UI:
+- **Name**: WebUI
+- **Container Port**: 5000
+- **Host Port**: 5000 (or another available port if 5000 is in use)
+- **Connection Type**: TCP
+
+**3. Configure Volume Mappings**
+
+Add the following volume mappings:
+
+**Config File:**
+- **Name**: config
+- **Container Path**: `/root/.config/streamrip/config.toml`
+- **Host Path**: `/mnt/user/appdata/plex-library-completer/config.toml`
+- **Access Mode**: Read/Write (rw)
+
+**Music Library:**
+- **Name**: music
+- **Container Path**: `/music`
+- **Host Path**: `/mnt/user/Media/Music` (adjust to your Plex music library path)
+- **Access Mode**: Read/Write (rw)
+
+**State Data:**
+- **Name**: state_data
+- **Container Path**: `/app/state_data`
+- **Host Path**: `/mnt/user/appdata/plex-library-completer/state_data`
+- **Access Mode**: Read/Write (rw)
+
+**Environment Variables:**
+- **Name**: env_file
+- **Container Path**: `/app/.env`
+- **Host Path**: `/mnt/user/appdata/plex-library-completer/.env`
+- **Access Mode**: Read/Write (rw)
+
+**4. Create Host Directories**
+
+Use Unraid's terminal or File Manager:
+
+```bash
+# Create directories
+mkdir -p /mnt/user/appdata/plex-library-completer/state_data
+touch /mnt/user/appdata/plex-library-completer/config.toml
+touch /mnt/user/appdata/plex-library-completer/.env
+
+# Set permissions
+chmod -R 777 /mnt/user/appdata/plex-library-completer
+chown -R nobody:users /mnt/user/appdata/plex-library-completer
+```
+
+**5. Configure Environment Variables**
+
+Add these key environment variables in the Unraid GUI:
+
+- **PLEX_URL**: `http://<UNRAID_IP>:32400` (e.g., `http://192.168.1.100:32400`)
+- **PLEX_TOKEN**: Your Plex authentication token
+- **LIBRARY_NAME**: Exact name of your Plex music library (e.g., `Music`)
+- **SPOTIFY_CLIENT_ID**: From Spotify for Developers (optional)
+- **SPOTIFY_CLIENT_SECRET**: From Spotify for Developers (optional)
+- **DEEZER_ARL**: Your Deezer ARL cookie (optional)
+- **GEMINI_API_KEY**: From Google AI Studio (optional)
+- **PUID**: `99` (Unraid's nobody user)
+- **PGID**: `100` (Unraid's users group)
+
+**6. Create Configuration Files**
+
+**Create `.env` file:**
+```bash
+cd /mnt/user/appdata/plex-library-completer
+nano .env
+```
+
+Copy your configuration from the Quick Start guide above, adjusting paths for Unraid:
+```bash
+PLEX_URL=http://192.168.1.100:32400
+PLEX_TOKEN=your_plex_token_here
+LIBRARY_NAME=Music
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+DEEZER_ARL=your_deezer_arl_here
+GEMINI_API_KEY=your_gemini_api_key
+PUID=99
+PGID=100
+```
+
+**Create `config.toml` file:**
+```bash
+nano config.toml
+```
+
+Basic configuration:
+```toml
+[deezer]
+arl = "your_deezer_arl_here"
+
+[downloads]
+folder = "/music"
+```
+
+**7. Apply and Start**
+
+1. Click **Apply** to create the container
+2. Go to Docker tab, find **Plex-Library-Completer**, click **Start**
+3. Enable **Autostart** for automatic startup with Unraid
+4. Access web UI at `http://<UNRAID_IP>:5000`
+
+**8. Verification and Troubleshooting**
+
+**Check Logs:**
+- Go to Docker tab > container icon > **Log** for errors
+
+**Common Issues:**
+- **Permission errors**: Re-run the chmod/chown commands above
+- **Plex connection issues**: Verify PLEX_URL and PLEX_TOKEN
+- **Web UI not accessible**: Check if port 5000 is available
+- **Config errors**: Validate `.env` and `config.toml` syntax
+
+**Performance Tips:**
+- Move appdata share to cache SSD (Cache: Only in Shares settings)
+- Use fast storage for music library access
+
+**Test Functionality:**
+1. Access web UI at `http://<UNRAID_IP>:5000`
+2. Click "Index Library" to scan your music collection
+3. Test playlist generation in AI Lab
+4. Verify Spotify/Deezer sync if configured
+
+##### Unraid-Specific Notes
+
+- Use **nobody:users** (99:100) for container permissions
+- Place config files in `/mnt/user/appdata/plex-library-completer/`
+- Ensure music library path matches your Unraid shares
+- Consider using cache drives for better performance
+- Monitor container logs through Unraid's Docker interface
+
+Thanks to [@pylorns](https://github.com/pylorns) for contributing this comprehensive Unraid installation guide!
+
 #### 🔧 Build from Source (Development)
 
 If you want to modify the code or build locally:
