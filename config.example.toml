@@ -1,6 +1,6 @@
 [downloads]
 # Cartella dove i brani vengono scaricati (dentro al container)
-folder = "/music/downloads"
+folder = "/downloads"
 # Mettiamo le opzioni che ci aveva chiesto prima
 source_subdirectories = false
 disc_subdirectories = false

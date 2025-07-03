@@ -20,6 +20,6 @@ services:
       - ./app.py:/app/app.py
       - ./.env:/app/.env
       - ./config.toml:/root/.config/streamrip/config.toml
-      - m:/Organizzata:/music:ro  # Read-only per scansione
-      - ./downloads:/music/downloads  # Writable per nuovi download
+      - m:/Organizzata:/music  # Libreria principale (ripristinato normale)
+      - ./downloads:/downloads  # Downloads separati
     restart: on-failure
