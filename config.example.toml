@@ -1,9 +1,9 @@
 [downloads]
 # Cartella dove i brani vengono scaricati (dentro al container)
-folder = "/music"
+folder = "/music/downloads"
 # Mettiamo le opzioni che ci aveva chiesto prima
 source_subdirectories = false
-disc_subdirectories = true
+disc_subdirectories = false
 concurrency = true
 max_connections = 6
 requests_per_minute = 60

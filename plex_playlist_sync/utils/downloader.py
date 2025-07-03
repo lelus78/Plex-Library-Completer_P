@@ -435,13 +435,37 @@ def download_single_track_with_streamrip(link: str):
         
         command = ["rip", "--config-path", config_path, "file", temp_links_file]
         
-        # Aggiungiamo un timeout per evitare che il processo si blocchi all'infinito
-        process = subprocess.run(command, capture_output=True, text=True, check=True, encoding='utf-8', timeout=1800, env=env)
-        logging.info(f"Download di {cleaned_link} completato con successo.")
-        if process.stdout:
-             logging.debug(f"Output di streamrip per {cleaned_link}:\n{process.stdout}")
-        if process.stderr:
-             logging.warning(f"Output di warning da streamrip per {cleaned_link}:\n{process.stderr}")
+        # Retry logic per errori intermittenti (es. permission denied)
+        max_retries = 2
+        retry_count = 0
+        
+        while retry_count <= max_retries:
+            try:
+                # Aggiungiamo un timeout per evitare che il processo si blocchi all'infinito
+                process = subprocess.run(command, capture_output=True, text=True, check=True, encoding='utf-8', timeout=1800, env=env)
+                logging.info(f"Download di {cleaned_link} completato con successo.")
+                if process.stdout:
+                     logging.debug(f"Output di streamrip per {cleaned_link}:\n{process.stdout}")
+                if process.stderr:
+                     logging.warning(f"Output di warning da streamrip per {cleaned_link}:\n{process.stderr}")
+                break  # Success, exit retry loop
+                
+            except subprocess.CalledProcessError as e:
+                retry_count += 1
+                
+                # Check if it's a permission error that might be temporary
+                is_permission_error = (e.stderr and "Permission denied" in e.stderr) or (e.stdout and "Permission denied" in e.stdout)
+                
+                if is_permission_error and retry_count <= max_retries:
+                    logging.warning(f"⚠️ Permission error durante download di {cleaned_link} (tentativo {retry_count}/{max_retries + 1}). Retry in 5 secondi...")
+                    time.sleep(5)  # Wait before retry
+                    continue
+                else:
+                    # Final failure or non-permission error
+                    logging.error(f"❌ Errore durante l'esecuzione di streamrip per {cleaned_link} (tentativo finale {retry_count}/{max_retries + 1}).")
+                    if e.stdout: logging.error(f"Output Standard (stdout):\n{e.stdout}")
+                    if e.stderr: logging.error(f"Output di Errore (stderr):\n{e.stderr}")
+                    break
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Errore durante l'esecuzione di streamrip per {cleaned_link}.")
