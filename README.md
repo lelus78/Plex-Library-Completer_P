@@ -9,19 +9,19 @@
 ![Docker Image Size](https://img.shields.io/docker/image-size/lelus78/plex-library-completer)
 ![Build Status](https://github.com/lelus78/Plex-Library-Completer_P/actions/workflows/docker-image.yml/badge.svg)
 
-A Python script, executed via Docker, to keep Plex music playlists synchronized with streaming services like Spotify and Deezer. Includes advanced features such as weekly AI playlist creation with Google Gemini and automatic download of missing tracks via `streamrip`.
+A comprehensive Python application, executed via Docker, that keeps your Plex music library synchronized with streaming services like Spotify and Deezer. Features automatic missing track downloads, AI-generated playlists with Google Gemini, and complete playlist management automation.
 
 ## ✨ Key Features
 
-- **Multi-Platform Synchronization**: Synchronizes public playlists from **Spotify** and **Deezer** directly into your Plex library.
-- **Multi-User Management**: Supports synchronization for multiple Plex users, each with their own playlists and configurations.
-- **Weekly AI Playlists**: Uses the **Google Gemini** API to analyze a user's taste (based on a "favorites" playlist) and generate a new personalized playlist every week.
-- **Automatic Completion**: Identifies playlist tracks that are missing from your Plex library.
-- **Automatic Download**: Uses **`streamrip`** to automatically search and download albums containing missing tracks from Deezer, effectively completing your library.
-- **Scheduled Cleanup**: Automatically removes old playlists to keep the library organized.
-- **Background Execution**: Designed to run 24/7 in a Docker container, with customizable synchronization cycles.
-- **Fast Statistics**: Charts are generated from the favorite tracks playlist, speeding up processing even on very large libraries.
-- **Multilingual Interface**: Full bilingual support (English/Italian) with automatic language detection and seamless switching.
+- **🎵 Multi-Platform Synchronization**: Automatically syncs playlists from **Spotify** and **Deezer** to your Plex library
+- **👥 Multi-User Management**: Supports multiple Plex users with individual configurations and playlists
+- **🤖 AI Playlist Generation**: Uses **Google Gemini** to create personalized weekly playlists and refresh existing AI playlists
+- **🔍 Smart Missing Track Detection**: Identifies songs missing from your library with advanced matching algorithms
+- **⬬ Automatic Downloads**: Uses **streamrip** to download missing tracks from Deezer automatically
+- **🗑️ Automated Cleanup**: Removes old playlists while preserving important ones with protection tags
+- **⏰ Background Processing**: Runs continuously with configurable sync intervals
+- **📊 Rich Statistics**: Real-time dashboard with detailed music library analytics
+- **🌍 Multilingual Interface**: Complete English/Italian support with automatic language detection
 
 ## 🌐 Internationalization
 
@@ -45,19 +45,191 @@ The application features a complete bilingual interface supporting both **Englis
 
 The language system is powered by a custom i18n service with JSON-based translation files located in `plex_playlist_sync/translations/`.
 
-## 🚀 Getting Started
+## 🚀 Quick Start Guide
+
+This section provides step-by-step instructions for beginners to get the system running with minimal configuration.
 
 ### Prerequisites
 
--   [Docker](https://www.docker.com/products/docker-desktop/) and Docker Compose installed.
--   A Plex server with administrative access.
--   A [Deezer](https://www.deezer.com) account (to obtain the ARL).
--   A [Spotify for Developers](https://developer.spotify.com/dashboard) account (for API credentials).
--   A [Google AI Studio](https://aistudio.google.com/) account (for Gemini API key).
+Before starting, ensure you have:
 
-## 📋 Configuration Files
+- ✅ **Docker Desktop** installed ([Download here](https://www.docker.com/products/docker-desktop/))
+- ✅ **Plex Media Server** running and accessible ([Setup guide](https://support.plex.tv/articles/200288896-basic-setup/))
+- ✅ A **music library** already configured in Plex
+- ✅ Basic knowledge of your system's file paths
 
-Before installation, you need to understand and configure two important files provided as examples:
+### Step 1: Get Required API Credentials
+
+You'll need to obtain several API keys and tokens:
+
+#### 🎵 Spotify API (Required for Spotify sync)
+1. Go to [Spotify for Developers](https://developer.spotify.com/dashboard)
+2. Click "Create App"
+3. Fill in app name and description (any values work)
+4. Note down your **Client ID** and **Client Secret**
+
+#### 🎧 Deezer ARL (Required for downloads)
+1. Log into [Deezer](https://www.deezer.com) in your browser
+2. Open Developer Tools (F12)
+3. Go to **Application** > **Cookies** > **deezer.com**
+4. Find the cookie named `arl` and copy its value
+5. **Important**: This token expires every few months and needs renewal
+
+#### 🤖 Google Gemini API (Required for AI playlists)
+1. Visit [Google AI Studio](https://aistudio.google.com/)
+2. Click "Get API Key" and create a new project
+3. Generate and copy your API key
+
+#### 🎬 Plex Token (Required)
+1. Open Plex in your browser
+2. Go to **Settings** > **Account** > **Privacy**
+3. Click "Show" next to "Plex Token" and copy the value
+
+### Step 2: Download and Configure Files
+
+#### Download Required Files
+```bash
+# Create project directory
+mkdir plex-completer
+cd plex-completer
+
+# Download the example files (you'll need to get these from the repository)
+# .env.example
+# config.example.toml
+# docker-compose.yml
+```
+
+#### Create Your Configuration Files
+
+**📝 Create `.env` file** (copy from `.env.example`):
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your favorite text editor and fill in these **REQUIRED** values:
+```bash
+# Plex Configuration (REQUIRED)
+PLEX_URL=http://your-plex-server-ip:32400
+PLEX_TOKEN=your_plex_token_here
+LIBRARY_NAME=Music
+
+# Spotify Configuration (REQUIRED for Spotify sync)
+SPOTIFY_CLIENT_ID=your_spotify_client_id
+SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
+
+# AI Configuration (REQUIRED for AI playlists)
+GEMINI_API_KEY=your_gemini_api_key
+
+# Deezer Configuration (REQUIRED for downloads)
+DEEZER_ARL=your_deezer_arl_cookie
+
+# Basic Settings
+PUID=1000
+PGID=1000
+```
+
+**📝 Create `config.toml` file** (copy from `config.example.toml`):
+```bash
+cp config.example.toml config.toml
+```
+
+The main setting to configure in `config.toml`:
+```toml
+[deezer]
+arl = "your_deezer_arl_cookie_here"
+```
+
+### Step 3: Configure Docker Compose
+
+Edit `docker-compose.yml` and update the music path:
+
+```yaml
+services:
+  completer:
+    image: lelus78/plex-library-completer:latest
+    container_name: plex-library-completer
+    env_file:
+      - .env
+    ports:
+      - "5000:5000"
+    volumes:
+      - /path/to/your/music:/music  # 👈 UPDATE THIS PATH
+      - ./state_data:/app/state_data
+      - ./config.toml:/root/.config/streamrip/config.toml
+      - ./.env:/app/.env
+    environment:
+      - PUID=1000
+      - PGID=1000
+    restart: unless-stopped
+```
+
+**Path Examples by Operating System:**
+- **Linux**: `/home/username/Music:/music`
+- **Windows**: `C:\Users\YourName\Music:/music`
+- **macOS**: `/Users/yourname/Music:/music`
+- **NAS**: `/mnt/nas/Music:/music`
+
+### Step 4: Launch the Application
+
+```bash
+# Start the container
+docker-compose up -d
+
+# Check if it's running
+docker-compose logs -f
+```
+
+### Step 5: Access the Web Interface
+
+Open your browser and go to:
+- **Local**: `http://localhost:5000`
+- **Network**: `http://[your-server-ip]:5000`
+
+### Step 6: Initial Setup in Web Interface
+
+1. **Index Your Library**: Click "Index Library" to scan your music collection
+2. **Wait for Completion**: This may take 10-30 minutes depending on library size
+3. **Configure Playlists**: Add your Spotify/Deezer playlist IDs in the `.env` file
+4. **Test Sync**: Click "Start Full Sync" to test the synchronization
+
+### Quick Test Configuration
+
+For testing purposes, you can use this minimal `.env` configuration:
+
+```bash
+# Minimal test configuration
+PLEX_URL=http://192.168.1.100:32400
+PLEX_TOKEN=your_plex_token
+LIBRARY_NAME=Music
+SPOTIFY_CLIENT_ID=your_spotify_id
+SPOTIFY_CLIENT_SECRET=your_spotify_secret
+
+# Optional for full functionality
+GEMINI_API_KEY=your_gemini_key
+DEEZER_ARL=your_deezer_arl
+
+# Disable features for testing
+SKIP_SPOTIFY_SYNC=0
+SKIP_DEEZER_SYNC=0
+RUN_DOWNLOADER=0
+RUN_GEMINI_PLAYLIST_CREATION=0
+TEST_MODE_RUN_ONCE=1
+```
+
+## 📋 Required Files Checklist
+
+Before running, ensure you have created these files:
+
+- [ ] `.env` (from `.env.example` with your credentials)
+- [ ] `config.toml` (from `config.example.toml` with your Deezer ARL)
+- [ ] `docker-compose.yml` (with correct volume paths)
+- [ ] Created `state_data/` directory (will be created automatically)
+
+## 🔧 Advanced Configuration
+
+### Understanding Configuration Files
+
+The application uses two main configuration files:
 
 ### `.env.example` File
 This file contains all the environment variables needed for the application. It includes:
@@ -100,51 +272,44 @@ arl = "your_deezer_arl_token_here"
 4. Find the `arl` cookie value
 5. Copy this value to the config file
 
-### ⚙️ Installation Methods
+### Alternative Installation Methods
 
-Choose your preferred installation method:
+#### 🐳 Docker Run Command (Single Command)
 
-#### 🐳 Quick Start with Docker Hub (Recommended)
-
-Use the pre-built image from Docker Hub for fastest setup:
+For quick testing without docker-compose:
 
 ```bash
-# Simple run with basic configuration
 docker run -d \
-  --name plex-completer \
+  --name plex-library-completer \
   -p 5000:5000 \
   -v /path/to/your/music:/music \
-  -v /path/to/your/config:/app/config \
-  -e PLEX_URL=http://your-plex-server:32400 \
-  -e PLEX_TOKEN=your_plex_token \
-  -e SPOTIFY_CLIENT_ID=your_spotify_id \
-  -e SPOTIFY_CLIENT_SECRET=your_spotify_secret \
-  -e GEMINI_API_KEY=your_gemini_key \
-  -e PUID=$(id -u) \
-  -e PGID=$(id -g) \
+  -v ./state_data:/app/state_data \
+  -v ./config.toml:/root/.config/streamrip/config.toml \
+  -v ./.env:/app/.env \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  --restart unless-stopped \
   lelus78/plex-library-completer:latest
 ```
 
-**Docker Compose with Hub Image:**
-```yaml
-version: '3.8'
-services:
-  plex-completer:
-    image: lelus78/plex-library-completer:latest
-    container_name: plex-completer
-    ports:
-      - "5000:5000"
-    volumes:
-      - /path/to/your/music:/music
-      - ./state_data:/app/state_data
-      - ./config.toml:/root/.config/streamrip/config.toml
-    env_file:
-      - .env
-    environment:
-      - PUID=1000
-      - PGID=1000
-    restart: unless-stopped
-```
+#### 🔧 Portainer Deployment
+
+If you use Portainer for Docker management:
+
+1. **Create New Stack**:
+   - Go to Portainer → Stacks → Add Stack
+   - Name it `plex-library-completer`
+
+2. **Upload Configuration**:
+   - Choose "Upload" method
+   - Upload your `docker-compose.yml` file
+
+3. **Environment Variables**:
+   - Upload your `.env` file or manually add variables
+
+4. **Deploy and Monitor**:
+   - Click "Deploy the stack"
+   - Monitor logs in Containers section
 
 #### 🔧 Build from Source (Development)
 
@@ -323,28 +488,32 @@ The interface provides:
 
 This is the complete list of variables to configure in the `.env` file.
 
-| Variable                       | Description                                                                                              | Example                                       |
-| ------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------- |
-| `PLEX_URL`                      | URL of your Plex server.                                                                                | `http://192.168.1.10:32400`                   |
-| `PLEX_TOKEN`                    | Access token for the main Plex user.                                                                    | `yourPlexTokenHere`                           |
-| `PLEX_TOKEN_USERS`              | Access token for the secondary Plex user (optional).                                                    | `secondaryUserPlexToken`                      |
-| `LIBRARY_NAME`                  | Exact name of your music library on Plex.                                                               | `Music`                                       |
-| `DEEZER_PLAYLIST_ID`            | Numeric IDs of Deezer playlists to sync for the main user, comma-separated.                           | `12345678,87654321`                           |
-| `DEEZER_PLAYLIST_ID_SECONDARY`  | Deezer playlist IDs for the secondary user, comma-separated (optional).                               | `98765432`                                    |
-| `SPOTIFY_CLIENT_ID`             | Client ID obtained from Spotify for Developers dashboard.                                              | `yourSpotifyClientID`                         |
-| `SPOTIFY_CLIENT_SECRET`         | Client Secret obtained from Spotify for Developers dashboard.                                          | `yourSpotifyClientSecret`                     |
-| `GEMINI_API_KEY`                | API key obtained from Google AI Studio for AI functions.                                              | `yourGeminiApiKey`                            |
-| `PLEX_FAVORITES_PLAYLIST_ID_MAIN` | Rating Key (numeric ID) of the "favorites" Plex playlist for the main user (for AI).                 | `12345`                                       |
-| `PLEX_FAVORITES_PLAYLIST_ID_SECONDARY` | Rating Key of the "favorites" playlist for the secondary user (optional, for AI).                   | `54321`                                       |
-| `SECONDS_TO_WAIT`               | Seconds to wait between synchronization cycles.                                                        | `86400` (24 hours)                            |
-| `WEEKS_LIMIT`                   | Number of weeks after which old playlists are deleted.                                                 | `4`                                           |
-| `PRESERVE_TAG`                  | If this text is in a playlist title, it will not be deleted.                                          | `NO_DELETE`                                   |
-| `FORCE_DELETE_OLD_PLAYLISTS`    | Set to `1` to enable automatic deletion of old playlists.                                             | `0` (disabled)                                |
-| `RUN_DOWNLOADER`                | Set to `1` to enable automatic download of missing tracks.                                            | `1` (enabled)                                 |
-| `RUN_GEMINI_PLAYLIST_CREATION`  | Set to `1` to enable weekly AI playlist creation.                                                     | `1` (enabled)                                 |
-| `DEEZER_ARL`                    | Deezer ARL cookie for downloading tracks (optional). Leave empty to skip downloads.                  | `your_arl_cookie_here`                        |
-| `PUID`                          | User ID that the container should run as.                                                           | `1000`                                        |
-| `PGID`                          | Group ID that the container should run as.                                                          | `1000`                                        |
+| Variable                       | Description                                                                                              | Example                                       | Required |
+| ------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------- | -------- |
+| `PLEX_URL`                      | URL of your Plex server                                                                                | `http://192.168.1.10:32400`                   | ✅ |
+| `PLEX_TOKEN`                    | Access token for the main Plex user                                                                    | `yourPlexTokenHere`                           | ✅ |
+| `LIBRARY_NAME`                  | Exact name of your music library on Plex                                                               | `Music` or `Musica`                           | ✅ |
+| `SPOTIFY_CLIENT_ID`             | Client ID obtained from Spotify for Developers dashboard                                              | `yourSpotifyClientID`                         | ✅ |
+| `SPOTIFY_CLIENT_SECRET`         | Client Secret obtained from Spotify for Developers dashboard                                          | `yourSpotifyClientSecret`                     | ✅ |
+| `PUID`                          | User ID that the container should run as                                                           | `1000`                                        | ✅ |
+| `PGID`                          | Group ID that the container should run as                                                          | `1000`                                        | ✅ |
+| `PLEX_TOKEN_USERS`              | Access token for the secondary Plex user (optional)                                                    | `secondaryUserPlexToken`                      | ❌ |
+| `DEEZER_PLAYLIST_ID`            | Numeric IDs of Deezer playlists to sync for the main user, comma-separated                           | `12345678,87654321`                           | ❌ |
+| `DEEZER_PLAYLIST_ID_SECONDARY`  | Deezer playlist IDs for the secondary user, comma-separated (optional)                               | `98765432`                                    | ❌ |
+| `SPOTIFY_PLAYLIST_IDS`          | Spotify playlist IDs to sync for main user, comma-separated                                          | `37i9dQZEVXcJZyENOWUFo7,3J9M8N6y6vSO8Ex3rR7PJM` | ❌ |
+| `GEMINI_API_KEY`                | API key obtained from Google AI Studio for AI functions                                              | `yourGeminiApiKey`                            | ❌ |
+| `PLEX_FAVORITES_PLAYLIST_ID_MAIN` | Rating Key (numeric ID) of the "favorites" Plex playlist for the main user (for AI)                 | `12345`                                       | ❌ |
+| `PLEX_FAVORITES_PLAYLIST_ID_SECONDARY` | Rating Key of the "favorites" playlist for the secondary user (optional, for AI)                   | `54321`                                       | ❌ |
+| `DEEZER_ARL`                    | Deezer ARL cookie for downloading tracks (optional). Leave empty to skip downloads                  | `your_arl_cookie_here`                        | ❌ |
+| `SECONDS_TO_WAIT`               | Seconds to wait between synchronization cycles                                                        | `86400` (24 hours)                            | ❌ |
+| `WEEKS_LIMIT`                   | Number of weeks after which old playlists are deleted                                                 | `4`                                           | ❌ |
+| `PRESERVE_TAG`                  | If this text is in a playlist title, it will not be deleted                                          | `NO_DELETE`                                   | ❌ |
+| `SKIP_SPOTIFY_SYNC`             | Set to `1` to disable Spotify synchronization                                                        | `0` (enabled)                                 | ❌ |
+| `SKIP_DEEZER_SYNC`              | Set to `1` to disable Deezer synchronization                                                         | `0` (enabled)                                 | ❌ |
+| `RUN_DOWNLOADER`                | Set to `1` to enable automatic download of missing tracks                                            | `1` (enabled)                                 | ❌ |
+| `RUN_GEMINI_PLAYLIST_CREATION`  | Set to `1` to enable weekly AI playlist creation                                                     | `1` (enabled)                                 | ❌ |
+| `AUTO_DELETE_AI_PLAYLIST`       | Set to `1` to auto-delete old AI playlists                                                           | `1` (enabled)                                 | ❌ |
+| `TEST_MODE_RUN_ONCE`            | Set to `1` to run only one sync cycle (for testing)                                                  | `0` (disabled)                                | ❌ |
 
 ## Project Structure
 
@@ -367,51 +536,166 @@ Plex-Library-Completer/
         └── ...
 ```
 
-## 🔧 Troubleshooting Configuration
+## 🔧 Troubleshooting
 
-### Common Configuration Issues
+### Common Issues and Solutions
 
-#### `.env` File Problems
-- **Missing Variables**: Ensure all required variables from `.env.example` are present
-- **Invalid Tokens**: Verify Plex tokens, Spotify credentials, and Gemini API key are correct
-- **Path Issues**: Ensure file paths use forward slashes and are accessible to Docker
-- **Quotes**: Avoid unnecessary quotes around values unless they contain spaces
+#### ❌ "File di log non ancora creato" (Log file not created)
+**Cause**: Log file path is incorrect or permissions issue
+**Solution**: 
+- Ensure the container has write permissions to `/app/logs/`
+- Check that `PUID` and `PGID` are set correctly in your `.env`
 
-#### `config.toml` File Problems
-- **Invalid ARL**: The Deezer ARL token expires periodically and needs to be refreshed
-- **File Location**: Ensure the file is in the correct location for Docker to mount it
-- **Syntax Errors**: Validate TOML syntax - use a TOML validator if needed
+#### ❌ "Tracce Sincronizzate" stuck at 5000
+**Cause**: Using old version or cache issue
+**Solution**:
+- Update to latest image: `docker-compose pull && docker-compose up -d`
+- Clear application cache and restart container
 
-#### Portainer-Specific Issues
-- **Environment Variables**: Ensure all `.env` variables are properly imported into Portainer
-- **Volume Mounts**: Verify that config files are correctly mounted into the container
-- **File Permissions**: Check that Portainer has read access to your configuration files
-- **Stack Updates**: After changing configuration, restart the stack rather than just the container
-
-#### Quick Validation Commands
-
-Test your configuration before deployment:
+#### ❌ "Permission denied" when downloading
+**Cause**: Music directory permissions issue
+**Solution**:
 ```bash
-# Validate .env file has all required variables
-grep -E "^[A-Z_]+=.+" .env | wc -l
+# Fix permissions on music directory
+sudo chown -R 1000:1000 /path/to/your/music
+# Or use your user ID
+sudo chown -R $(id -u):$(id -g) /path/to/your/music
+```
 
-# Check if config.toml has ARL
-grep "arl" config.toml
+#### ❌ Spotify/Deezer sync not working
+**Cause**: Sync might be disabled in environment variables
+**Solution**: Check your `.env` file:
+```bash
+SKIP_SPOTIFY_SYNC=0  # 0 = enabled, 1 = disabled
+SKIP_DEEZER_SYNC=0   # 0 = enabled, 1 = disabled
+```
+
+#### ❌ AI playlists not updating
+**Cause**: Missing Gemini API key or favorites playlist ID
+**Solution**:
+- Verify `GEMINI_API_KEY` is set and valid
+- Set `PLEX_FAVORITES_PLAYLIST_ID_MAIN` to a valid playlist ID
+- Enable AI playlist creation: `RUN_GEMINI_PLAYLIST_CREATION=1`
+
+#### ❌ Container won't start
+**Cause**: Configuration file errors or volume mount issues
+**Solution**:
+```bash
+# Check container logs
+docker logs plex-library-completer
+
+# Verify file exists and is readable
+ls -la .env config.toml
+
+# Test docker-compose syntax
+docker-compose config
+```
+
+### Configuration Validation
+
+Before starting the container, validate your setup:
+
+```bash
+# Check required environment variables are set
+echo "Checking .env file..."
+required_vars=("PLEX_URL" "PLEX_TOKEN" "LIBRARY_NAME" "SPOTIFY_CLIENT_ID" "SPOTIFY_CLIENT_SECRET")
+for var in "${required_vars[@]}"; do
+    if grep -q "^${var}=" .env; then
+        echo "✅ $var is set"
+    else
+        echo "❌ $var is missing"
+    fi
+done
 
 # Validate TOML syntax
-python3 -c "import toml; toml.load('config.toml')"
+python3 -c "import toml; toml.load('config.toml'); print('✅ config.toml syntax is valid')" 2>/dev/null || echo "❌ config.toml has syntax errors"
+
+# Check if Plex is accessible
+curl -s "$PLEX_URL/status" || echo "❌ Cannot reach Plex server"
+```
+
+### Performance Optimization
+
+For large music libraries (>50,000 tracks):
+
+```bash
+# In your .env file, add these optimizations:
+# Index in smaller batches
+PLEX_INDEX_BATCH_SIZE=1000
+
+# Reduce concurrent operations  
+MAX_CONCURRENT_DOWNLOADS=2
+
+# Enable test mode for initial setup
+TEST_MODE_RUN_ONCE=1
+TEST_MODE_PLAYLIST_LIMIT=5
 ```
 
 ### Getting Help
 
-If you encounter issues:
-1. Check the container logs for specific error messages
-2. Verify all configuration files are properly formatted
-3. Ensure all external services (Plex, Spotify, Deezer) are accessible
-4. Test API credentials independently before using them in the application
+If you're still having issues:
 
-## 📸 Example Images
-![alt text](index.png)
-![alt text](missing_tracks.png)
-![alt text](stats.png)
-![alt text](ai_lab.png)
+1. **Check Logs**: Always start by checking container logs
+   ```bash
+   docker logs plex-library-completer --tail 50
+   ```
+
+2. **Validate Configuration**: Use the validation commands above
+
+3. **Test Components**: Test each service independently:
+   - Plex: Access your Plex web interface
+   - Spotify: Test your API credentials at [Spotify Console](https://developer.spotify.com/console/)
+   - Deezer: Verify your ARL cookie hasn't expired
+
+4. **Common File Locations**:
+   - Container logs: `/app/logs/plex_sync.log`
+   - Database: `/app/state_data/sync_database.db`
+   - Config files: `/app/.env`, `/root/.config/streamrip/config.toml`
+
+## 🆕 Latest Features
+
+### AI Playlist Auto-Refresh (New!)
+- **Automatic Updates**: AI-generated playlists like "Reggae Vibes" now automatically refresh with new content from your library
+- **Smart Regeneration**: Maintains original theme while adding fresh tracks
+- **Manual & Automatic**: Works during both manual syncs and scheduled automatic syncs
+- **Weekly Management**: Weekly AI playlists are separately managed with their own persistence system
+
+### Enhanced Synchronization
+- **Real-time Stats**: Dashboard shows actual track counts instead of hardcoded values
+- **Improved Logging**: Fixed log display in web interface with proper file paths
+- **Permission Handling**: Better container permissions management for downloads
+- **Multi-user Support**: Separate AI playlist management for main and secondary users
+
+### Performance Improvements
+- **Faster Indexing**: Optimized library scanning with batch processing
+- **Smart Matching**: Advanced track matching algorithms reduce false positives
+- **Concurrent Operations**: Parallel processing for API calls and downloads
+- **Database Optimization**: Improved SQLite performance with proper indexing
+
+## 📸 Screenshots
+
+### Main Dashboard
+![Dashboard showing library statistics and sync status](index.png)
+
+### Missing Tracks Management
+![Interface for managing and downloading missing tracks](missing_tracks.png)
+
+### Detailed Statistics
+![Charts and analytics for music library insights](stats.png)
+
+### AI Playlist Laboratory
+![AI assistant for creating and managing playlists](ai_lab.png)
+
+---
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🤝 Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
+
+## ⭐ Star History
+
+If this project helps you, please consider giving it a star! ⭐

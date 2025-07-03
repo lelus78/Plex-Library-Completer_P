@@ -770,7 +770,7 @@ def download_track():
 @app.route('/get_logs')
 def get_logs():
     try:
-        with open("plex_sync.log", "r", encoding="utf-8") as f:
+        with open("/app/logs/plex_sync.log", "r", encoding="utf-8") as f:
             log_content = "".join(f.readlines()[-100:])
     except FileNotFoundError:
         log_content = "File di log non ancora creato."
