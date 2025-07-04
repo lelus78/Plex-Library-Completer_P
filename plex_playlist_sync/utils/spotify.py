@@ -1,8 +1,10 @@
 import logging
 from typing import List
 import os
+import time
 
 import spotipy
+from spotipy.exceptions import SpotifyException
 from plexapi.server import PlexServer
 
 from .helperClasses import Playlist, Track, UserInputs
@@ -257,79 +259,142 @@ def discover_spotify_user_playlists_enhanced(sp: spotipy.Spotify, user_id: str, 
         logging.error(f"❌ Errore durante discovery migliorato Spotify: {e}")
         return []
 
-def get_spotify_featured_playlists(sp: spotipy.Spotify, country: str = 'IT', limit: int = 20) -> List[dict]:
+def get_spotify_featured_playlists(sp: spotipy.Spotify, country: str = 'IT', limit: int = 20, max_retries: int = 2) -> List[dict]:
     """
-    Recupera playlist in evidenza curate da Spotify.
+    Recupera playlist in evidenza curate da Spotify con gestione errori migliorata.
     
     Args:
         sp: Oggetto Spotify autenticato
         country: Codice paese ISO
         limit: Numero massimo di playlist
+        max_retries: Numero massimo di tentativi
         
     Returns:
         Lista di dict con playlist curate
     """
-    try:
-        featured = sp.featured_playlists(country=country, limit=limit)
-        curated_playlists = []
-        
-        for playlist in featured.get('playlists', {}).get('items', []):
-            # Recupera metadati completi
-            enhanced_metadata = get_spotify_playlist_with_metadata(sp, playlist['id'])
+    for attempt in range(max_retries + 1):
+        try:
+            featured = sp.featured_playlists(country=country, limit=limit)
+            curated_playlists = []
             
-            if enhanced_metadata:
-                # Aggiorna tipo e nome per indicare che è curata
-                enhanced_metadata['name'] = f"✨ {enhanced_metadata['name']}"
-                enhanced_metadata['playlist_type'] = 'curated'
-                enhanced_metadata['description'] = f"Playlist in evidenza curata da Spotify. {enhanced_metadata.get('description', '')}"
-                curated_playlists.append(enhanced_metadata)
-        
-        logging.info(f"✅ Trovate {len(curated_playlists)} playlist Spotify curate")
-        return curated_playlists
-        
-    except Exception as e:
-        logging.error(f"❌ Errore recuperando playlist curate Spotify: {e}")
-        return []
+            for playlist in featured.get('playlists', {}).get('items', []):
+                # Recupera metadati completi
+                enhanced_metadata = get_spotify_playlist_with_metadata(sp, playlist['id'])
+                
+                if enhanced_metadata:
+                    # Aggiorna tipo e nome per indicare che è curata
+                    enhanced_metadata['name'] = f"✨ {enhanced_metadata['name']}"
+                    enhanced_metadata['playlist_type'] = 'curated'
+                    enhanced_metadata['description'] = f"Playlist in evidenza curata da Spotify. {enhanced_metadata.get('description', '')}"
+                    curated_playlists.append(enhanced_metadata)
+            
+            logging.info(f"✅ Trovate {len(curated_playlists)} playlist Spotify curate")
+            return curated_playlists
+            
+        except SpotifyException as e:
+            if e.http_status == 404:
+                logging.warning(f"⚠️ Playlist in evidenza non disponibili per la regione {country}")
+                return []
+            elif e.http_status == 429:  # Rate limit
+                if attempt < max_retries:
+                    wait_time = 2 ** attempt
+                    logging.warning(f"⏳ Rate limit raggiunto, attendo {wait_time}s prima del tentativo {attempt + 2}/{max_retries + 1}")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logging.error(f"❌ Rate limit persistente dopo {max_retries} tentativi")
+                    return []
+            else:
+                if attempt < max_retries:
+                    logging.warning(f"⚠️ Errore temporaneo (HTTP {e.http_status}), tentativo {attempt + 2}/{max_retries + 1}")
+                    time.sleep(1)
+                    continue
+                else:
+                    logging.error(f"❌ Errore Spotify persistente: HTTP {e.http_status} - {e}")
+                    return []
+        except Exception as e:
+            if attempt < max_retries:
+                logging.warning(f"⚠️ Errore generico, tentativo {attempt + 2}/{max_retries + 1}: {e}")
+                time.sleep(1)
+                continue
+            else:
+                logging.error(f"❌ Errore recuperando playlist curate Spotify: {e}")
+                return []
+    
+    return []
 
-def get_spotify_category_playlists(sp: spotipy.Spotify, category_id: str, country: str = 'IT', limit: int = 10) -> List[dict]:
+def get_spotify_category_playlists(sp: spotipy.Spotify, category_id: str, country: str = 'IT', limit: int = 10, max_retries: int = 2) -> List[dict]:
     """
-    Recupera playlist di una specifica categoria Spotify.
+    Recupera playlist di una specifica categoria Spotify con gestione errori migliorata.
     
     Args:
         sp: Oggetto Spotify autenticato
         category_id: ID categoria (es. 'toplists', 'pop', 'rock')
         country: Codice paese ISO
         limit: Numero massimo di playlist
+        max_retries: Numero massimo di tentativi
         
     Returns:
         Lista di dict con playlist della categoria
     """
-    try:
-        category_playlists = sp.category_playlists(category_id, country=country, limit=limit)
-        playlists = []
-        
-        for playlist in category_playlists.get('playlists', {}).get('items', []):
-            # Recupera metadati completi
-            enhanced_metadata = get_spotify_playlist_with_metadata(sp, playlist['id'])
+    for attempt in range(max_retries + 1):
+        try:
+            category_playlists = sp.category_playlists(category_id, country=country, limit=limit)
+            playlists = []
             
-            if enhanced_metadata:
-                # Aggiorna tipo e nome per indicare categoria
-                enhanced_metadata['name'] = f"🎯 {enhanced_metadata['name']}"
-                enhanced_metadata['playlist_type'] = 'category'
-                enhanced_metadata['genre'] = category_id
-                enhanced_metadata['description'] = f"Playlist categoria {category_id}. {enhanced_metadata.get('description', '')}"
-                playlists.append(enhanced_metadata)
-        
-        logging.info(f"✅ Trovate {len(playlists)} playlist Spotify categoria '{category_id}'")
-        return playlists
-        
-    except Exception as e:
-        logging.error(f"❌ Errore recuperando playlist categoria Spotify '{category_id}': {e}")
-        return []
+            for playlist in category_playlists.get('playlists', {}).get('items', []):
+                # Recupera metadati completi
+                enhanced_metadata = get_spotify_playlist_with_metadata(sp, playlist['id'])
+                
+                if enhanced_metadata:
+                    # Aggiorna tipo e nome per indicare categoria
+                    enhanced_metadata['name'] = f"🎯 {enhanced_metadata['name']}"
+                    enhanced_metadata['playlist_type'] = 'category'
+                    enhanced_metadata['genre'] = category_id
+                    enhanced_metadata['description'] = f"Playlist categoria {category_id}. {enhanced_metadata.get('description', '')}"
+                    playlists.append(enhanced_metadata)
+            
+            if playlists:
+                logging.info(f"✅ Trovate {len(playlists)} playlist Spotify categoria '{category_id}'")
+            else:
+                logging.info(f"ℹ️ Nessuna playlist trovata per categoria '{category_id}' in {country}")
+            return playlists
+            
+        except SpotifyException as e:
+            if e.http_status == 404:
+                logging.debug(f"📍 Categoria '{category_id}' non disponibile per la regione {country}")
+                return []
+            elif e.http_status == 429:  # Rate limit
+                if attempt < max_retries:
+                    wait_time = 2 ** attempt
+                    logging.warning(f"⏳ Rate limit per categoria '{category_id}', attendo {wait_time}s")
+                    time.sleep(wait_time)
+                    continue
+                else:
+                    logging.error(f"❌ Rate limit persistente per categoria '{category_id}'")
+                    return []
+            else:
+                if attempt < max_retries:
+                    logging.warning(f"⚠️ Errore temporaneo categoria '{category_id}' (HTTP {e.http_status}), tentativo {attempt + 2}/{max_retries + 1}")
+                    time.sleep(1)
+                    continue
+                else:
+                    logging.error(f"❌ Errore persistente categoria '{category_id}': HTTP {e.http_status} - {e}")
+                    return []
+        except Exception as e:
+            if attempt < max_retries:
+                logging.warning(f"⚠️ Errore generico categoria '{category_id}', tentativo {attempt + 2}/{max_retries + 1}: {e}")
+                time.sleep(1)
+                continue
+            else:
+                logging.error(f"❌ Errore recuperando playlist categoria Spotify '{category_id}': {e}")
+                return []
+    
+    return []
 
 def discover_all_spotify_content(sp: spotipy.Spotify, user_id: str, country: str = 'IT') -> dict:
     """
-    Funzione unificata per scoprire tutto il contenuto Spotify disponibile.
+    Funzione unificata per scoprire tutto il contenuto Spotify disponibile con gestione errori robusta.
     
     Args:
         sp: Oggetto Spotify autenticato
@@ -344,42 +409,80 @@ def discover_all_spotify_content(sp: spotipy.Spotify, user_id: str, country: str
     spotify_content = {
         'user_playlists': [],
         'featured': [],
-        'categories': {}
+        'categories': {},
+        'discovery_stats': {
+            'total_attempts': 0,
+            'successful_categories': [],
+            'failed_categories': [],
+            'unavailable_categories': []
+        }
     }
     
     try:
         # Playlist utente con metadati completi
         if user_id:
-            spotify_content['user_playlists'] = discover_spotify_user_playlists_enhanced(sp, user_id)
+            try:
+                spotify_content['user_playlists'] = discover_spotify_user_playlists_enhanced(sp, user_id)
+            except Exception as user_error:
+                logging.error(f"❌ Errore durante discovery playlist utente: {user_error}")
         
-        # Playlist in evidenza
-        spotify_content['featured'] = get_spotify_featured_playlists(sp, country)
+        # Playlist in evidenza con fallback
+        try:
+            spotify_content['featured'] = get_spotify_featured_playlists(sp, country)
+        except Exception as featured_error:
+            logging.warning(f"⚠️ Playlist in evidenza non disponibili: {featured_error}")
+            # Fallback: prova senza specificare il paese
+            try:
+                spotify_content['featured'] = get_spotify_featured_playlists(sp, country=None)
+                logging.info("✅ Fallback: playlist in evidenza globali recuperate")
+            except Exception:
+                logging.info("ℹ️ Playlist in evidenza non disponibili in questa regione")
         
-        # Playlist per categorie popolari
+        # Playlist per categorie popolari con gestione intelligente dei fallimenti
         popular_categories = ['toplists', 'pop', 'rock', 'hip-hop', 'electronic', 'jazz', 'classical', 'indie', 'country', 'latin']
         
         for category in popular_categories:
-            try:
-                category_playlists = get_spotify_category_playlists(sp, category, country, limit=5)
-                if category_playlists:
-                    spotify_content['categories'][category] = category_playlists
-            except Exception as cat_error:
-                logging.debug(f"Categoria '{category}' non disponibile: {cat_error}")
-                continue
+            spotify_content['discovery_stats']['total_attempts'] += 1
+            
+            category_playlists = get_spotify_category_playlists(sp, category, country, limit=5)
+            
+            if category_playlists:
+                spotify_content['categories'][category] = category_playlists
+                spotify_content['discovery_stats']['successful_categories'].append(category)
+            elif category in ['toplists', 'pop', 'rock']:  # Categorie prioritarie, prova fallback
+                # Prova senza specificare il paese per categorie importanti
+                try:
+                    fallback_playlists = get_spotify_category_playlists(sp, category, country=None, limit=3)
+                    if fallback_playlists:
+                        spotify_content['categories'][category] = fallback_playlists
+                        spotify_content['discovery_stats']['successful_categories'].append(f"{category}_global")
+                        logging.info(f"✅ Fallback globale per categoria '{category}' riuscito")
+                    else:
+                        spotify_content['discovery_stats']['unavailable_categories'].append(category)
+                except Exception:
+                    spotify_content['discovery_stats']['failed_categories'].append(category)
+            else:
+                spotify_content['discovery_stats']['unavailable_categories'].append(category)
         
-        # Calcola totale
+        # Calcola totale e statistiche
         total_user = len(spotify_content['user_playlists'])
         total_featured = len(spotify_content['featured'])
         total_categories = sum(len(playlists) for playlists in spotify_content['categories'].values())
         total_count = total_user + total_featured + total_categories
         
+        success_rate = len(spotify_content['discovery_stats']['successful_categories']) / len(popular_categories) * 100
+        
         logging.info(f"🎉 Discovery Spotify completato: {total_count} elementi trovati")
         logging.info(f"   👤 Playlist utente: {total_user}")
         logging.info(f"   ✨ Playlist curate: {total_featured}")
         logging.info(f"   🎯 Playlist categorie: {total_categories}")
+        logging.info(f"   📊 Tasso successo categorie: {success_rate:.1f}% ({len(spotify_content['discovery_stats']['successful_categories'])}/{len(popular_categories)})")
+        
+        if spotify_content['discovery_stats']['unavailable_categories']:
+            logging.info(f"   📍 Categorie non disponibili per {country}: {', '.join(spotify_content['discovery_stats']['unavailable_categories'])}")
         
         return spotify_content
         
     except Exception as e:
-        logging.error(f"❌ Errore durante discovery contenuto Spotify: {e}")
+        logging.error(f"❌ Errore critico durante discovery contenuto Spotify: {e}")
         return spotify_content
