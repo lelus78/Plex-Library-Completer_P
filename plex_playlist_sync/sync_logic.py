@@ -46,9 +46,9 @@ def check_stop_flag_direct():
     return check_stop_flag()  # Fallback to Flask context method
 
 from .utils.cleanup import delete_old_playlists, delete_previous_week_playlist
-from .utils.deezer import deezer_playlist_sync
+from .utils.deezer import deezer_playlist_sync, deezer_playlist_sync_with_discovery
 from .utils.helperClasses import UserInputs, Playlist as PlexPlaylist, Track as PlexTrack
-from .utils.spotify import spotify_playlist_sync
+from .utils.spotify import spotify_playlist_sync, spotify_playlist_sync_with_discovery
 from .utils.downloader import download_single_track_with_streamrip, DeezerLinkFinder
 from .utils.gemini_ai import configure_gemini, get_plex_favorites_by_id, generate_playlist_prompt, get_gemini_playlist_data
 from .utils.weekly_ai_manager import manage_weekly_ai_playlist
@@ -203,9 +203,14 @@ def build_library_index(app_state: Dict):
         app_state['status'] = "Critical error during indexing."
 
 
-def sync_playlists_for_user(plex: PlexServer, user_inputs: UserInputs):
-    """Performs Spotify and Deezer synchronization for a single user."""
-    if os.getenv("SKIP_SPOTIFY_SYNC", "0") != "1":
+def sync_playlists_for_user_selective(plex: PlexServer, user_inputs: UserInputs, sync_options: dict):
+    """Performs selective synchronization for a single user based on sync_options."""
+    enable_spotify = sync_options.get('enable_spotify', True)
+    enable_deezer = sync_options.get('enable_deezer', True)
+    auto_discovery = sync_options.get('auto_discovery', False)
+    
+    # Spotify Sync
+    if enable_spotify and os.getenv("SKIP_SPOTIFY_SYNC", "0") != "1":
         if not user_inputs.spotify_user_id:
             logger.error("SPOTIFY_USER_ID not configured; skipping Spotify sync")
         else:
@@ -237,17 +242,47 @@ def sync_playlists_for_user(plex: PlexServer, user_inputs: UserInputs):
                 logger.info(
                     f"--- Starting Spotify sync for user {user_inputs.plex_token[:4]}... ---"
                 )
-                spotify_playlist_sync(sp, plex, user_inputs)
+                
+                # Check if auto-discovery should be used
+                if auto_discovery and not user_inputs.spotify_playlist_ids:
+                    logger.info("🔍 Auto-discovery enabled for Spotify - fetching all user playlists")
+                    spotify_playlist_sync_with_discovery(sp, plex, user_inputs)
+                else:
+                    spotify_playlist_sync(sp, plex, user_inputs)
+                    
                 logger.info("✅ Spotify sync completed successfully")
             except Exception as spotify_error:
                 logger.error(f"❌ Spotify sync failed: {spotify_error}")
                 logger.info("ℹ️ Continuing without Spotify sync - other features unaffected")
+    elif not enable_spotify:
+        logger.info("⏭️ Spotify sync disabled by user selection")
     
-    if os.getenv("SKIP_DEEZER_SYNC", "0") != "1":
+    # Deezer Sync  
+    if enable_deezer and os.getenv("SKIP_DEEZER_SYNC", "0") != "1":
         logger.info(
             f"--- Starting Deezer sync for user {user_inputs.plex_token[:4]}... ---"
         )
-        deezer_playlist_sync(plex, user_inputs)
+        
+        # Check if auto-discovery should be used
+        if auto_discovery and not user_inputs.deezer_playlist_ids:
+            logger.info("🔍 Auto-discovery enabled for Deezer - fetching all user playlists")
+            deezer_playlist_sync_with_discovery(plex, user_inputs)
+        else:
+            deezer_playlist_sync(plex, user_inputs)
+            
+    elif not enable_deezer:
+        logger.info("⏭️ Deezer sync disabled by user selection")
+
+
+def sync_playlists_for_user(plex: PlexServer, user_inputs: UserInputs):
+    """Performs Spotify and Deezer synchronization for a single user (backward compatibility)."""
+    sync_options = {
+        'enable_spotify': True,
+        'enable_deezer': True,
+        'enable_ai': True,
+        'auto_discovery': False
+    }
+    return sync_playlists_for_user_selective(plex, user_inputs, sync_options)
 
 def force_playlist_scan_and_missing_detection():
     """
@@ -496,9 +531,9 @@ def run_cleanup_only():
                 logger.error(f"Error during Plex connection for cleanup (user {token[:4]}...): {e}")
 
 
-def run_full_sync_cycle(app_state=None):
-    """Performs a complete cycle of synchronization, AI, and then attempts download/rescan."""
-    logger.info("Starting new complete synchronization cycle...")
+def run_selective_sync_cycle(app_state=None, enable_spotify=True, enable_deezer=True, enable_ai=True, auto_discovery=False):
+    """Performs a selective cycle of synchronization based on user preferences."""
+    logger.info(f"Starting selective synchronization cycle - Spotify: {enable_spotify}, Deezer: {enable_deezer}, AI: {enable_ai}, Auto-discovery: {auto_discovery}")
     
     # Set app_state reference for background tasks
     if app_state:
@@ -509,9 +544,18 @@ def run_full_sync_cycle(app_state=None):
         logger.info("🛑 Stop requested before sync cycle start")
         return
     
-    RUN_GEMINI_PLAYLIST_CREATION = os.getenv("RUN_GEMINI_PLAYLIST_CREATION", "0") == "1"
+    # Override environment settings based on user selection
+    RUN_GEMINI_PLAYLIST_CREATION = enable_ai and os.getenv("RUN_GEMINI_PLAYLIST_CREATION", "0") == "1"
     AUTO_DELETE_AI_PLAYLIST = os.getenv("AUTO_DELETE_AI_PLAYLIST", "0") == "1"
     RUN_DOWNLOADER = os.getenv("RUN_DOWNLOADER", "1") == "1"
+    
+    # Create temporary sync options for this run
+    sync_options = {
+        'enable_spotify': enable_spotify,
+        'enable_deezer': enable_deezer,
+        'enable_ai': enable_ai,
+        'auto_discovery': auto_discovery
+    }
     
     sync_start_time = datetime.now()
     current_year, current_week, _ = sync_start_time.isocalendar()
@@ -554,9 +598,9 @@ def run_full_sync_cycle(app_state=None):
         
         try:
             plex = PlexServer(user_inputs.plex_url, user_inputs.plex_token, timeout=120)
-            sync_playlists_for_user(plex, user_inputs)
+            sync_playlists_for_user_selective(plex, user_inputs, sync_options)
             
-            if gemini_model and favorites_playlist_id:
+            if gemini_model and favorites_playlist_id and enable_ai:
                 logger.info(f"--- Gestione Playlist AI Settimanale per {name} ---")
                 try:
                     # Usa il nuovo sistema settimanale con persistenza JSON
@@ -578,13 +622,28 @@ def run_full_sync_cycle(app_state=None):
     logger.info("Synchronization and AI cycle completed.")
     
     # REFRESH AI PLAYLISTS: Regenerate managed AI playlists with new content from library
-    try:
-        refresh_managed_ai_playlists()
-    except Exception as e:
-        logger.error(f"Error refreshing managed AI playlists: {e}")
+    if enable_ai:
+        try:
+            refresh_managed_ai_playlists()
+        except Exception as e:
+            logger.error(f"Error refreshing managed AI playlists: {e}")
     
+    # Continue with the rest of the sync cycle (library check, download, etc.)
+    return _continue_sync_cycle_post_sync(RUN_DOWNLOADER)
+
+
+def run_full_sync_cycle(app_state=None):
+    """Performs a complete cycle of synchronization, AI, and then attempts download/rescan."""
+    logger.info("Starting new complete synchronization cycle...")
+    
+    # Delegate to selective sync with all services enabled
+    return run_selective_sync_cycle(app_state, enable_spotify=True, enable_deezer=True, enable_ai=True, auto_discovery=False)
+
+
+def _continue_sync_cycle_post_sync(RUN_DOWNLOADER):
+    """Common logic for completing the sync cycle after playlist synchronization."""
     # CRITICAL CHECK: Do not run playlist scan if library index is empty!
-    from .utils.database import get_library_index_stats
+    from .utils.database import get_library_index_stats, get_missing_tracks
     index_stats = get_library_index_stats()
     
     if index_stats['total_tracks_indexed'] == 0:

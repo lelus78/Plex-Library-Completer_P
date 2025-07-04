@@ -78,8 +78,21 @@ def download_worker():
             download_queue.task_done()
 
 def background_scheduler():
-    time.sleep(10)
     wait_seconds = int(os.getenv("SECONDS_TO_WAIT", 86400))
+    auto_sync_enabled = os.getenv("AUTO_SYNC_ENABLED", "0") == "1"
+    
+    if not auto_sync_enabled:
+        log.info("Scheduler: Auto-sync disabled. Waiting for manual requests only.")
+        # Keep scheduler alive but don't do automatic syncs
+        while True:
+            time.sleep(3600)  # Check every hour for setting changes
+            auto_sync_enabled = os.getenv("AUTO_SYNC_ENABLED", "0") == "1"
+            if auto_sync_enabled:
+                log.info("Scheduler: Auto-sync re-enabled. Starting automatic cycles.")
+                break
+    
+    # Original automatic scheduling logic (only if AUTO_SYNC_ENABLED=1)
+    time.sleep(10)
     while True:
         if not app_state["is_running"]:
             log.info("Scheduler: Starting automatic synchronization cycle.")
@@ -105,6 +118,11 @@ def run_task_in_background(trigger_type, target_function, *args):
             log.info(f"🛑 Operation '{trigger_type}' stopped by user request")
         else:
             app_state["status"] = "In attesa"
+            
+            # Re-enable auto-sync after manual sync if configured
+            if trigger_type != "Automatica" and os.getenv("AUTO_SYNC_AFTER_MANUAL", "0") == "1":
+                os.environ["AUTO_SYNC_ENABLED"] = "1"
+                log.info("✅ Auto-sync re-enabled after manual synchronization")
             
     except Exception as e:
         if app_state["stop_requested"]:
@@ -941,7 +959,15 @@ def sync_selective():
                 auto_discovery=auto_discovery
             )
         
-        return start_background_task(selective_sync_wrapper, message)
+        # Start the background task manually (avoiding redirect from start_background_task)
+        if app_state["is_running"]:
+            return jsonify({"success": False, "error": "Un'operazione è già in corso. Attendi il completamento."}), 409
+        
+        # Start the task
+        task_thread = threading.Thread(target=run_task_in_background, args=("Selettiva", selective_sync_wrapper))
+        task_thread.start()
+        
+        return jsonify({"success": True, "message": message})
         
     except Exception as e:
         log.error(f"Error in selective sync endpoint: {e}")

@@ -97,6 +97,52 @@ def _get_sp_tracks_from_playlist(
     return tracks
 
 
+def spotify_playlist_sync_with_discovery(sp: spotipy.Spotify, plex: PlexServer, userInputs: UserInputs) -> None:
+    """
+    Discovers and syncs all user playlists from Spotify (auto-discovery mode).
+    This function fetches all user playlists instead of using pre-configured IDs.
+    """
+    if not userInputs.spotify_user_id:
+        logging.error("SPOTIFY_USER_ID not configured; cannot discover playlists")
+        return
+
+    logging.info(f"🔍 Auto-discovering Spotify playlists for user: {userInputs.spotify_user_id}")
+    
+    try:
+        # Use existing function to get all user playlists
+        discovered_playlists = _get_sp_user_playlists(sp, userInputs.spotify_user_id, userInputs)
+        
+        if not discovered_playlists:
+            logging.warning("No Spotify playlists found for auto-discovery")
+            return
+        
+        logging.info(f"📋 Discovered {len(discovered_playlists)} Spotify playlists:")
+        for playlist in discovered_playlists:
+            logging.info(f"   - {playlist.name} (ID: {playlist.id})")
+        
+        # Process each discovered playlist
+        for playlist in discovered_playlists:
+            try:
+                logging.info(f"🎵 Processing discovered playlist: {playlist.name}")
+                
+                # Get tracks for this playlist  
+                tracks = _get_sp_tracks_from_playlist(sp, playlist)
+                if tracks:
+                    update_or_create_plex_playlist(plex, playlist, tracks, userInputs)
+                    logging.info(f"✅ Synced playlist '{playlist.name}' with {len(tracks)} tracks")
+                else:
+                    logging.warning(f"⚠️ No tracks found in playlist '{playlist.name}'")
+                    
+            except Exception as playlist_error:
+                logging.error(f"❌ Error processing playlist '{playlist.name}': {playlist_error}")
+                continue
+        
+        logging.info(f"🎉 Auto-discovery completed: processed {len(discovered_playlists)} Spotify playlists")
+        
+    except Exception as e:
+        logging.error(f"❌ Error during Spotify auto-discovery: {e}")
+
+
 def spotify_playlist_sync(
     sp: spotipy.Spotify, plex: PlexServer, userInputs: UserInputs
 ) -> None:
