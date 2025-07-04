@@ -9,19 +9,22 @@
 ![Docker Image Size](https://img.shields.io/docker/image-size/lelus78/plex-library-completer)
 ![Build Status](https://github.com/lelus78/Plex-Library-Completer_P/actions/workflows/docker-image.yml/badge.svg)
 
-A comprehensive Python application, executed via Docker, that keeps your Plex music library synchronized with streaming services like Spotify and Deezer. Features automatic missing track downloads, AI-generated playlists with Google Gemini, and complete playlist management automation.
+A comprehensive Python application, executed via Docker, that keeps your Plex music library synchronized with streaming services like Spotify and Deezer. Features an interactive web-based playlist management system, automatic missing track downloads, AI-generated playlists with Google Gemini, and complete automation with manual control options.
 
 ## ✨ Key Features
 
 - **🎵 Multi-Platform Synchronization**: Automatically syncs playlists from **Spotify** and **Deezer** to your Plex library
+- **🎛️ Interactive Playlist Management**: NEW! Web-based interface for discovering, selecting, and managing playlists with real-time statistics
+- **🔍 Advanced Auto-Discovery**: Automatically discover user playlists, curated content, charts, genres, and radio stations
 - **👥 Multi-User Management**: Supports multiple Plex users with individual configurations and playlists
 - **🤖 AI Playlist Generation**: Uses **Google Gemini** with **Ollama fallback** to create personalized weekly playlists and refresh existing AI playlists
-- **🔍 Smart Missing Track Detection**: Identifies songs missing from your library with advanced matching algorithms
-- **⬬ Automatic Downloads**: Uses **streamrip** to download missing tracks from Deezer automatically
+- **📊 Smart Missing Track Detection**: Identifies songs missing from your library with advanced matching algorithms
+- **⬇️ Automatic Downloads**: Uses **streamrip** to download missing tracks from Deezer automatically
 - **🗑️ Automated Cleanup**: Removes old playlists while preserving important ones with protection tags
-- **⏰ Background Processing**: Runs continuously with configurable sync intervals
-- **📊 Rich Statistics**: Real-time dashboard with detailed music library analytics
+- **⏰ Background Processing**: Runs continuously with configurable sync intervals or manual operation
+- **📈 Rich Statistics**: Real-time dashboard with detailed music library analytics
 - **🌍 Multilingual Interface**: Complete English/Italian support with automatic language detection
+- **💾 Database-Driven Configuration**: Modern database storage with migration from environment variables
 
 ## 🌐 Internationalization
 
@@ -217,7 +220,11 @@ Open your browser and go to:
 
 1. **Index Your Library**: Click "Index Library" to scan your music collection
 2. **Wait for Completion**: This may take 10-30 minutes depending on library size
-3. **Configure Playlists**: Add Deezer playlist IDs and, if you want only specific Spotify playlists, set `SPOTIFY_PLAYLIST_IDS` in the `.env` file
+3. **NEW! Interactive Playlist Management**: 
+   - Navigate to "Gestione Playlist" (Playlist Management) in the top menu
+   - Use the discovery buttons to automatically find playlists from Spotify and Deezer
+   - Select the playlists you want to sync using the interactive interface
+   - Alternatively, migrate existing playlist IDs from your `.env` file to the database
 4. **Test Sync**: Click "Start Full Sync" to test the synchronization
 
 ### Quick Test Configuration
@@ -252,6 +259,55 @@ Before running, ensure you have created these files:
 - [ ] `config.toml` (from `config.example.toml` with your Deezer ARL)
 - [ ] `docker-compose.yml` (with correct volume paths)
 - [ ] Created `state_data/` directory (will be created automatically)
+
+## 🎛️ Interactive Playlist Management Guide
+
+The application now features a comprehensive web-based playlist management system that replaces the need for manual playlist ID configuration.
+
+### How to Use Playlist Management
+
+1. **Access the Interface**: Navigate to "Gestione Playlist" in the top menu
+2. **Discover Playlists**: Use the discovery buttons to automatically find content:
+   - **Spotify**: Discover user playlists, featured playlists, and category content
+   - **Deezer**: Access charts, genres, radio stations, and editorial playlists
+3. **Select Playlists**: Use checkboxes to select which playlists to sync
+4. **Real-Time Feedback**: See live statistics and track counts as you make selections
+5. **Save Automatically**: All changes are saved to the database immediately
+
+### Content Types Available
+
+#### Spotify Content
+- **User Playlists**: Your public and followed playlists
+- **Featured Playlists**: Spotify's curated featured content
+- **Category Playlists**: Content organized by music categories
+
+#### Deezer Content  
+- **Charts**: Official top tracks and albums by country
+- **Genres**: Music categories with dynamic content
+- **Radio Stations**: Curated streaming radio content
+- **Editorial Playlists**: Deezer's curated playlist collections
+
+### Migration from Environment Variables
+
+If you have existing playlist IDs in your `.env` file:
+1. Click the "Migra da .env" button in the playlist management interface
+2. The system will automatically import your existing configurations
+3. After migration, you can use the visual interface for all future changes
+
+### Bulk Operations
+
+- **Select All**: Quickly select all playlists for a service
+- **Deselect All**: Clear all selections for a service  
+- **Discover All**: Find playlists for all services and users at once
+
+### Benefits of the New System
+
+- **🎯 No More Manual ID Hunting**: Automatically discover content without finding playlist IDs
+- **🔄 Real-Time Updates**: See immediate feedback on your selections
+- **📊 Track Count Visibility**: Know exactly how many tracks you're adding before syncing
+- **🎨 Visual Interface**: Playlist covers and metadata make selection easier  
+- **💾 Persistent Storage**: Settings saved in database, not just environment files
+- **🚀 Curated Content Access**: Discover trending and editorial content you might miss otherwise
 
 ## 🔧 Advanced Configuration
 
@@ -668,14 +724,17 @@ Once running, access the web interface at:
 - **Network**: `http://[your-server-ip]:5000`
 
 The interface provides:
-- Dashboard with sync status and statistics
-- Missing tracks management
-- AI playlist laboratory
-- Detailed music statistics and charts
+- **Dashboard** with sync status and statistics
+- **Interactive Playlist Management** with discovery and selection (NEW!)
+- **Missing Tracks Management** with download capabilities
+- **AI Playlist Laboratory** for creating custom playlists
+- **Detailed Statistics** and charts for music library insights
 
 ## Environment Variables (`.env`)
 
 This is the complete list of variables to configure in the `.env` file.
+
+> **💡 NEW**: Playlist IDs can now be managed through the interactive web interface instead of environment variables. The legacy variables below are still supported for backward compatibility.
 
 | Variable                       | Description                                                                                              | Example                                       | Required |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------- | --------------------------------------------- | -------- |
@@ -688,9 +747,10 @@ This is the complete list of variables to configure in the `.env` file.
 | `PUID`                          | User ID that the container should run as                                                           | `1000`                                        | ✅ |
 | `PGID`                          | Group ID that the container should run as                                                          | `1000`                                        | ✅ |
 | `PLEX_TOKEN_USERS`              | Access token for the secondary Plex user (optional)                                                    | `secondaryUserPlexToken`                      | ❌ |
-| `DEEZER_PLAYLIST_ID`            | Numeric IDs of Deezer playlists to sync for the main user, comma-separated                           | `12345678,87654321`                           | ❌ |
-| `DEEZER_PLAYLIST_ID_SECONDARY`  | Deezer playlist IDs for the secondary user, comma-separated (optional)                               | `98765432`                                    | ❌ |
-| `SPOTIFY_PLAYLIST_IDS`          | Comma-separated list of Spotify playlist IDs to sync. Leave empty to import all playlists from `SPOTIFY_USER_ID` | `37i9dQZEVXcJZyENOWUFo7,3J9M8N6y6vSO8Ex3rR7PJM` | ❌ |
+| `DEEZER_PLAYLIST_ID`            | Numeric IDs of Deezer playlists to sync for the main user, comma-separated (LEGACY - use Playlist Management interface instead) | `12345678,87654321`                           | ❌ |
+| `DEEZER_PLAYLIST_ID_SECONDARY`  | Deezer playlist IDs for the secondary user, comma-separated (LEGACY - use Playlist Management interface instead) | `98765432`                                    | ❌ |
+| `SPOTIFY_PLAYLIST_IDS`          | Comma-separated list of Spotify playlist IDs to sync (LEGACY - use Playlist Management interface instead) | `37i9dQZEVXcJZyENOWUFo7,3J9M8N6y6vSO8Ex3rR7PJM` | ❌ |
+| `AUTO_SYNC_ENABLED`             | Set to `1` to enable automatic background synchronization, `0` for manual only                       | `0` (manual only)                             | ❌ |
 | `GEMINI_API_KEY`                | API key obtained from Google AI Studio for AI functions                                              | `yourGeminiApiKey`                            | ❌ |
 | `PLEX_FAVORITES_PLAYLIST_ID_MAIN` | Rating Key (numeric ID) of the "favorites" Plex playlist for the main user (for AI)                 | `12345`                                       | ❌ |
 | `PLEX_FAVORITES_PLAYLIST_ID_SECONDARY` | Rating Key of the "favorites" playlist for the secondary user (optional, for AI)                   | `54321`                                       | ❌ |
@@ -847,28 +907,47 @@ If you're still having issues:
 
 ## 🆕 Latest Features
 
-### AI Playlist Auto-Refresh (New!)
-- **Automatic Updates**: AI-generated playlists like "Reggae Vibes" now automatically refresh with new content from your library
+### 🎛️ Interactive Playlist Management (NEW!)
+- **Web-Based Discovery**: Automatically discover playlists from Spotify and Deezer with one-click
+- **Curated Content Access**: Access to Deezer charts, genres, radio stations, and editorial playlists
+- **Real-Time Statistics**: Live track counts and selection feedback in the interface
+- **Database-Driven**: Modern database storage with migration from legacy environment variables
+- **Bulk Operations**: Select/deselect all playlists with instant visual feedback
+- **Multi-User Support**: Separate playlist management for main and secondary users
+- **Visual Interface**: Playlist cards with covers, metadata, and type indicators
+
+### 🔍 Advanced Auto-Discovery
+- **Spotify Integration**: Discover user playlists, featured playlists, and category-based content
+- **Deezer Curated Content**: Access official charts, genres, radio stations, and editorial selections
+- **Smart Filtering**: Automatic content categorization (regular playlists, radio streams, genres)
+- **Metadata Enrichment**: Complete playlist information with covers, descriptions, and track counts
+
+### 🎤 AI Playlist Auto-Refresh
+- **Automatic Updates**: AI-generated playlists now automatically refresh with new content from your library
 - **Smart Regeneration**: Maintains original theme while adding fresh tracks
 - **Manual & Automatic**: Works during both manual syncs and scheduled automatic syncs
 - **Weekly Management**: Weekly AI playlists are separately managed with their own persistence system
 
-### Enhanced Synchronization
+### 🚀 Enhanced Synchronization
+- **Manual Control**: Optional automatic synchronization (set `AUTO_SYNC_ENABLED=0` for manual only)
 - **Real-time Stats**: Dashboard shows actual track counts instead of hardcoded values
 - **Improved Logging**: Fixed log display in web interface with proper file paths
 - **Permission Handling**: Better container permissions management for downloads
 - **Multi-user Support**: Separate AI playlist management for main and secondary users
 
-### Performance Improvements
+### ⚡ Performance Improvements
 - **Faster Indexing**: Optimized library scanning with batch processing
 - **Smart Matching**: Advanced track matching algorithms reduce false positives
 - **Concurrent Operations**: Parallel processing for API calls and downloads
-- **Database Optimization**: Improved SQLite performance with proper indexing
+- **Database Optimization**: Improved SQLite performance with proper indexing and connection pooling
 
 ## 📸 Screenshots
 
 ### Main Dashboard
 ![Dashboard showing library statistics and sync status](index.png)
+
+### Interactive Playlist Management (NEW!)
+![Interactive playlist discovery and management interface](playlist_management.png)
 
 ### Missing Tracks Management
 ![Interface for managing and downloading missing tracks](missing_tracks.png)

@@ -6,6 +6,7 @@
   "navigation": {
     "dashboard": "Dashboard",
     "missing_tracks": "Tracce Mancanti",
+    "playlist_management": "Gestione Playlist",
     "ai_lab": "Laboratorio AI",
     "stats": "Statistiche",
     "settings": "Impostazioni"
@@ -447,5 +448,41 @@
   },
   "operation_types": {
     "automatic": "Automatica"
+  },
+  "playlist_management": {
+    "title": "Gestione Playlist Interattiva",
+    "subtitle": "Seleziona le playlist che vuoi sincronizzare. Le modifiche verranno salvate automaticamente nel database.",
+    "discover_all": "Scopri Tutte le Playlist",
+    "migrate_env": "Migra da .env",
+    "discover": "Scopri",
+    "select_all": "Seleziona Tutto",
+    "deselect_all": "Deseleziona Tutto",
+    "no_playlists_found": "Nessuna playlist trovata. Usa il pulsante \"Scopri\" per trovare le playlist.",
+    "no_description": "Nessuna descrizione",
+    "tracks": "tracce",
+    "playlist": "playlist",
+    "playlists": "playlist",
+    "continuous_stream": "Stream Continuo",
+    "category": "Categoria",
+    "operation_in_progress": "Operazione in Corso",
+    "loading": "Caricamento...",
+    "confirm_discover_all": "Vuoi scoprire tutte le playlist per tutti i servizi? Questa operazione potrebbe richiedere alcuni minuti.",
+    "confirm_migrate": "Vuoi migrare le playlist dal file .env al database? Questa operazione sovrascriverà le selezioni esistenti.",
+    "discovery_completed": "Discovery completato: {count} playlist trovate",
+    "migration_completed": "Migrazione completata: {count} playlist migrate",
+    "error_during_discovery": "Errore durante discovery: {error}",
+    "error_during_migration": "Errore durante migrazione: {error}",
+    "error_during_discovery_generic": "Errore durante discovery playlist",
+    "error_during_migration_generic": "Errore durante migrazione",
+    "discovering_playlists": "Scoprendo playlist {service} per {user}...",
+    "migrating_playlists": "Migrando playlist da file .env...",
+    "updated_playlists": "Aggiornate {count} playlist per {user}/{service}",
+    "error_updating_playlists": "Errore aggiornamento playlist: {error}",
+    "special_info_radio": "Stream continuo - Musica infinita",
+    "special_info_genre": "Categoria musicale - Accesso a contenuti dinamici",
+    "badge_radio": "Stream Continuo",
+    "badge_genre": "Categoria",
+    "stats_with_radio_genres": " + radio/generi",
+    "stats_radio_genres_only": " (radio/generi)"
   }
 }

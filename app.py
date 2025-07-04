@@ -209,9 +209,33 @@ def playlist_management():
             }
         }
         
+        # Traduzioni per JavaScript
+        from plex_playlist_sync.utils.i18n import get_translation
+        js_translations = {
+            'discovery_completed': get_translation('playlist_management.discovery_completed'),
+            'migration_completed': get_translation('playlist_management.migration_completed'),
+            'error_during_discovery': get_translation('playlist_management.error_during_discovery'),
+            'error_during_migration': get_translation('playlist_management.error_during_migration'),
+            'error_during_discovery_generic': get_translation('playlist_management.error_during_discovery_generic'),
+            'error_during_migration_generic': get_translation('playlist_management.error_during_migration_generic'),
+            'discovering_playlists': get_translation('playlist_management.discovering_playlists'),
+            'migrating_playlists': get_translation('playlist_management.migrating_playlists'),
+            'updated_playlists': get_translation('playlist_management.updated_playlists'),
+            'error_updating_playlists': get_translation('playlist_management.error_updating_playlists'),
+            'confirm_discover_all': get_translation('playlist_management.confirm_discover_all'),
+            'confirm_migrate': get_translation('playlist_management.confirm_migrate'),
+            'tracks': get_translation('playlist_management.tracks'),
+            'playlists': get_translation('playlist_management.playlists'),
+            'stats_with_radio_genres': get_translation('playlist_management.stats_with_radio_genres'),
+            'stats_radio_genres_only': get_translation('playlist_management.stats_radio_genres_only'),
+            'continuous_stream': get_translation('playlist_management.continuous_stream'),
+            'category': get_translation('playlist_management.category')
+        }
+        
         return render_template('playlist_management.html', 
                              playlists=playlist_data,
-                             aliases=get_user_aliases())
+                             aliases=get_user_aliases(),
+                             js_translations=js_translations)
     except Exception as e:
         log.error(f"Error in playlist management page: {e}", exc_info=True)
         flash(f"Errore nel caricamento gestione playlist: {str(e)}", "error")

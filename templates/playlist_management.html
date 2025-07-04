@@ -1,5 +1,5 @@
 {% extends 'base.html' %}
-{% block title %}Gestione Playlist{% endblock %}
+{% block title %}{{ _('playlist_management.title') }}{% endblock %}
 
 {% block content %}
 <!-- Playlist Management Header -->
@@ -10,21 +10,21 @@
                 <div class="d-flex align-items-center justify-content-between mb-3">
                     <div class="d-flex align-items-center">
                         <i data-lucide="list-music" class="me-3" style="width: 28px; height: 28px; color: var(--spotify-green);"></i>
-                        <h2 class="card-title mb-0">Gestione Playlist Interattiva</h2>
+                        <h2 class="card-title mb-0">{{ _('playlist_management.title') }}</h2>
                     </div>
                     <div class="d-flex gap-2">
                         <button id="btn-discover-all" class="btn btn-primary">
                             <i data-lucide="search" class="me-2" style="width: 16px; height: 16px;"></i>
-                            Scopri Tutte le Playlist
+                            {{ _('playlist_management.discover_all') }}
                         </button>
                         <button id="btn-migrate-env" class="btn btn-secondary">
                             <i data-lucide="database" class="me-2" style="width: 16px; height: 16px;"></i>
-                            Migra da .env
+                            {{ _('playlist_management.migrate_env') }}
                         </button>
                     </div>
                 </div>
                 <p class="text-secondary mb-0">
-                    Seleziona le playlist che vuoi sincronizzare. Le modifiche verranno salvate automaticamente nel database.
+                    {{ _('playlist_management.subtitle') }}
                 </p>
             </div>
         </div>
@@ -66,19 +66,19 @@
                             <span id="spotify-main-stats" class="badge bg-primary ms-2">
                                 {% set selected_spotify = playlists.main.spotify | selectattr('is_selected') | list %}
                                 {% set total_tracks = selected_spotify | sum(attribute='track_count') %}
-                                {{ selected_spotify | length }}/{{ playlists.main.spotify | length }} playlist ({{ total_tracks }} tracce)
+                                {{ selected_spotify | length }}/{{ playlists.main.spotify | length }} {{ _('playlist_management.playlists') }} ({{ total_tracks }} {{ _('playlist_management.tracks') }})
                             </span>
                         </div>
                         <div class="d-flex gap-2">
                             <button class="btn btn-sm btn-outline-primary" onclick="discoverPlaylists('main', 'spotify')">
                                 <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
-                                Scopri
+                                {{ _('playlist_management.discover') }}
                             </button>
                             <button class="btn btn-sm btn-outline-success" onclick="selectAll('main', 'spotify', true)">
-                                Seleziona Tutto
+                                {{ _('playlist_management.select_all') }}
                             </button>
                             <button class="btn btn-sm btn-outline-danger" onclick="selectAll('main', 'spotify', false)">
-                                Deseleziona Tutto
+                                {{ _('playlist_management.deselect_all') }}
                             </button>
                         </div>
                     </div>
@@ -92,22 +92,22 @@
                                                {% if playlist.is_selected %}checked{% endif %}>
                                         <div class="playlist-info flex-grow-1">
                                             <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
-                                            <p class="text-secondary small mb-1">{{ playlist.playlist_description or 'Nessuna descrizione' }}</p>
+                                            <p class="text-secondary small mb-1">{{ playlist.playlist_description or _('playlist_management.no_description') }}</p>
                                             <div class="d-flex gap-2 mb-2">
                                                 {% if playlist.playlist_type == 'radio' %}
                                                 <span class="badge bg-danger">
                                                     <i data-lucide="radio" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    Stream Continuo
+                                                    {{ _('playlist_management.continuous_stream') }}
                                                 </span>
                                                 {% elif playlist.playlist_type == 'genre' %}
                                                 <span class="badge bg-purple">
                                                     <i data-lucide="tag" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    Categoria
+                                                    {{ _('playlist_management.category') }}
                                                 </span>
                                                 {% else %}
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    {{ playlist.track_count or 0 }} tracce
+                                                    {{ playlist.track_count or 0 }} {{ _('playlist_management.tracks') }}
                                                 </span>
                                                 {% endif %}
                                                 <span class="badge bg-info">{{ playlist.playlist_type }}</span>
@@ -128,7 +128,7 @@
                             {% else %}
                                 <div class="text-center text-secondary py-4">
                                     <i data-lucide="search" style="width: 48px; height: 48px; opacity: 0.5;"></i>
-                                    <p class="mt-2">Nessuna playlist Spotify trovata. Usa il pulsante "Scopri" per trovare le playlist.</p>
+                                    <p class="mt-2">{{ _('playlist_management.no_playlists_found') }}</p>
                                 </div>
                             {% endif %}
                         </div>
@@ -148,19 +148,19 @@
                             <span id="deezer-main-stats" class="badge bg-warning ms-2">
                                 {% set selected_deezer = playlists.main.deezer | selectattr('is_selected') | list %}
                                 {% set total_tracks = selected_deezer | sum(attribute='track_count') %}
-                                {{ selected_deezer | length }}/{{ playlists.main.deezer | length }} playlist ({{ total_tracks }} tracce)
+                                {{ selected_deezer | length }}/{{ playlists.main.deezer | length }} {{ _('playlist_management.playlists') }} ({{ total_tracks }} {{ _('playlist_management.tracks') }})
                             </span>
                         </div>
                         <div class="d-flex gap-2">
                             <button class="btn btn-sm btn-outline-primary" onclick="discoverPlaylists('main', 'deezer')">
                                 <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
-                                Scopri
+                                {{ _('playlist_management.discover') }}
                             </button>
                             <button class="btn btn-sm btn-outline-success" onclick="selectAll('main', 'deezer', true)">
-                                Seleziona Tutto
+                                {{ _('playlist_management.select_all') }}
                             </button>
                             <button class="btn btn-sm btn-outline-danger" onclick="selectAll('main', 'deezer', false)">
-                                Deseleziona Tutto
+                                {{ _('playlist_management.deselect_all') }}
                             </button>
                         </div>
                     </div>
@@ -174,11 +174,11 @@
                                                {% if playlist.is_selected %}checked{% endif %}>
                                         <div class="playlist-info flex-grow-1">
                                             <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
-                                            <p class="text-secondary small mb-1">{{ playlist.playlist_description or 'Nessuna descrizione' }}</p>
+                                            <p class="text-secondary small mb-1">{{ playlist.playlist_description or _('playlist_management.no_description') }}</p>
                                             <div class="d-flex gap-2 mb-2">
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    {{ playlist.track_count or 0 }} tracce
+                                                    {{ playlist.track_count or 0 }} {{ _('playlist_management.tracks') }}
                                                 </span>
                                                 <span class="badge bg-warning">{{ playlist.playlist_type }}</span>
                                                 {% if playlist.last_updated %}
@@ -221,19 +221,19 @@
                             <span id="deezer-secondary-stats" class="badge bg-warning ms-2">
                                 {% set selected_deezer = playlists.secondary.deezer | selectattr('is_selected') | list %}
                                 {% set total_tracks = selected_deezer | sum(attribute='track_count') %}
-                                {{ selected_deezer | length }}/{{ playlists.secondary.deezer | length }} playlist ({{ total_tracks }} tracce)
+                                {{ selected_deezer | length }}/{{ playlists.secondary.deezer | length }} {{ _('playlist_management.playlists') }} ({{ total_tracks }} {{ _('playlist_management.tracks') }})
                             </span>
                         </div>
                         <div class="d-flex gap-2">
                             <button class="btn btn-sm btn-outline-primary" onclick="discoverPlaylists('secondary', 'deezer')">
                                 <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
-                                Scopri
+                                {{ _('playlist_management.discover') }}
                             </button>
                             <button class="btn btn-sm btn-outline-success" onclick="selectAll('secondary', 'deezer', true)">
-                                Seleziona Tutto
+                                {{ _('playlist_management.select_all') }}
                             </button>
                             <button class="btn btn-sm btn-outline-danger" onclick="selectAll('secondary', 'deezer', false)">
-                                Deseleziona Tutto
+                                {{ _('playlist_management.deselect_all') }}
                             </button>
                         </div>
                     </div>
@@ -247,11 +247,11 @@
                                                {% if playlist.is_selected %}checked{% endif %}>
                                         <div class="playlist-info flex-grow-1">
                                             <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
-                                            <p class="text-secondary small mb-1">{{ playlist.playlist_description or 'Nessuna descrizione' }}</p>
+                                            <p class="text-secondary small mb-1">{{ playlist.playlist_description or _('playlist_management.no_description') }}</p>
                                             <div class="d-flex gap-2 mb-2">
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    {{ playlist.track_count or 0 }} tracce
+                                                    {{ playlist.track_count or 0 }} {{ _('playlist_management.tracks') }}
                                                 </span>
                                                 <span class="badge bg-warning">{{ playlist.playlist_type }}</span>
                                                 {% if playlist.last_updated %}
@@ -287,12 +287,12 @@
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Operazione in Corso</h5>
+                <h5 class="modal-title">{{ _('playlist_management.operation_in_progress') }}</h5>
             </div>
             <div class="modal-body">
                 <div class="d-flex align-items-center">
                     <div class="spinner-border me-3" role="status"></div>
-                    <span id="status-message">Caricamento...</span>
+                    <span id="status-message">{{ _('playlist_management.loading') }}</span>
                 </div>
             </div>
         </div>
@@ -343,9 +343,21 @@
 </style>
 
 <script>
+// Traduzioni JavaScript
+const translations = {{ js_translations|tojson }};
+
+// Funzioni di utility per le traduzioni
+function t(key, replacements = {}) {
+    let text = translations[key] || key;
+    for (const [placeholder, value] of Object.entries(replacements)) {
+        text = text.replace(`{${placeholder}}`, value);
+    }
+    return text;
+}
+
 // Playlist Management Functions
 function discoverPlaylists(userType, service) {
-    showStatus(`Scoprendo playlist ${service} per ${userType}...`);
+    showStatus(t('discovering_playlists', {service: service, user: userType}));
     
     fetch(`/api/discover_playlists/${userType}/${service}`, {
         method: 'POST',
@@ -357,16 +369,16 @@ function discoverPlaylists(userType, service) {
     .then(data => {
         hideStatus();
         if (data.success) {
-            alert(`✅ Discovery completato: ${data.total_discovered} playlist trovate`);
+            alert(`✅ ${t('discovery_completed', {count: data.total_discovered})}`);
             location.reload(); // Ricarica per mostrare le nuove playlist
         } else {
-            alert(`❌ Errore durante discovery: ${data.error}`);
+            alert(`❌ ${t('error_during_discovery', {error: data.error})}`);
         }
     })
     .catch(error => {
         hideStatus();
         console.error('Error:', error);
-        alert('❌ Errore durante discovery playlist');
+        alert(`❌ ${t('error_during_discovery_generic')}`);
     });
 }
 
@@ -407,11 +419,11 @@ function updatePlaylistSelections(userType, service, selections) {
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            console.log(`✅ Aggiornate ${data.success_count} playlist per ${userType}/${service}`);
+            console.log(`✅ ${t('updated_playlists', {count: data.success_count, user: userType, service: service})}`);
             // Aggiorna le statistiche in tempo reale
             updateStatsDisplay(userType, service);
         } else {
-            console.error('❌ Errore aggiornamento playlist:', data.error);
+            console.error(`❌ ${t('error_updating_playlists', {error: data.error})}`);
         }
     })
     .catch(error => {
@@ -440,10 +452,10 @@ function updateStatsDisplay(userType, service) {
             if (tracksBadge) {
                 const tracksText = tracksBadge.textContent;
                 // Solo conta le tracce se non è radio o genere
-                if (tracksText.includes('Stream Continuo') || tracksText.includes('Categoria')) {
+                if (tracksText.includes(t('continuous_stream')) || tracksText.includes(t('category'))) {
                     hasSpecialTypes = true;
                 } else {
-                    const trackMatch = tracksText.match(/(\d+)\s+tracce/);
+                    const trackMatch = tracksText.match(/(\d+)\s+/);
                     if (trackMatch) {
                         totalTracks += parseInt(trackMatch[1]);
                     }
@@ -453,15 +465,15 @@ function updateStatsDisplay(userType, service) {
     });
     
     // Aggiorna il testo delle statistiche con informazioni più precise
-    let statsText = `${selectedCount}/${totalPlaylists} playlist`;
+    let statsText = `${selectedCount}/${totalPlaylists} ${t('playlists')}`;
     if (totalTracks > 0) {
-        statsText += ` (${totalTracks} tracce`;
+        statsText += ` (${totalTracks} ${t('tracks')}`;
         if (hasSpecialTypes) {
-            statsText += ' + radio/generi';
+            statsText += t('stats_with_radio_genres');
         }
         statsText += ')';
     } else if (hasSpecialTypes && selectedCount > 0) {
-        statsText += ' (radio/generi)';
+        statsText += t('stats_radio_genres_only');
     }
     
     statsElement.textContent = statsText;
@@ -484,7 +496,7 @@ function initializeStats() {
 }
 
 function migrateFromEnv() {
-    showStatus('Migrando playlist da file .env...');
+    showStatus(t('migrating_playlists'));
     
     fetch('/api/migrate_env_playlists', {
         method: 'POST',
@@ -496,16 +508,16 @@ function migrateFromEnv() {
     .then(data => {
         hideStatus();
         if (data.success) {
-            alert(`✅ Migrazione completata: ${data.migrated_count} playlist migrate`);
+            alert(`✅ ${t('migration_completed', {count: data.migrated_count})}`);
             location.reload();
         } else {
-            alert(`❌ Errore durante migrazione: ${data.error}`);
+            alert(`❌ ${t('error_during_migration', {error: data.error})}`);
         }
     })
     .catch(error => {
         hideStatus();
         console.error('Error:', error);
-        alert('❌ Errore durante migrazione');
+        alert(`❌ ${t('error_during_migration_generic')}`);
     });
 }
 
@@ -553,7 +565,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Discover all button
     document.getElementById('btn-discover-all').addEventListener('click', function() {
-        if (confirm('Vuoi scoprire tutte le playlist per tutti i servizi? Questa operazione potrebbe richiedere alcuni minuti.')) {
+        if (confirm(t('confirm_discover_all'))) {
             discoverPlaylists('main', 'spotify');
             setTimeout(() => discoverPlaylists('main', 'deezer'), 2000);
             setTimeout(() => discoverPlaylists('secondary', 'deezer'), 4000);
@@ -562,7 +574,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Migrate env button
     document.getElementById('btn-migrate-env').addEventListener('click', function() {
-        if (confirm('Vuoi migrare le playlist dal file .env al database? Questa operazione sovrascriverà le selezioni esistenti.')) {
+        if (confirm(t('confirm_migrate'))) {
             migrateFromEnv();
         }
     });
