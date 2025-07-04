@@ -243,6 +243,9 @@ SPOTIFY_CLIENT_SECRET=your_spotify_secret
 GEMINI_API_KEY=your_gemini_key
 DEEZER_ARL=your_deezer_arl
 
+# Regional content (default: IT)
+COUNTRY=US
+
 # Disable features for testing
 SKIP_SPOTIFY_SYNC=0
 SKIP_DEEZER_SYNC=0
@@ -500,6 +503,7 @@ SPOTIFY_CLIENT_ID=your_spotify_client_id
 SPOTIFY_CLIENT_SECRET=your_spotify_client_secret
 DEEZER_ARL=your_deezer_arl_here
 GEMINI_API_KEY=your_gemini_api_key
+COUNTRY=IT
 PUID=99
 PGID=100
 ```
@@ -755,6 +759,7 @@ This is the complete list of variables to configure in the `.env` file.
 | `PLEX_FAVORITES_PLAYLIST_ID_MAIN` | Rating Key (numeric ID) of the "favorites" Plex playlist for the main user (for AI)                 | `12345`                                       | ❌ |
 | `PLEX_FAVORITES_PLAYLIST_ID_SECONDARY` | Rating Key of the "favorites" playlist for the secondary user (optional, for AI)                   | `54321`                                       | ❌ |
 | `DEEZER_ARL`                    | Deezer ARL cookie for downloading tracks (optional). Leave empty to skip downloads                  | `your_arl_cookie_here`                        | ❌ |
+| `COUNTRY`                       | Country code for regional content discovery (ISO 2-letter format)                                   | `IT`, `US`, `GB`, `FR`, `DE`, etc.            | ❌ |
 | `SECONDS_TO_WAIT`               | Seconds to wait between synchronization cycles                                                        | `86400` (24 hours)                            | ❌ |
 | `WEEKS_LIMIT`                   | Number of weeks after which old playlists are deleted                                                 | `4`                                           | ❌ |
 | `PRESERVE_TAG`                  | If this text is in a playlist title, it will not be deleted                                          | `NO_DELETE`                                   | ❌ |
