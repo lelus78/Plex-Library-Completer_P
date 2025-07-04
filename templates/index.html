@@ -22,15 +22,73 @@
                     <small class="text-secondary" id="last-sync-time">{{ _('dashboard.logs.loading') }}</small>
                 </div>
                 
+                <!-- Sync Options -->
+                <div class="mb-4 p-3" style="background: var(--gradient-card); border-radius: var(--radius-md);">
+                    <div class="d-flex align-items-center mb-3">
+                        <i data-lucide="settings" class="me-2" style="width: 20px; height: 20px; color: var(--accent-blue);"></i>
+                        <h6 class="mb-0 fw-medium">{{ _('dashboard.sync_options.title') }}</h6>
+                    </div>
+                    
+                    <form id="sync-options-form" action="{{ url_for('sync_selective') }}" method="post">
+                        <div class="row g-2">
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enable_spotify" name="enable_spotify" checked>
+                                    <label class="form-check-label d-flex align-items-center" for="enable_spotify">
+                                        <i data-lucide="music" class="me-2" style="width: 16px; height: 16px; color: var(--spotify-green);"></i>
+                                        {{ _('dashboard.sync_options.spotify') }}
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enable_deezer" name="enable_deezer" checked>
+                                    <label class="form-check-label d-flex align-items-center" for="enable_deezer">
+                                        <i data-lucide="disc-3" class="me-2" style="width: 16px; height: 16px; color: var(--deezer-orange, #ff5500);"></i>
+                                        {{ _('dashboard.sync_options.deezer') }}
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="enable_ai" name="enable_ai" checked>
+                                    <label class="form-check-label d-flex align-items-center" for="enable_ai">
+                                        <i data-lucide="brain" class="me-2" style="width: 16px; height: 16px; color: var(--accent-purple);"></i>
+                                        {{ _('dashboard.sync_options.ai_playlists') }}
+                                    </label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-check">
+                                    <input class="form-check-input" type="checkbox" id="auto_discovery" name="auto_discovery">
+                                    <label class="form-check-label d-flex align-items-center" for="auto_discovery">
+                                        <i data-lucide="search" class="me-2" style="width: 16px; height: 16px; color: var(--accent-blue);"></i>
+                                        {{ _('dashboard.sync_options.auto_discovery') }}
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                    
+                    <!-- Configuration Warnings -->
+                    <div id="config-warnings" class="mt-3" style="display: none;">
+                        <div class="alert alert-warning d-flex align-items-center" role="alert">
+                            <i data-lucide="alert-triangle" class="me-2" style="width: 16px; height: 16px;"></i>
+                            <div>
+                                <strong>⚠️ Auto-scoperta non disponibile</strong><br>
+                                <small id="config-warning-text"></small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
                 <!-- Quick Actions -->
                 <div class="row g-3">
                     <div class="col-md-6">
-                        <form action="{{ url_for('sync_now') }}" method="post">
-                            <button id="btn-sync" type="submit" class="btn btn-primary w-100 d-flex align-items-center justify-content-center">
-                                <i data-lucide="refresh-cw" class="me-2" style="width: 18px; height: 18px;"></i>
-                                {{ _('dashboard.actions.sync_now') }}
-                            </button>
-                        </form>
+                        <button id="btn-sync" type="button" onclick="submitSyncForm()" class="btn btn-primary w-100 d-flex align-items-center justify-content-center">
+                            <i data-lucide="refresh-cw" class="me-2" style="width: 18px; height: 18px;"></i>
+                            {{ _('dashboard.actions.sync_now') }}
+                        </button>
                     </div>
                     <div class="col-md-6">
                         <form action="{{ url_for('cleanup_now') }}" method="post">
@@ -379,6 +437,49 @@
         }, 50);
     }
     
+    // Function to check service configuration and show warnings
+    function checkServiceConfiguration() {
+        const autoDiscovery = document.getElementById('auto_discovery').checked;
+        const enableSpotify = document.getElementById('enable_spotify').checked;
+        const enableDeezer = document.getElementById('enable_deezer').checked;
+        const warningsDiv = document.getElementById('config-warnings');
+        const warningText = document.getElementById('config-warning-text');
+        
+        if (!autoDiscovery) {
+            warningsDiv.style.display = 'none';
+            return;
+        }
+        
+        fetch('/api/service_config')
+            .then(response => response.json())
+            .then(configData => {
+                if (configData.success) {
+                    const config = configData.config;
+                    let warnings = [];
+                    
+                    if (enableSpotify && !config.spotify.auto_discovery_available) {
+                        warnings.push('Spotify richiede SPOTIFY_USER_ID configurato');
+                    }
+                    if (enableDeezer && !config.deezer.auto_discovery_available) {
+                        warnings.push('Deezer richiede DEEZER_USER_ID configurato');
+                    }
+                    
+                    if (warnings.length > 0) {
+                        warningText.textContent = warnings.join('; ');
+                        warningsDiv.style.display = 'block';
+                    } else {
+                        warningsDiv.style.display = 'none';
+                    }
+                } else {
+                    warningsDiv.style.display = 'none';
+                }
+            })
+            .catch(error => {
+                console.error('Error checking service config:', error);
+                warningsDiv.style.display = 'none';
+            });
+    }
+
     // Initialize dashboard
     document.addEventListener('DOMContentLoaded', () => {
         // Initial update
@@ -386,6 +487,14 @@
         
         // Set up periodic updates
         setInterval(updateDashboard, 15000);
+        
+        // Add event listeners for configuration checking
+        document.getElementById('auto_discovery').addEventListener('change', checkServiceConfiguration);
+        document.getElementById('enable_spotify').addEventListener('change', checkServiceConfiguration);
+        document.getElementById('enable_deezer').addEventListener('change', checkServiceConfiguration);
+        
+        // Initial configuration check
+        checkServiceConfiguration();
         
         // Add click animations to cards
         const cards = document.querySelectorAll('.card');
@@ -443,5 +552,96 @@
             }
         });
     });
+    
+    // Function to handle selective sync form submission
+    function submitSyncForm() {
+        const form = document.getElementById('sync-options-form');
+        const formData = new FormData(form);
+        
+        // Check if at least one service is selected
+        const enableSpotify = document.getElementById('enable_spotify').checked;
+        const enableDeezer = document.getElementById('enable_deezer').checked;
+        const enableAI = document.getElementById('enable_ai').checked;
+        const autoDiscovery = document.getElementById('auto_discovery').checked;
+        
+        if (!enableSpotify && !enableDeezer && !enableAI) {
+            alert('{{ _('errors.no_service_selected') }}');
+            return;
+        }
+        
+        // If auto-discovery is enabled, check service configuration
+        if (autoDiscovery) {
+            fetch('/api/service_config')
+                .then(response => response.json())
+                .then(configData => {
+                    if (configData.success) {
+                        const config = configData.config;
+                        let missingConfigs = [];
+                        
+                        if (enableSpotify && !config.spotify.auto_discovery_available) {
+                            missingConfigs.push('Spotify richiede SPOTIFY_USER_ID');
+                        }
+                        if (enableDeezer && !config.deezer.auto_discovery_available) {
+                            missingConfigs.push('Deezer richiede DEEZER_USER_ID');
+                        }
+                        
+                        if (missingConfigs.length > 0) {
+                            alert('Auto-scoperta non disponibile:\n' + missingConfigs.join('\n'));
+                            return;
+                        }
+                        
+                        // Configuration is valid, proceed with sync
+                        proceedWithSync(form, formData);
+                    } else {
+                        alert('Errore nella verifica configurazione');
+                    }
+                })
+                .catch(error => {
+                    console.error('Error checking service config:', error);
+                    alert('Errore nella verifica configurazione');
+                });
+        } else {
+            // No auto-discovery, proceed directly
+            proceedWithSync(form, formData);
+        }
+    }
+    
+    function proceedWithSync(form, formData) {
+        // Disable the sync button during operation
+        const syncButton = document.getElementById('btn-sync');
+        syncButton.disabled = true;
+        syncButton.innerHTML = '<i data-lucide="loader" class="me-2" style="width: 18px; height: 18px;"></i>{{ _('status_messages.starting') }}';
+        
+        // Submit the form
+        fetch(form.action, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Selective sync started successfully');
+                // The dashboard will be updated by the periodic status check
+                updateDashboard();
+            } else {
+                alert('{{ _('errors.sync_failed') }}: ' + data.error);
+                // Re-enable button on error
+                syncButton.disabled = false;
+                syncButton.innerHTML = '<i data-lucide="refresh-cw" class="me-2" style="width: 18px; height: 18px;"></i>{{ _('dashboard.actions.sync_now') }}';
+            }
+        })
+        .catch(error => {
+            console.error('Error starting selective sync:', error);
+            alert('{{ _('errors.sync_error') }}');
+            // Re-enable button on error
+            syncButton.disabled = false;
+            syncButton.innerHTML = '<i data-lucide="refresh-cw" class="me-2" style="width: 18px; height: 18px;"></i>{{ _('dashboard.actions.sync_now') }}';
+        });
+        
+        // Refresh icons after content update
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
 </script>
 {% endblock %}

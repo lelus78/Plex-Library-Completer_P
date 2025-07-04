@@ -30,7 +30,7 @@ log.setLevel(logging.DEBUG)
 # --- Fine Configurazione ---
 
 # Import dei nostri moduli
-from plex_playlist_sync.sync_logic import run_full_sync_cycle, run_cleanup_only, build_library_index, rescan_and_update_missing, force_playlist_scan_and_missing_detection
+from plex_playlist_sync.sync_logic import run_full_sync_cycle, run_selective_sync_cycle, run_cleanup_only, build_library_index, rescan_and_update_missing, force_playlist_scan_and_missing_detection
 from plex_playlist_sync.stats_generator import (
     get_plex_tracks_as_df, generate_genre_pie_chart, generate_decade_bar_chart,
     generate_top_artists_chart, generate_duration_distribution, generate_year_trend_chart,
@@ -902,6 +902,51 @@ def download_selected_tracks():
 @app.route('/sync_now', methods=['POST'])
 def sync_now(): return start_background_task(run_full_sync_cycle, "Sincronizzazione completa avviata!")
 
+@app.route('/sync_selective', methods=['POST'])
+def sync_selective():
+    """Endpoint for selective synchronization based on user preferences."""
+    try:
+        # Check if operation is already running
+        if app_state["is_running"]:
+            return jsonify({"success": False, "error": "Another operation is already in progress"}), 409
+        
+        # Get form data
+        enable_spotify = request.form.get('enable_spotify') == 'on'
+        enable_deezer = request.form.get('enable_deezer') == 'on'
+        enable_ai = request.form.get('enable_ai') == 'on'
+        auto_discovery = request.form.get('auto_discovery') == 'on'
+        
+        # Ensure at least one service is enabled
+        if not any([enable_spotify, enable_deezer, enable_ai]):
+            return jsonify({"success": False, "error": "At least one service must be selected"}), 400
+        
+        # Build descriptive message
+        services = []
+        if enable_spotify: services.append("Spotify")
+        if enable_deezer: services.append("Deezer")
+        if enable_ai: services.append("AI")
+        
+        discovery_note = " (with auto-discovery)" if auto_discovery else ""
+        message = f"Sincronizzazione selettiva avviata: {', '.join(services)}{discovery_note}"
+        
+        log.info(f"Starting selective sync - Spotify: {enable_spotify}, Deezer: {enable_deezer}, AI: {enable_ai}, Auto-discovery: {auto_discovery}")
+        
+        # Create wrapper function with parameters
+        def selective_sync_wrapper():
+            return run_selective_sync_cycle(
+                app_state=app_state,
+                enable_spotify=enable_spotify,
+                enable_deezer=enable_deezer,
+                enable_ai=enable_ai,
+                auto_discovery=auto_discovery
+            )
+        
+        return start_background_task(selective_sync_wrapper, message)
+        
+    except Exception as e:
+        log.error(f"Error in selective sync endpoint: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/cleanup_now', methods=['POST'])
 def cleanup_now(): return start_background_task(run_cleanup_only, "Pulizia vecchie playlist avviata!")
 
@@ -1281,6 +1326,31 @@ def api_test_music_charts():
     except Exception as e:
         log.error(f"Errore nel test classifiche: {e}", exc_info=True)
         return jsonify({'error': 'Errore nel test classifiche'}), 500
+
+@app.route('/api/service_config')
+def api_service_config():
+    """API endpoint per verificare la configurazione dei servizi"""
+    try:
+        config = {
+            'spotify': {
+                'configured': bool(os.getenv('SPOTIFY_CLIENT_ID') and 
+                                os.getenv('SPOTIFY_CLIENT_SECRET') and 
+                                os.getenv('SPOTIFY_USER_ID')),
+                'auto_discovery_available': bool(os.getenv('SPOTIFY_USER_ID'))
+            },
+            'deezer': {
+                'configured': bool(os.getenv('DEEZER_USER_ID')),
+                'auto_discovery_available': bool(os.getenv('DEEZER_USER_ID'))
+            },
+            'ai': {
+                'configured': bool(os.getenv('RUN_GEMINI_PLAYLIST_CREATION') == '1'),
+                'auto_discovery_available': True  # AI sempre disponibile se configurato
+            }
+        }
+        return jsonify({'success': True, 'config': config})
+    except Exception as e:
+        log.error(f"Errore nella verifica configurazione: {e}", exc_info=True)
+        return jsonify({'error': 'Errore nella verifica configurazione'}), 500
 
 if __name__ == '__main__':
     log.info("Avvio dell'applicazione Flask...")

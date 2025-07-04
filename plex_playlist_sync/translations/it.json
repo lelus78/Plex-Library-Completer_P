@@ -356,7 +356,75 @@
     "various": "Vari",
     "other": "Altri"
   },
+  "dashboard": {
+    "title": "Dashboard - Plex Sync",
+    "system_sync": "Sistema di Sincronizzazione",
+    "sync_options": {
+      "title": "Opzioni di Sincronizzazione",
+      "spotify": "Sincronizza Spotify",
+      "deezer": "Sincronizza Deezer", 
+      "ai_playlists": "Playlist AI",
+      "auto_discovery": "Auto-scoperta Playlist"
+    },
+    "status": {
+      "waiting": "In attesa",
+      "running": "Operazione in corso...",
+      "error": "Errore! Controllare i log.",
+      "never_executed": "Mai eseguito"
+    },
+    "actions": {
+      "sync_now": "Sincronizza Tutto Ora",
+      "cleanup_only": "Avvia solo Pulizia",
+      "build_index": "Aggiorna Indice Libreria",
+      "restart_indexing": "Riavvia Indicizzazione Ottimizzata",
+      "test_database": "Test Database",
+      "emergency_cleanup": "Pulizia Emergenza",
+      "stop_operation": "Ferma Operazione",
+      "confirm_stop": "Sei sicuro di voler fermare l'operazione corrente?",
+      "stopping": "Fermando..."
+    },
+    "users": {
+      "managed_users": "Utenti Gestiti",
+      "maintenance": "Manutenzione"
+    },
+    "alerts": {
+      "index_empty": "Indice Libreria Vuoto!",
+      "index_empty_desc": "Le playlist AI falliranno. Indicizza la libreria per continuare.",
+      "index_ok": "Indice Libreria OK",
+      "operation_slow": "Operazione lenta",
+      "only_if_needed": "esegui solo se necessario"
+    },
+    "index_description": "Crea o aggiorna l'indice locale della tua libreria Plex.",
+    "stats": {
+      "tracks_synced": "Tracce Sincronizzate",
+      "missing_tracks": "Tracce Mancanti",
+      "ai_playlists": "Playlist AI",
+      "last_sync": "Ultimo Sync"
+    },
+    "logs": {
+      "system_logs": "Log di Sistema",
+      "auto_refresh": "Auto-refresh",
+      "loading": "Caricamento log di sistema..."
+    }
+  },
+  "errors": {
+    "connection_error": "Errore di connessione",
+    "loading_error": "Errore nel caricamento",
+    "operation_failed": "Operazione fallita",
+    "network_error": "Errore di rete",
+    "server_error": "Errore del server",
+    "database_error": "Errore database",
+    "file_not_found": "File non trovato",
+    "permission_denied": "Permesso negato",
+    "stop_failed": "Impossibile fermare l'operazione",
+    "stop_error": "Errore nel fermare l'operazione",
+    "no_service_selected": "Seleziona almeno un servizio da sincronizzare",
+    "sync_failed": "Sincronizzazione fallita",
+    "sync_error": "Errore durante la sincronizzazione",
+    "autodiscovery_missing_config": "Auto-scoperta non disponibile: {service} richiede configurazione {config}"
+  },
   "status_messages": {
+    "starting": "Avvio...",
     "waiting": "In attesa",
     "running": "Operazione in corso...",
     "error": "Errore! Controllare i log.",
