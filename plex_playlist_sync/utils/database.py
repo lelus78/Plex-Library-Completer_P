@@ -297,6 +297,32 @@ def initialize_db():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ai_playlists_rating_key ON managed_ai_playlists (plex_rating_key)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_ai_playlists_created ON managed_ai_playlists (created_at)")
             
+            # --- NUOVA TABELLA PER LE PLAYLIST SELEZIONATE DALL'UTENTE ---
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS user_playlist_selections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_type TEXT NOT NULL, -- 'main' o 'secondary'
+                    service TEXT NOT NULL,   -- 'spotify' o 'deezer'
+                    playlist_id TEXT NOT NULL,
+                    playlist_name TEXT NOT NULL,
+                    playlist_description TEXT,
+                    playlist_poster TEXT,
+                    playlist_type TEXT NOT NULL DEFAULT 'user', -- 'user', 'curated', 'chart', 'radio'
+                    track_count INTEGER DEFAULT 0,
+                    is_selected BOOLEAN NOT NULL DEFAULT 1,
+                    auto_discovered BOOLEAN NOT NULL DEFAULT 0,
+                    last_updated TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    metadata_json TEXT, -- Per salvare metadati aggiuntivi (prime 5 tracce, etc)
+                    UNIQUE(user_type, service, playlist_id)
+                )
+            """)
+            
+            # Indici per user_playlist_selections (per performance nelle query)
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_user_service ON user_playlist_selections (user_type, service)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_selected ON user_playlist_selections (user_type, service, is_selected)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_type ON user_playlist_selections (playlist_type)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_updated ON user_playlist_selections (last_updated)")
+            
             logging.info("✅ Indici database creati con successo")
             
             con.commit()
@@ -309,7 +335,7 @@ def initialize_db():
             db_size = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
             
         logging.info(f"✅ Database inizializzato con successo: {table_count} tabelle, {db_size} bytes")
-        logging.info(f"📊 Tabelle: missing_tracks, plex_library_index, managed_ai_playlists")
+        logging.info(f"📊 Tabelle: missing_tracks, plex_library_index, managed_ai_playlists, user_playlist_selections")
         
     except Exception as e:
         logging.error(f"❌ Errore critico nell'inizializzazione del database: {e}", exc_info=True)
@@ -1428,3 +1454,209 @@ def clear_library_index():
         logging.info("Indice della libreria locale svuotato con successo.")
     except Exception as e:
         logging.error(f"Errore durante lo svuotamento dell'indice: {e}")
+
+
+# ================================
+# GESTIONE PLAYLIST SELEZIONATE
+# ================================
+
+def save_discovered_playlists(user_type: str, service: str, playlists: List[Dict], playlist_type: str = 'user'):
+    """
+    Salva le playlist scoperte nel database.
+    
+    Args:
+        user_type: 'main' o 'secondary'
+        service: 'spotify' o 'deezer'  
+        playlists: Lista di dict con metadati playlist
+        playlist_type: 'user', 'curated', 'chart', 'radio'
+    """
+    try:
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            for playlist in playlists:
+                # Estrai metadati
+                playlist_id = playlist.get('id', '')
+                name = playlist.get('name', '')
+                description = playlist.get('description', '')
+                poster = playlist.get('poster', '')
+                track_count = playlist.get('track_count', 0)
+                
+                # Serializza metadati aggiuntivi se presenti
+                metadata = {}
+                if 'preview_tracks' in playlist:
+                    metadata['preview_tracks'] = playlist['preview_tracks']
+                if 'genre' in playlist:
+                    metadata['genre'] = playlist['genre']
+                metadata_json = json.dumps(metadata) if metadata else None
+                
+                # Insert o update
+                cur.execute("""
+                    INSERT OR REPLACE INTO user_playlist_selections 
+                    (user_type, service, playlist_id, playlist_name, playlist_description, 
+                     playlist_poster, playlist_type, track_count, auto_discovered, 
+                     last_updated, metadata_json, is_selected)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, 
+                            COALESCE((SELECT is_selected FROM user_playlist_selections 
+                                    WHERE user_type=? AND service=? AND playlist_id=?), 0))
+                """, (
+                    user_type, service, playlist_id, name, description, poster,
+                    playlist_type, track_count, metadata_json,
+                    user_type, service, playlist_id
+                ))
+            
+            con.commit()
+            logging.info(f"✅ Salvate {len(playlists)} playlist {playlist_type} per {user_type}/{service}")
+            
+    except Exception as e:
+        logging.error(f"❌ Errore salvando playlist scoperte: {e}")
+
+def get_user_playlist_selections(user_type: str, service: str = None, selected_only: bool = False) -> List[Dict]:
+    """
+    Recupera le playlist selezionate per un utente.
+    
+    Args:
+        user_type: 'main' o 'secondary'
+        service: 'spotify' o 'deezer' (opzionale, se None restituisce tutti)
+        selected_only: Se True, solo playlist selezionate
+        
+    Returns:
+        Lista di dict con metadati playlist
+    """
+    try:
+        with get_db_connection() as con:
+            con.row_factory = sqlite3.Row
+            cur = con.cursor()
+            
+            query = "SELECT * FROM user_playlist_selections WHERE user_type = ?"
+            params = [user_type]
+            
+            if service:
+                query += " AND service = ?"
+                params.append(service)
+                
+            if selected_only:
+                query += " AND is_selected = 1"
+                
+            query += " ORDER BY playlist_type, playlist_name"
+            
+            res = cur.execute(query, params)
+            rows = res.fetchall()
+            
+            playlists = []
+            for row in rows:
+                playlist = dict(row)
+                # Deserializza metadati se presenti
+                if playlist.get('metadata_json'):
+                    try:
+                        playlist['metadata'] = json.loads(playlist['metadata_json'])
+                    except:
+                        playlist['metadata'] = {}
+                else:
+                    playlist['metadata'] = {}
+                playlists.append(playlist)
+                
+            return playlists
+            
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando playlist selezionate: {e}")
+        return []
+
+def toggle_playlist_selection(user_type: str, service: str, playlist_id: str, selected: bool = True):
+    """Abilita/disabilita la selezione di una playlist."""
+    try:
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            cur.execute("""
+                UPDATE user_playlist_selections 
+                SET is_selected = ?, last_updated = CURRENT_TIMESTAMP
+                WHERE user_type = ? AND service = ? AND playlist_id = ?
+            """, (selected, user_type, service, playlist_id))
+            
+            con.commit()
+            
+            if cur.rowcount > 0:
+                action = "selezionata" if selected else "deselezionata"
+                logging.info(f"✅ Playlist {playlist_id} {action} per {user_type}/{service}")
+                return True
+            else:
+                logging.warning(f"⚠️ Playlist {playlist_id} non trovata per {user_type}/{service}")
+                return False
+                
+    except Exception as e:
+        logging.error(f"❌ Errore nel toggle playlist selection: {e}")
+        return False
+
+def get_selected_playlist_ids(user_type: str, service: str) -> List[str]:
+    """
+    Recupera solo gli ID delle playlist selezionate per la sincronizzazione.
+    Questa funzione sostituirà la lettura da environment variables.
+    """
+    try:
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            res = cur.execute("""
+                SELECT playlist_id FROM user_playlist_selections 
+                WHERE user_type = ? AND service = ? AND is_selected = 1
+                ORDER BY playlist_name
+            """, (user_type, service))
+            
+            playlist_ids = [row[0] for row in res.fetchall()]
+            logging.info(f"📋 Trovati {len(playlist_ids)} playlist ID selezionati per {user_type}/{service}")
+            return playlist_ids
+            
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando playlist ID selezionati: {e}")
+        return []
+
+def migrate_env_playlists_to_database():
+    """
+    Migrazione one-time: sposta gli ID playlist da environment variables al database.
+    Questa funzione va chiamata una sola volta per migrare la configurazione esistente.
+    """
+    try:
+        import os
+        
+        # Mappa delle variabili ambiente
+        env_mappings = [
+            ('main', 'spotify', 'SPOTIFY_PLAYLIST_IDS'),
+            ('main', 'deezer', 'DEEZER_PLAYLIST_ID'),
+            ('secondary', 'deezer', 'DEEZER_PLAYLIST_ID_SECONDARY'),
+        ]
+        
+        migrated_count = 0
+        
+        for user_type, service, env_var in env_mappings:
+            playlist_ids_str = os.getenv(env_var, '')
+            if playlist_ids_str:
+                playlist_ids = [pid.strip() for pid in playlist_ids_str.split(',') if pid.strip()]
+                
+                with get_db_connection() as con:
+                    cur = con.cursor()
+                    
+                    for playlist_id in playlist_ids:
+                        # Inserisci playlist come selezionata (migrazione da env esistente)
+                        cur.execute("""
+                            INSERT OR IGNORE INTO user_playlist_selections 
+                            (user_type, service, playlist_id, playlist_name, 
+                             playlist_type, is_selected, auto_discovered)
+                            VALUES (?, ?, ?, ?, 'user', 1, 0)
+                        """, (user_type, service, playlist_id, f"Playlist {playlist_id}"))
+                        
+                        if cur.rowcount > 0:
+                            migrated_count += 1
+                    
+                    con.commit()
+        
+        if migrated_count > 0:
+            logging.info(f"✅ Migrazione completata: {migrated_count} playlist spostate da environment variables al database")
+        else:
+            logging.info("ℹ️ Nessuna playlist da migrare dalle environment variables")
+            
+        return migrated_count
+        
+    except Exception as e:
+        logging.error(f"❌ Errore durante migrazione playlist: {e}")
+        return 0

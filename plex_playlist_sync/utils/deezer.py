@@ -224,3 +224,267 @@ def deezer_playlist_sync(plex: PlexServer, userInputs: UserInputs) -> None:
             logging.error(f"Errore nel recuperare la playlist Deezer ID {playlist_id}: {e}")
         except Exception as e:
             logging.error(f"Errore imprevisto durante la sincronizzazione della playlist {playlist_id}: {e}")
+
+
+# ================================
+# DISCOVERY PLAYLIST CURATE DEEZER
+# ================================
+
+def get_deezer_charts(country: str = 'IT') -> List[dict]:
+    """
+    Recupera le chart ufficiali Deezer per un paese.
+    
+    Args:
+        country: Codice paese ISO (IT, US, FR, etc.)
+        
+    Returns:
+        Lista di dict con metadati chart playlists
+    """
+    try:
+        url = f"{DEEZER_API_URL}/chart/0"
+        if country:
+            url += f"?country={country}"
+            
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        
+        charts = []
+        
+        # Chart tracce top
+        if 'tracks' in data and 'data' in data['tracks']:
+            charts.append({
+                'id': f'chart_tracks_{country}',
+                'name': f'🔥 Top Tracks {country}',
+                'description': f'Le tracce più popolari su Deezer in {country}',
+                'poster': 'https://e-cdns-images.dzcdn.net/images/cover/1000x1000-000000-80-0-0.jpg',
+                'track_count': len(data['tracks']['data']),
+                'playlist_type': 'chart',
+                'genre': 'various',
+                'preview_tracks': [
+                    f"{track['title']} - {track['artist']['name']}" 
+                    for track in data['tracks']['data'][:5]
+                ]
+            })
+        
+        # Chart album top
+        if 'albums' in data and 'data' in data['albums']:
+            charts.append({
+                'id': f'chart_albums_{country}',
+                'name': f'💿 Top Albums {country}',
+                'description': f'Gli album più popolari su Deezer in {country}',
+                'poster': 'https://e-cdns-images.dzcdn.net/images/cover/1000x1000-000000-80-0-0.jpg',
+                'track_count': len(data['albums']['data']),
+                'playlist_type': 'chart',
+                'genre': 'various',
+                'preview_tracks': [
+                    f"{album['title']} - {album['artist']['name']}" 
+                    for album in data['albums']['data'][:5]
+                ]
+            })
+        
+        # Chart playlist top
+        if 'playlists' in data and 'data' in data['playlists']:
+            for playlist in data['playlists']['data'][:10]:  # Limite a 10 playlist chart
+                charts.append({
+                    'id': str(playlist['id']),
+                    'name': f"📊 {playlist['title']}",
+                    'description': playlist.get('description', f"Playlist chart curata da Deezer"),
+                    'poster': playlist.get('picture_big', ''),
+                    'track_count': playlist.get('nb_tracks', 0),
+                    'playlist_type': 'chart',
+                    'genre': 'various'
+                })
+        
+        logging.info(f"✅ Trovate {len(charts)} chart playlists per {country}")
+        return charts
+        
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando chart Deezer per {country}: {e}")
+        return []
+
+def get_deezer_genres() -> List[dict]:
+    """
+    Recupera tutti i generi musicali disponibili su Deezer.
+    
+    Returns:
+        Lista di dict con metadati generi
+    """
+    try:
+        url = f"{DEEZER_API_URL}/genre"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        
+        genres = []
+        
+        if 'data' in data:
+            for genre in data['data']:
+                genres.append({
+                    'id': f"genre_{genre['id']}",
+                    'name': f"🎵 {genre['name']}",
+                    'description': f"Categoria musicale {genre['name']} - Accesso a migliaia di brani",
+                    'poster': genre.get('picture_big', ''),
+                    'track_count': 0,  # Da calcolare dinamicamente
+                    'playlist_type': 'genre',
+                    'genre': genre['name'].lower(),
+                    'genre_id': genre['id'],
+                    'special_info': 'Categoria musicale - Contenuto dinamico'
+                })
+        
+        logging.info(f"✅ Trovati {len(genres)} generi musicali Deezer")
+        return genres
+        
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando generi Deezer: {e}")
+        return []
+
+def get_deezer_radio_stations() -> List[dict]:
+    """
+    Recupera le radio stations curate di Deezer.
+    
+    Returns:
+        Lista di dict con metadati radio
+    """
+    try:
+        url = f"{DEEZER_API_URL}/radio"
+        response = requests.get(url)
+        response.raise_for_status()
+        data = response.json()
+        
+        radios = []
+        
+        if 'data' in data:
+            for radio in data['data'][:20]:  # Limite a 20 radio
+                radios.append({
+                    'id': f"radio_{radio['id']}",
+                    'name': f"📻 {radio['title']}",
+                    'description': radio.get('description', f"Radio curata da Deezer - Stream musicale continuo"),
+                    'poster': radio.get('picture_big', ''),
+                    'track_count': 0,  # Le radio sono streams continui
+                    'playlist_type': 'radio',
+                    'genre': 'various',
+                    'special_info': 'Stream continuo - Musica infinita'
+                })
+        
+        logging.info(f"✅ Trovate {len(radios)} radio stations Deezer")
+        return radios
+        
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando radio Deezer: {e}")
+        return []
+
+def get_deezer_editorial_playlists(limit: int = 50) -> List[dict]:
+    """
+    Recupera playlist editoriali/curate di Deezer.
+    Usa la ricerca per trovare playlist popolari e curate.
+    
+    Args:
+        limit: Numero massimo di playlist da recuperare
+        
+    Returns:
+        Lista di dict con metadati playlist editoriali
+    """
+    try:
+        # Categorie di playlist popolari da cercare
+        search_terms = [
+            'Top', 'Best', 'Hits', 'Mix', 'Trending', 'New', 'Hot',
+            'Chill', 'Party', 'Workout', 'Study', 'Sleep', 'Focus'
+        ]
+        
+        editorial_playlists = []
+        
+        for term in search_terms:
+            if len(editorial_playlists) >= limit:
+                break
+                
+            try:
+                url = f"{DEEZER_API_URL}/search/playlist"
+                params = {
+                    'q': term,
+                    'limit': 10  # 10 per termine di ricerca
+                }
+                
+                response = requests.get(url, params=params)
+                response.raise_for_status()
+                data = response.json()
+                
+                if 'data' in data:
+                    for playlist in data['data']:
+                        # Filtra per playlist con molte tracce (indicatore di qualità)
+                        if playlist.get('nb_tracks', 0) > 20:
+                            editorial_playlists.append({
+                                'id': str(playlist['id']),
+                                'name': f"✨ {playlist['title']}",
+                                'description': playlist.get('description', f"Playlist curata con focus su {term.lower()}"),
+                                'poster': playlist.get('picture_big', ''),
+                                'track_count': playlist.get('nb_tracks', 0),
+                                'playlist_type': 'curated',
+                                'genre': term.lower()
+                            })
+                
+            except Exception as term_error:
+                logging.debug(f"Errore ricerca termine '{term}': {term_error}")
+                continue
+        
+        # Rimuovi duplicati per ID
+        seen_ids = set()
+        unique_playlists = []
+        for playlist in editorial_playlists:
+            if playlist['id'] not in seen_ids:
+                seen_ids.add(playlist['id'])
+                unique_playlists.append(playlist)
+        
+        # Ordina per numero di tracce (più popolari prima)
+        unique_playlists.sort(key=lambda x: x['track_count'], reverse=True)
+        
+        # Limita al numero richiesto
+        result = unique_playlists[:limit]
+        
+        logging.info(f"✅ Trovate {len(result)} playlist editoriali Deezer")
+        return result
+        
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando playlist editoriali Deezer: {e}")
+        return []
+
+def discover_all_deezer_curated_content(country: str = 'IT') -> dict:
+    """
+    Funzione unificata per scoprire tutto il contenuto curato Deezer.
+    
+    Args:
+        country: Codice paese per le chart
+        
+    Returns:
+        Dict con tutte le categorie di contenuto curato
+    """
+    logging.info(f"🔍 Inizio discovery contenuto curato Deezer per {country}")
+    
+    curated_content = {
+        'charts': [],
+        'genres': [],
+        'radios': [],
+        'editorial': []
+    }
+    
+    try:
+        # Recupera chart
+        curated_content['charts'] = get_deezer_charts(country)
+        
+        # Recupera generi
+        curated_content['genres'] = get_deezer_genres()
+        
+        # Recupera radio
+        curated_content['radios'] = get_deezer_radio_stations()
+        
+        # Recupera playlist editoriali
+        curated_content['editorial'] = get_deezer_editorial_playlists()
+        
+        total_count = sum(len(category) for category in curated_content.values())
+        logging.info(f"🎉 Discovery completato: {total_count} elementi di contenuto curato trovati")
+        
+        return curated_content
+        
+    except Exception as e:
+        logging.error(f"❌ Errore durante discovery contenuto curato Deezer: {e}")
+        return curated_content

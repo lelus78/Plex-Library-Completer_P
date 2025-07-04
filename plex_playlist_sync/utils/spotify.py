@@ -169,3 +169,217 @@ def spotify_playlist_sync(
             update_or_create_plex_playlist(plex, playlist, tracks, userInputs)
     else:
         logging.error("No spotify playlists found for given user")
+
+
+# ================================
+# DISCOVERY SPOTIFY CON METADATI ESTESI
+# ================================
+
+def get_spotify_playlist_with_metadata(sp: spotipy.Spotify, playlist_id: str) -> dict:
+    """
+    Recupera metadati completi per una singola playlist Spotify.
+    Include prime 5 tracce per anteprima.
+    
+    Args:
+        sp: Oggetto Spotify autenticato
+        playlist_id: ID della playlist
+        
+    Returns:
+        Dict con metadati completi della playlist
+    """
+    try:
+        # Recupera metadati playlist
+        playlist_data = sp.playlist(playlist_id)
+        
+        # Recupera prime 5 tracce per anteprima
+        tracks_data = sp.playlist_items(playlist_id, limit=5, fields='items(track(name,artists(name)))')
+        preview_tracks = []
+        
+        for item in tracks_data.get('items', []):
+            track = item.get('track')
+            if track and track.get('name'):
+                artist_name = track.get('artists', [{}])[0].get('name', 'Unknown Artist')
+                preview_tracks.append(f"{track['name']} - {artist_name}")
+        
+        return {
+            'id': playlist_data['id'],
+            'name': playlist_data['name'],
+            'description': playlist_data.get('description', ''),
+            'poster': playlist_data.get('images', [{}])[0].get('url', ''),
+            'track_count': playlist_data.get('tracks', {}).get('total', 0),
+            'playlist_type': 'user',
+            'preview_tracks': preview_tracks,
+            'owner': playlist_data.get('owner', {}).get('display_name', ''),
+            'public': playlist_data.get('public', False),
+            'collaborative': playlist_data.get('collaborative', False)
+        }
+        
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando metadati Spotify playlist {playlist_id}: {e}")
+        return None
+
+def discover_spotify_user_playlists_enhanced(sp: spotipy.Spotify, user_id: str, suffix: str = " - Spotify") -> List[dict]:
+    """
+    Versione migliorata del discovery playlist utente Spotify con metadati completi.
+    
+    Args:
+        sp: Oggetto Spotify autenticato
+        user_id: ID utente Spotify
+        suffix: Suffisso da aggiungere ai nomi playlist
+        
+    Returns:
+        Lista di dict con metadati completi delle playlist
+    """
+    try:
+        playlists = []
+        limit = int(os.getenv("TEST_MODE_PLAYLIST_LIMIT", 0))
+        
+        sp_playlists = sp.user_playlists(user_id)
+        
+        for i, playlist in enumerate(sp_playlists["items"]):
+            # Controllo limite test mode
+            if limit > 0 and i >= limit:
+                logging.warning(f"MODALITÀ TEST: Limite di {limit} playlist raggiunto per Spotify. Interrompo.")
+                break
+            
+            # Recupera metadati completi
+            enhanced_metadata = get_spotify_playlist_with_metadata(sp, playlist['id'])
+            
+            if enhanced_metadata:
+                # Aggiorna nome con suffisso
+                enhanced_metadata['name'] += suffix
+                playlists.append(enhanced_metadata)
+        
+        logging.info(f"✅ Discovery migliorato: {len(playlists)} playlist Spotify con metadati completi")
+        return playlists
+        
+    except Exception as e:
+        logging.error(f"❌ Errore durante discovery migliorato Spotify: {e}")
+        return []
+
+def get_spotify_featured_playlists(sp: spotipy.Spotify, country: str = 'IT', limit: int = 20) -> List[dict]:
+    """
+    Recupera playlist in evidenza curate da Spotify.
+    
+    Args:
+        sp: Oggetto Spotify autenticato
+        country: Codice paese ISO
+        limit: Numero massimo di playlist
+        
+    Returns:
+        Lista di dict con playlist curate
+    """
+    try:
+        featured = sp.featured_playlists(country=country, limit=limit)
+        curated_playlists = []
+        
+        for playlist in featured.get('playlists', {}).get('items', []):
+            # Recupera metadati completi
+            enhanced_metadata = get_spotify_playlist_with_metadata(sp, playlist['id'])
+            
+            if enhanced_metadata:
+                # Aggiorna tipo e nome per indicare che è curata
+                enhanced_metadata['name'] = f"✨ {enhanced_metadata['name']}"
+                enhanced_metadata['playlist_type'] = 'curated'
+                enhanced_metadata['description'] = f"Playlist in evidenza curata da Spotify. {enhanced_metadata.get('description', '')}"
+                curated_playlists.append(enhanced_metadata)
+        
+        logging.info(f"✅ Trovate {len(curated_playlists)} playlist Spotify curate")
+        return curated_playlists
+        
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando playlist curate Spotify: {e}")
+        return []
+
+def get_spotify_category_playlists(sp: spotipy.Spotify, category_id: str, country: str = 'IT', limit: int = 10) -> List[dict]:
+    """
+    Recupera playlist di una specifica categoria Spotify.
+    
+    Args:
+        sp: Oggetto Spotify autenticato
+        category_id: ID categoria (es. 'toplists', 'pop', 'rock')
+        country: Codice paese ISO
+        limit: Numero massimo di playlist
+        
+    Returns:
+        Lista di dict con playlist della categoria
+    """
+    try:
+        category_playlists = sp.category_playlists(category_id, country=country, limit=limit)
+        playlists = []
+        
+        for playlist in category_playlists.get('playlists', {}).get('items', []):
+            # Recupera metadati completi
+            enhanced_metadata = get_spotify_playlist_with_metadata(sp, playlist['id'])
+            
+            if enhanced_metadata:
+                # Aggiorna tipo e nome per indicare categoria
+                enhanced_metadata['name'] = f"🎯 {enhanced_metadata['name']}"
+                enhanced_metadata['playlist_type'] = 'category'
+                enhanced_metadata['genre'] = category_id
+                enhanced_metadata['description'] = f"Playlist categoria {category_id}. {enhanced_metadata.get('description', '')}"
+                playlists.append(enhanced_metadata)
+        
+        logging.info(f"✅ Trovate {len(playlists)} playlist Spotify categoria '{category_id}'")
+        return playlists
+        
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando playlist categoria Spotify '{category_id}': {e}")
+        return []
+
+def discover_all_spotify_content(sp: spotipy.Spotify, user_id: str, country: str = 'IT') -> dict:
+    """
+    Funzione unificata per scoprire tutto il contenuto Spotify disponibile.
+    
+    Args:
+        sp: Oggetto Spotify autenticato
+        user_id: ID utente per playlist personali
+        country: Codice paese per contenuto localizzato
+        
+    Returns:
+        Dict con tutte le categorie di contenuto Spotify
+    """
+    logging.info(f"🔍 Inizio discovery contenuto Spotify completo per utente {user_id}")
+    
+    spotify_content = {
+        'user_playlists': [],
+        'featured': [],
+        'categories': {}
+    }
+    
+    try:
+        # Playlist utente con metadati completi
+        if user_id:
+            spotify_content['user_playlists'] = discover_spotify_user_playlists_enhanced(sp, user_id)
+        
+        # Playlist in evidenza
+        spotify_content['featured'] = get_spotify_featured_playlists(sp, country)
+        
+        # Playlist per categorie popolari
+        popular_categories = ['toplists', 'pop', 'rock', 'hip-hop', 'electronic', 'jazz', 'classical', 'indie', 'country', 'latin']
+        
+        for category in popular_categories:
+            try:
+                category_playlists = get_spotify_category_playlists(sp, category, country, limit=5)
+                if category_playlists:
+                    spotify_content['categories'][category] = category_playlists
+            except Exception as cat_error:
+                logging.debug(f"Categoria '{category}' non disponibile: {cat_error}")
+                continue
+        
+        # Calcola totale
+        total_user = len(spotify_content['user_playlists'])
+        total_featured = len(spotify_content['featured'])
+        total_categories = sum(len(playlists) for playlists in spotify_content['categories'].values())
+        total_count = total_user + total_featured + total_categories
+        
+        logging.info(f"🎉 Discovery Spotify completato: {total_count} elementi trovati")
+        logging.info(f"   👤 Playlist utente: {total_user}")
+        logging.info(f"   ✨ Playlist curate: {total_featured}")
+        logging.info(f"   🎯 Playlist categorie: {total_categories}")
+        
+        return spotify_content
+        
+    except Exception as e:
+        logging.error(f"❌ Errore durante discovery contenuto Spotify: {e}")
+        return spotify_content

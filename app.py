@@ -188,6 +188,35 @@ def missing_tracks():
         flash(f"Errore nel recupero delle tracce mancanti: {str(e)}", "error")
         return render_template('missing_tracks.html', tracks=[])
 
+@app.route('/playlist_management')
+def playlist_management():
+    """Pagina per la gestione interattiva delle playlist"""
+    try:
+        from plex_playlist_sync.utils.database import get_user_playlist_selections
+        
+        # Recupera playlist per entrambi gli utenti
+        main_spotify = get_user_playlist_selections('main', 'spotify')
+        main_deezer = get_user_playlist_selections('main', 'deezer')
+        secondary_deezer = get_user_playlist_selections('secondary', 'deezer')
+        
+        playlist_data = {
+            'main': {
+                'spotify': main_spotify,
+                'deezer': main_deezer
+            },
+            'secondary': {
+                'deezer': secondary_deezer
+            }
+        }
+        
+        return render_template('playlist_management.html', 
+                             playlists=playlist_data,
+                             aliases=get_user_aliases())
+    except Exception as e:
+        log.error(f"Error in playlist management page: {e}", exc_info=True)
+        flash(f"Errore nel caricamento gestione playlist: {str(e)}", "error")
+        return redirect(url_for('index'))
+
 @app.route('/stats')
 def stats():
     selected_user = request.args.get('user', 'main')
@@ -1377,6 +1406,296 @@ def api_service_config():
     except Exception as e:
         log.error(f"Errore nella verifica configurazione: {e}", exc_info=True)
         return jsonify({'error': 'Errore nella verifica configurazione'}), 500
+
+
+# ================================
+# PLAYLIST MANAGEMENT API ENDPOINTS
+# ================================
+
+@app.route('/api/discover_playlists/<user_type>/<service>', methods=['POST'])
+def api_discover_playlists(user_type, service):
+    """
+    Endpoint per scoprire playlist disponibili (user e curate).
+    
+    Args:
+        user_type: 'main' o 'secondary'
+        service: 'spotify' o 'deezer'
+    """
+    try:
+        if app_state["is_running"]:
+            return jsonify({"success": False, "error": "Operation in progress"}), 409
+        
+        # Importa le funzioni discovery
+        from plex_playlist_sync.utils.database import save_discovered_playlists
+        from plex_playlist_sync.utils.helperClasses import UserInputs
+        
+        # Configurazione utente
+        user_inputs = UserInputs(
+            plex_url=os.getenv("PLEX_URL"),
+            plex_token=os.getenv("PLEX_TOKEN"),
+            plex_token_others=os.getenv("PLEX_TOKEN_USERS", ""),
+            plex_min_songs=int(os.getenv("PLEX_MIN_SONGS", 1)),
+            write_missing_as_csv=bool(int(os.getenv("WRITE_MISSING_AS_CSV", 0))),
+            append_service_suffix=bool(int(os.getenv("APPEND_SERVICE_SUFFIX", 1))),
+            add_playlist_poster=bool(int(os.getenv("ADD_PLAYLIST_POSTER", 1))),
+            add_playlist_description=bool(int(os.getenv("ADD_PLAYLIST_DESCRIPTION", 1))),
+            append_instead_of_sync=bool(int(os.getenv("APPEND_INSTEAD_OF_SYNC", 0))),
+            wait_seconds=int(os.getenv("SECONDS_TO_WAIT", 86400)),
+            spotipy_client_id=os.getenv("SPOTIFY_CLIENT_ID", ""),
+            spotipy_client_secret=os.getenv("SPOTIFY_CLIENT_SECRET", ""),
+            spotify_user_id=os.getenv("SPOTIFY_USER_ID", ""),
+            spotify_playlist_ids=os.getenv("SPOTIFY_PLAYLIST_IDS", ""),
+            spotify_categories=os.getenv("SPOTIFY_CATEGORIES", ""),
+            country=os.getenv("COUNTRY", "IT"),
+            deezer_user_id=os.getenv("DEEZER_USER_ID", ""),
+            deezer_playlist_ids=os.getenv("DEEZER_PLAYLIST_ID", "")
+        )
+        
+        discovered_content = {}
+        
+        if service == 'spotify':
+            if not (user_inputs.spotipy_client_id and user_inputs.spotipy_client_secret):
+                return jsonify({"success": False, "error": "Spotify credentials not configured"}), 400
+            
+            from plex_playlist_sync.utils.spotify import discover_all_spotify_content
+            import spotipy
+            from spotipy.oauth2 import SpotifyClientCredentials
+            
+            # Crea client Spotify
+            sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
+                client_id=user_inputs.spotipy_client_id,
+                client_secret=user_inputs.spotipy_client_secret
+            ))
+            
+            # Scopri contenuto Spotify
+            spotify_content = discover_all_spotify_content(sp, user_inputs.spotify_user_id, user_inputs.country)
+            
+            # Salva playlist utente
+            if spotify_content['user_playlists']:
+                save_discovered_playlists(user_type, service, spotify_content['user_playlists'], 'user')
+            
+            # Salva playlist curate
+            if spotify_content['featured']:
+                save_discovered_playlists(user_type, service, spotify_content['featured'], 'curated')
+            
+            # Salva playlist per categoria
+            for category, playlists in spotify_content['categories'].items():
+                if playlists:
+                    save_discovered_playlists(user_type, service, playlists, 'category')
+            
+            discovered_content = spotify_content
+            
+        elif service == 'deezer':
+            if not user_inputs.deezer_user_id:
+                return jsonify({"success": False, "error": "Deezer user ID not configured"}), 400
+            
+            from plex_playlist_sync.utils.deezer import _get_deezer_user_playlists, discover_all_deezer_curated_content
+            
+            # Scopri playlist utente Deezer
+            user_playlists = _get_deezer_user_playlists(user_inputs.deezer_user_id)
+            
+            # Converti in formato dict per compatibilità
+            user_playlists_dict = []
+            for playlist in user_playlists:
+                user_playlists_dict.append({
+                    'id': playlist.id,
+                    'name': playlist.name,
+                    'description': playlist.description,
+                    'poster': playlist.poster,
+                    'track_count': 0,  # Da calcolare se necessario
+                    'playlist_type': 'user'
+                })
+            
+            # Scopri contenuto curato Deezer
+            curated_content = discover_all_deezer_curated_content(user_inputs.country)
+            
+            # Salva playlist utente
+            if user_playlists_dict:
+                save_discovered_playlists(user_type, service, user_playlists_dict, 'user')
+            
+            # Salva contenuto curato
+            for content_type, playlists in curated_content.items():
+                if playlists:
+                    save_discovered_playlists(user_type, service, playlists, content_type)
+            
+            discovered_content = {
+                'user_playlists': user_playlists_dict,
+                'curated_content': curated_content
+            }
+        
+        else:
+            return jsonify({"success": False, "error": f"Service '{service}' not supported"}), 400
+        
+        # Calcola totali
+        total_discovered = 0
+        if service == 'spotify':
+            total_discovered = (len(discovered_content.get('user_playlists', [])) + 
+                              len(discovered_content.get('featured', [])) + 
+                              sum(len(cat) for cat in discovered_content.get('categories', {}).values()))
+        elif service == 'deezer':
+            total_discovered = (len(discovered_content.get('user_playlists', [])) + 
+                              sum(len(cat) for cat in discovered_content.get('curated_content', {}).values()))
+        
+        return jsonify({
+            "success": True,
+            "message": f"Discovery completato per {service}",
+            "total_discovered": total_discovered,
+            "content": discovered_content
+        })
+        
+    except Exception as e:
+        log.error(f"Errore durante discovery playlist {service}: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/user_playlists/<user_type>/<service>')
+def api_get_user_playlists(user_type, service):
+    """
+    Recupera le playlist disponibili per un utente e servizio.
+    
+    Args:
+        user_type: 'main' o 'secondary'
+        service: 'spotify' o 'deezer'
+    """
+    try:
+        from plex_playlist_sync.utils.database import get_user_playlist_selections
+        
+        # Parametri query opzionali
+        selected_only = request.args.get('selected_only', 'false').lower() == 'true'
+        playlist_type = request.args.get('type')  # user, curated, chart, radio
+        
+        playlists = get_user_playlist_selections(user_type, service, selected_only)
+        
+        # Filtra per tipo se specificato
+        if playlist_type:
+            playlists = [p for p in playlists if p.get('playlist_type') == playlist_type]
+        
+        return jsonify({
+            "success": True,
+            "playlists": playlists,
+            "total": len(playlists),
+            "user_type": user_type,
+            "service": service
+        })
+        
+    except Exception as e:
+        log.error(f"Errore recuperando playlist {user_type}/{service}: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/playlist_selection', methods=['POST'])
+def api_update_playlist_selection():
+    """
+    Aggiorna la selezione di una playlist.
+    
+    Expected JSON body:
+    {
+        "user_type": "main",
+        "service": "spotify", 
+        "playlist_id": "xyz",
+        "selected": true
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        user_type = data.get('user_type')
+        service = data.get('service')
+        playlist_id = data.get('playlist_id')
+        selected = data.get('selected', True)
+        
+        if not all([user_type, service, playlist_id]):
+            return jsonify({"success": False, "error": "Missing required fields"}), 400
+        
+        from plex_playlist_sync.utils.database import toggle_playlist_selection
+        
+        success = toggle_playlist_selection(user_type, service, playlist_id, selected)
+        
+        if success:
+            action = "selezionata" if selected else "deselezionata"
+            return jsonify({
+                "success": True,
+                "message": f"Playlist {action} con successo"
+            })
+        else:
+            return jsonify({"success": False, "error": "Playlist not found"}), 404
+            
+    except Exception as e:
+        log.error(f"Errore aggiornando selezione playlist: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/playlist_selection/bulk', methods=['POST'])
+def api_bulk_update_playlist_selection():
+    """
+    Aggiorna la selezione di più playlist in una sola richiesta.
+    
+    Expected JSON body:
+    {
+        "user_type": "main",
+        "service": "spotify",
+        "selections": [
+            {"playlist_id": "xyz", "selected": true},
+            {"playlist_id": "abc", "selected": false}
+        ]
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        user_type = data.get('user_type')
+        service = data.get('service')
+        selections = data.get('selections', [])
+        
+        if not all([user_type, service]) or not selections:
+            return jsonify({"success": False, "error": "Missing required fields"}), 400
+        
+        from plex_playlist_sync.utils.database import toggle_playlist_selection
+        
+        success_count = 0
+        failed_count = 0
+        
+        for selection in selections:
+            playlist_id = selection.get('playlist_id')
+            selected = selection.get('selected', True)
+            
+            if playlist_id:
+                if toggle_playlist_selection(user_type, service, playlist_id, selected):
+                    success_count += 1
+                else:
+                    failed_count += 1
+        
+        return jsonify({
+            "success": True,
+            "message": f"Aggiornate {success_count} playlist, {failed_count} errori",
+            "success_count": success_count,
+            "failed_count": failed_count
+        })
+        
+    except Exception as e:
+        log.error(f"Errore aggiornamento bulk playlist: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/migrate_env_playlists', methods=['POST'])
+def api_migrate_env_playlists():
+    """
+    Migra le playlist dalle environment variables al database.
+    Operazione one-time per transizione al nuovo sistema.
+    """
+    try:
+        if app_state["is_running"]:
+            return jsonify({"success": False, "error": "Operation in progress"}), 409
+        
+        from plex_playlist_sync.utils.database import migrate_env_playlists_to_database
+        
+        migrated_count = migrate_env_playlists_to_database()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Migrazione completata: {migrated_count} playlist migrate",
+            "migrated_count": migrated_count
+        })
+        
+    except Exception as e:
+        log.error(f"Errore durante migrazione playlist: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
     log.info("Avvio dell'applicazione Flask...")

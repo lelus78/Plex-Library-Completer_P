@@ -56,7 +56,7 @@ from .utils.plex import update_or_create_plex_playlist, search_plex_track
 from .utils.state_manager import load_playlist_state, save_playlist_state
 from .utils.database import (
     initialize_db, clear_library_index, add_track_to_index, bulk_add_tracks_to_index, get_missing_tracks,
-    check_track_in_index, check_track_in_index_smart, update_track_status
+    check_track_in_index, check_track_in_index_smart, update_track_status, get_selected_playlist_ids
 )
 
 # Carica le variabili dal file .env montato via Docker
@@ -203,11 +203,36 @@ def build_library_index(app_state: Dict):
         app_state['status'] = "Critical error during indexing."
 
 
+def _determine_user_type_from_token(plex_token: str) -> str:
+    """
+    Determina se l'utente è 'main' o 'secondary' in base al token Plex.
+    
+    Args:
+        plex_token: Token Plex dell'utente
+        
+    Returns:
+        'main' o 'secondary'
+    """
+    main_token = os.getenv("PLEX_TOKEN", "")
+    secondary_token = os.getenv("PLEX_TOKEN_USERS", "")
+    
+    if plex_token == main_token:
+        return 'main'
+    elif plex_token == secondary_token:
+        return 'secondary'
+    else:
+        # Fallback: se non riconosce il token, assume sia main
+        logger.warning(f"⚠️ Token non riconosciuto {plex_token[:4]}..., assuming 'main' user")
+        return 'main'
+
 def sync_playlists_for_user_selective(plex: PlexServer, user_inputs: UserInputs, sync_options: dict):
     """Performs selective synchronization for a single user based on sync_options."""
     enable_spotify = sync_options.get('enable_spotify', True)
     enable_deezer = sync_options.get('enable_deezer', True)
     auto_discovery = sync_options.get('auto_discovery', False)
+    
+    # Determina il tipo di utente in base al token
+    user_type = _determine_user_type_from_token(user_inputs.plex_token)
     
     # Spotify Sync
     if enable_spotify and os.getenv("SKIP_SPOTIFY_SYNC", "0") != "1":
@@ -240,15 +265,26 @@ def sync_playlists_for_user_selective(plex: PlexServer, user_inputs: UserInputs,
                     )
                 )
                 logger.info(
-                    f"--- Starting Spotify sync for user {user_inputs.plex_token[:4]}... ---"
+                    f"--- Starting Spotify sync for user {user_inputs.plex_token[:4]}... ({user_type}) ---"
                 )
                 
-                # Check if auto-discovery should be used
-                if auto_discovery and not user_inputs.spotify_playlist_ids:
+                # NEW: Check database for selected playlists first
+                from .utils.database import get_selected_playlist_ids
+                selected_spotify_ids = get_selected_playlist_ids(user_type, 'spotify')
+                
+                if selected_spotify_ids:
+                    logger.info(f"📋 Using {len(selected_spotify_ids)} selected Spotify playlists from database")
+                    # Override UserInputs with database selection
+                    user_inputs.spotify_playlist_ids = ','.join(selected_spotify_ids)
+                    spotify_playlist_sync(sp, plex, user_inputs)
+                elif auto_discovery:
                     logger.info("🔍 Auto-discovery enabled for Spotify - fetching all user playlists")
                     spotify_playlist_sync_with_discovery(sp, plex, user_inputs)
-                else:
+                elif user_inputs.spotify_playlist_ids:
+                    logger.info("📝 Using environment variable playlist IDs (legacy mode)")
                     spotify_playlist_sync(sp, plex, user_inputs)
+                else:
+                    logger.info("⚠️ No Spotify playlists selected in database or environment variables")
                     
                 logger.info("✅ Spotify sync completed successfully")
             except Exception as spotify_error:
@@ -260,15 +296,26 @@ def sync_playlists_for_user_selective(plex: PlexServer, user_inputs: UserInputs,
     # Deezer Sync  
     if enable_deezer and os.getenv("SKIP_DEEZER_SYNC", "0") != "1":
         logger.info(
-            f"--- Starting Deezer sync for user {user_inputs.plex_token[:4]}... ---"
+            f"--- Starting Deezer sync for user {user_inputs.plex_token[:4]}... ({user_type}) ---"
         )
         
-        # Check if auto-discovery should be used
-        if auto_discovery and not user_inputs.deezer_playlist_ids:
+        # NEW: Check database for selected playlists first
+        from .utils.database import get_selected_playlist_ids
+        selected_deezer_ids = get_selected_playlist_ids(user_type, 'deezer')
+        
+        if selected_deezer_ids:
+            logger.info(f"📋 Using {len(selected_deezer_ids)} selected Deezer playlists from database")
+            # Override UserInputs with database selection
+            user_inputs.deezer_playlist_ids = ','.join(selected_deezer_ids)
+            deezer_playlist_sync(plex, user_inputs)
+        elif auto_discovery:
             logger.info("🔍 Auto-discovery enabled for Deezer - fetching all user playlists")
             deezer_playlist_sync_with_discovery(plex, user_inputs)
-        else:
+        elif user_inputs.deezer_playlist_ids:
+            logger.info("📝 Using environment variable playlist IDs (legacy mode)")
             deezer_playlist_sync(plex, user_inputs)
+        else:
+            logger.info("⚠️ No Deezer playlists selected in database or environment variables")
             
     elif not enable_deezer:
         logger.info("⏭️ Deezer sync disabled by user selection")

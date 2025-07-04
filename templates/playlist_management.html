@@ -1,0 +1,571 @@
+{% extends 'base.html' %}
+{% block title %}Gestione Playlist{% endblock %}
+
+{% block content %}
+<!-- Playlist Management Header -->
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card animate-slide-up">
+            <div class="card-body">
+                <div class="d-flex align-items-center justify-content-between mb-3">
+                    <div class="d-flex align-items-center">
+                        <i data-lucide="list-music" class="me-3" style="width: 28px; height: 28px; color: var(--spotify-green);"></i>
+                        <h2 class="card-title mb-0">Gestione Playlist Interattiva</h2>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <button id="btn-discover-all" class="btn btn-primary">
+                            <i data-lucide="search" class="me-2" style="width: 16px; height: 16px;"></i>
+                            Scopri Tutte le Playlist
+                        </button>
+                        <button id="btn-migrate-env" class="btn btn-secondary">
+                            <i data-lucide="database" class="me-2" style="width: 16px; height: 16px;"></i>
+                            Migra da .env
+                        </button>
+                    </div>
+                </div>
+                <p class="text-secondary mb-0">
+                    Seleziona le playlist che vuoi sincronizzare. Le modifiche verranno salvate automaticamente nel database.
+                </p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- User Tabs -->
+<div class="row mb-4">
+    <div class="col-12">
+        <ul class="nav nav-pills nav-fill" id="userTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="main-tab" data-bs-toggle="pill" data-bs-target="#main" type="button" role="tab">
+                    <i data-lucide="user" class="me-2" style="width: 16px; height: 16px;"></i>
+                    {{ aliases.main }}
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="secondary-tab" data-bs-toggle="pill" data-bs-target="#secondary" type="button" role="tab">
+                    <i data-lucide="user" class="me-2" style="width: 16px; height: 16px;"></i>
+                    {{ aliases.secondary }}
+                </button>
+            </li>
+        </ul>
+    </div>
+</div>
+
+<!-- Tab Content -->
+<div class="tab-content" id="userTabsContent">
+    <!-- Main User -->
+    <div class="tab-pane fade show active" id="main" role="tabpanel">
+        <!-- Spotify Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <i data-lucide="music" class="me-2" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                            <h5 class="mb-0">Spotify - {{ aliases.main }}</h5>
+                            <span id="spotify-main-stats" class="badge bg-primary ms-2">
+                                {% set selected_spotify = playlists.main.spotify | selectattr('is_selected') | list %}
+                                {% set total_tracks = selected_spotify | sum(attribute='track_count') %}
+                                {{ selected_spotify | length }}/{{ playlists.main.spotify | length }} playlist ({{ total_tracks }} tracce)
+                            </span>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="discoverPlaylists('main', 'spotify')">
+                                <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
+                                Scopri
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="selectAll('main', 'spotify', true)">
+                                Seleziona Tutto
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="selectAll('main', 'spotify', false)">
+                                Deseleziona Tutto
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="spotify-main-playlists" class="playlist-container">
+                            {% if playlists.main.spotify %}
+                                {% for playlist in playlists.main.spotify %}
+                                <div class="playlist-card" data-user="main" data-service="spotify" data-id="{{ playlist.playlist_id }}">
+                                    <div class="d-flex align-items-center">
+                                        <input type="checkbox" class="playlist-checkbox me-3" 
+                                               {% if playlist.is_selected %}checked{% endif %}>
+                                        <div class="playlist-info flex-grow-1">
+                                            <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
+                                            <p class="text-secondary small mb-1">{{ playlist.playlist_description or 'Nessuna descrizione' }}</p>
+                                            <div class="d-flex gap-2 mb-2">
+                                                {% if playlist.playlist_type == 'radio' %}
+                                                <span class="badge bg-danger">
+                                                    <i data-lucide="radio" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    Stream Continuo
+                                                </span>
+                                                {% elif playlist.playlist_type == 'genre' %}
+                                                <span class="badge bg-purple">
+                                                    <i data-lucide="tag" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    Categoria
+                                                </span>
+                                                {% else %}
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.track_count or 0 }} tracce
+                                                </span>
+                                                {% endif %}
+                                                <span class="badge bg-info">{{ playlist.playlist_type }}</span>
+                                                {% if playlist.last_updated %}
+                                                <span class="badge bg-dark">
+                                                    <i data-lucide="clock" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.last_updated[:10] }}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% if playlist.playlist_poster %}
+                                        <img src="{{ playlist.playlist_poster }}" alt="Cover" class="playlist-cover ms-3">
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center text-secondary py-4">
+                                    <i data-lucide="search" style="width: 48px; height: 48px; opacity: 0.5;"></i>
+                                    <p class="mt-2">Nessuna playlist Spotify trovata. Usa il pulsante "Scopri" per trovare le playlist.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deezer Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <i data-lucide="disc-3" class="me-2" style="width: 20px; height: 20px; color: var(--deezer-orange, #ff5500);"></i>
+                            <h5 class="mb-0">Deezer - {{ aliases.main }}</h5>
+                            <span id="deezer-main-stats" class="badge bg-warning ms-2">
+                                {% set selected_deezer = playlists.main.deezer | selectattr('is_selected') | list %}
+                                {% set total_tracks = selected_deezer | sum(attribute='track_count') %}
+                                {{ selected_deezer | length }}/{{ playlists.main.deezer | length }} playlist ({{ total_tracks }} tracce)
+                            </span>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="discoverPlaylists('main', 'deezer')">
+                                <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
+                                Scopri
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="selectAll('main', 'deezer', true)">
+                                Seleziona Tutto
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="selectAll('main', 'deezer', false)">
+                                Deseleziona Tutto
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="deezer-main-playlists" class="playlist-container">
+                            {% if playlists.main.deezer %}
+                                {% for playlist in playlists.main.deezer %}
+                                <div class="playlist-card" data-user="main" data-service="deezer" data-id="{{ playlist.playlist_id }}">
+                                    <div class="d-flex align-items-center">
+                                        <input type="checkbox" class="playlist-checkbox me-3" 
+                                               {% if playlist.is_selected %}checked{% endif %}>
+                                        <div class="playlist-info flex-grow-1">
+                                            <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
+                                            <p class="text-secondary small mb-1">{{ playlist.playlist_description or 'Nessuna descrizione' }}</p>
+                                            <div class="d-flex gap-2 mb-2">
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.track_count or 0 }} tracce
+                                                </span>
+                                                <span class="badge bg-warning">{{ playlist.playlist_type }}</span>
+                                                {% if playlist.last_updated %}
+                                                <span class="badge bg-dark">
+                                                    <i data-lucide="clock" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.last_updated[:10] }}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% if playlist.playlist_poster %}
+                                        <img src="{{ playlist.playlist_poster }}" alt="Cover" class="playlist-cover ms-3">
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center text-secondary py-4">
+                                    <i data-lucide="search" style="width: 48px; height: 48px; opacity: 0.5;"></i>
+                                    <p class="mt-2">Nessuna playlist Deezer trovata. Usa il pulsante "Scopri" per trovare le playlist.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Secondary User -->
+    <div class="tab-pane fade" id="secondary" role="tabpanel">
+        <!-- Deezer Section (only for secondary user) -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <i data-lucide="disc-3" class="me-2" style="width: 20px; height: 20px; color: var(--deezer-orange, #ff5500);"></i>
+                            <h5 class="mb-0">Deezer - {{ aliases.secondary }}</h5>
+                            <span id="deezer-secondary-stats" class="badge bg-warning ms-2">
+                                {% set selected_deezer = playlists.secondary.deezer | selectattr('is_selected') | list %}
+                                {% set total_tracks = selected_deezer | sum(attribute='track_count') %}
+                                {{ selected_deezer | length }}/{{ playlists.secondary.deezer | length }} playlist ({{ total_tracks }} tracce)
+                            </span>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="discoverPlaylists('secondary', 'deezer')">
+                                <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
+                                Scopri
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="selectAll('secondary', 'deezer', true)">
+                                Seleziona Tutto
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="selectAll('secondary', 'deezer', false)">
+                                Deseleziona Tutto
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="deezer-secondary-playlists" class="playlist-container">
+                            {% if playlists.secondary.deezer %}
+                                {% for playlist in playlists.secondary.deezer %}
+                                <div class="playlist-card" data-user="secondary" data-service="deezer" data-id="{{ playlist.playlist_id }}">
+                                    <div class="d-flex align-items-center">
+                                        <input type="checkbox" class="playlist-checkbox me-3" 
+                                               {% if playlist.is_selected %}checked{% endif %}>
+                                        <div class="playlist-info flex-grow-1">
+                                            <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
+                                            <p class="text-secondary small mb-1">{{ playlist.playlist_description or 'Nessuna descrizione' }}</p>
+                                            <div class="d-flex gap-2 mb-2">
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.track_count or 0 }} tracce
+                                                </span>
+                                                <span class="badge bg-warning">{{ playlist.playlist_type }}</span>
+                                                {% if playlist.last_updated %}
+                                                <span class="badge bg-dark">
+                                                    <i data-lucide="clock" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.last_updated[:10] }}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% if playlist.playlist_poster %}
+                                        <img src="{{ playlist.playlist_poster }}" alt="Cover" class="playlist-cover ms-3">
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center text-secondary py-4">
+                                    <i data-lucide="search" style="width: 48px; height: 48px; opacity: 0.5;"></i>
+                                    <p class="mt-2">Nessuna playlist Deezer trovata. Usa il pulsante "Scopri" per trovare le playlist.</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Status Modal -->
+<div class="modal fade" id="statusModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Operazione in Corso</h5>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-center">
+                    <div class="spinner-border me-3" role="status"></div>
+                    <span id="status-message">Caricamento...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+.playlist-card {
+    padding: 1rem;
+    margin-bottom: 0.5rem;
+    border: 1px solid rgba(255,255,255,0.1);
+    border-radius: 8px;
+    background: var(--gradient-card);
+    transition: all 0.3s ease;
+}
+
+.playlist-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.2);
+}
+
+.playlist-cover {
+    width: 50px;
+    height: 50px;
+    border-radius: 6px;
+    object-fit: cover;
+}
+
+.playlist-container {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.nav-pills .nav-link {
+    background: var(--gradient-card);
+    color: var(--text-primary);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.nav-pills .nav-link.active {
+    background: var(--spotify-green);
+    color: white;
+}
+
+.bg-purple {
+    background-color: #6f42c1 !important;
+}
+</style>
+
+<script>
+// Playlist Management Functions
+function discoverPlaylists(userType, service) {
+    showStatus(`Scoprendo playlist ${service} per ${userType}...`);
+    
+    fetch(`/api/discover_playlists/${userType}/${service}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideStatus();
+        if (data.success) {
+            alert(`✅ Discovery completato: ${data.total_discovered} playlist trovate`);
+            location.reload(); // Ricarica per mostrare le nuove playlist
+        } else {
+            alert(`❌ Errore durante discovery: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        hideStatus();
+        console.error('Error:', error);
+        alert('❌ Errore durante discovery playlist');
+    });
+}
+
+function selectAll(userType, service, selected) {
+    const checkboxes = document.querySelectorAll(`[data-user="${userType}"][data-service="${service}"] .playlist-checkbox`);
+    const selections = [];
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = selected;
+        const playlistCard = checkbox.closest('.playlist-card');
+        const playlistId = playlistCard.dataset.id;
+        selections.push({
+            playlist_id: playlistId,
+            selected: selected
+        });
+    });
+    
+    if (selections.length > 0) {
+        updatePlaylistSelections(userType, service, selections);
+    }
+    
+    // Aggiorna immediatamente le statistiche
+    updateStatsDisplay(userType, service);
+}
+
+function updatePlaylistSelections(userType, service, selections) {
+    fetch('/api/playlist_selection/bulk', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            user_type: userType,
+            service: service,
+            selections: selections
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            console.log(`✅ Aggiornate ${data.success_count} playlist per ${userType}/${service}`);
+            // Aggiorna le statistiche in tempo reale
+            updateStatsDisplay(userType, service);
+        } else {
+            console.error('❌ Errore aggiornamento playlist:', data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error:', error);
+    });
+}
+
+function updateStatsDisplay(userType, service) {
+    const statsId = `${service}-${userType}-stats`;
+    const statsElement = document.getElementById(statsId);
+    if (!statsElement) return;
+    
+    // Calcola statistiche dalle checkbox attualmente selezionate
+    const checkboxes = document.querySelectorAll(`[data-user="${userType}"][data-service="${service}"] .playlist-checkbox`);
+    let selectedCount = 0;
+    let totalTracks = 0;
+    let totalPlaylists = checkboxes.length;
+    let hasSpecialTypes = false; // radio o generi
+    
+    checkboxes.forEach(checkbox => {
+        if (checkbox.checked) {
+            selectedCount++;
+            // Trova il numero di tracce dal badge della playlist
+            const playlistCard = checkbox.closest('.playlist-card');
+            const tracksBadge = playlistCard.querySelector('.badge');
+            if (tracksBadge) {
+                const tracksText = tracksBadge.textContent;
+                // Solo conta le tracce se non è radio o genere
+                if (tracksText.includes('Stream Continuo') || tracksText.includes('Categoria')) {
+                    hasSpecialTypes = true;
+                } else {
+                    const trackMatch = tracksText.match(/(\d+)\s+tracce/);
+                    if (trackMatch) {
+                        totalTracks += parseInt(trackMatch[1]);
+                    }
+                }
+            }
+        }
+    });
+    
+    // Aggiorna il testo delle statistiche con informazioni più precise
+    let statsText = `${selectedCount}/${totalPlaylists} playlist`;
+    if (totalTracks > 0) {
+        statsText += ` (${totalTracks} tracce`;
+        if (hasSpecialTypes) {
+            statsText += ' + radio/generi';
+        }
+        statsText += ')';
+    } else if (hasSpecialTypes && selectedCount > 0) {
+        statsText += ' (radio/generi)';
+    }
+    
+    statsElement.textContent = statsText;
+    
+    // Cambia colore del badge in base alla selezione
+    statsElement.className = selectedCount > 0 ? 'badge bg-success ms-2' : 'badge bg-secondary ms-2';
+}
+
+function initializeStats() {
+    // Inizializza le statistiche per tutte le sezioni presenti
+    const sections = [
+        { userType: 'main', service: 'spotify' },
+        { userType: 'main', service: 'deezer' },
+        { userType: 'secondary', service: 'deezer' }
+    ];
+    
+    sections.forEach(({ userType, service }) => {
+        updateStatsDisplay(userType, service);
+    });
+}
+
+function migrateFromEnv() {
+    showStatus('Migrando playlist da file .env...');
+    
+    fetch('/api/migrate_env_playlists', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideStatus();
+        if (data.success) {
+            alert(`✅ Migrazione completata: ${data.migrated_count} playlist migrate`);
+            location.reload();
+        } else {
+            alert(`❌ Errore durante migrazione: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        hideStatus();
+        console.error('Error:', error);
+        alert('❌ Errore durante migrazione');
+    });
+}
+
+function showStatus(message) {
+    document.getElementById('status-message').textContent = message;
+    const modal = new bootstrap.Modal(document.getElementById('statusModal'));
+    modal.show();
+}
+
+function hideStatus() {
+    const modal = bootstrap.Modal.getInstance(document.getElementById('statusModal'));
+    if (modal) {
+        modal.hide();
+    }
+}
+
+// Event Listeners
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize icons
+    if (typeof lucide !== 'undefined') {
+        lucide.createIcons();
+    }
+    
+    // Inizializza le statistiche
+    initializeStats();
+    
+    // Add checkbox change listeners
+    document.querySelectorAll('.playlist-checkbox').forEach(checkbox => {
+        checkbox.addEventListener('change', function() {
+            const playlistCard = this.closest('.playlist-card');
+            const userType = playlistCard.dataset.user;
+            const service = playlistCard.dataset.service;
+            const playlistId = playlistCard.dataset.id;
+            const selected = this.checked;
+            
+            updatePlaylistSelections(userType, service, [{
+                playlist_id: playlistId,
+                selected: selected
+            }]);
+            
+            // Aggiorna immediatamente le statistiche per feedback istantaneo
+            updateStatsDisplay(userType, service);
+        });
+    });
+    
+    // Discover all button
+    document.getElementById('btn-discover-all').addEventListener('click', function() {
+        if (confirm('Vuoi scoprire tutte le playlist per tutti i servizi? Questa operazione potrebbe richiedere alcuni minuti.')) {
+            discoverPlaylists('main', 'spotify');
+            setTimeout(() => discoverPlaylists('main', 'deezer'), 2000);
+            setTimeout(() => discoverPlaylists('secondary', 'deezer'), 4000);
+        }
+    });
+    
+    // Migrate env button
+    document.getElementById('btn-migrate-env').addEventListener('click', function() {
+        if (confirm('Vuoi migrare le playlist dal file .env al database? Questa operazione sovrascriverà le selezioni esistenti.')) {
+            migrateFromEnv();
+        }
+    });
+});
+</script>
+{% endblock %}
