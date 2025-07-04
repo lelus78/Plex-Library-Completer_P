@@ -1,0 +1,45 @@
+<?xml version="1.0"?>
+<Container version="2">
+  <Name>Plex-Library-Completer</Name>
+  <Repository>lelus78/plex-library-completer:latest</Repository>
+  <Registry>https://hub.docker.com/r/lelus78/plex-library-completer</Registry>
+  <Network>bridge</Network>
+  <MyIP/>
+  <Shell>sh</Shell>
+  <Privileged>false</Privileged>
+  <Support>https://github.com/lelus78/Plex-Library-Completer_P/issues</Support>
+  <Project>https://github.com/lelus78/Plex-Library-Completer_P</Project>
+  <Overview>A comprehensive Python application, executed via Docker, that keeps your Plex music library synchronized with streaming services like Spotify and Deezer. Features automatic missing track downloads, AI-generated playlists with Google Gemini, and complete playlist management automation.</Overview>
+  <Category>MediaServer:Tools</Category>
+  <WebUI>http://[IP]:[PORT:5000]</WebUI>
+  <TemplateURL/>
+  <Icon>https://raw.githubusercontent.com/Bermos/Plex-bulk-downloader/refs/heads/master/images/icon48.png</Icon>
+  <ExtraParams/>
+  <PostArgs/>
+  <CPUset/>
+  <DateInstalled/>
+  <DonateText/>
+  <DonateLink/>
+  <Requires/>
+  <Config Name="Appdata Path" Target="/config" Default="" Mode="rw" Description="Location of configuration and cache files." Type="Path" Display="always" Required="true" Mask="false">/mnt/user/appdata/plex-library-completer</Config>
+  <Config Name="Your Music Folder" Target="/music" Default="" Mode="rw" Description="Local folder containing your music (to be scanned or completed)" Type="Path" Display="always" Required="false" Mask="false">/mnt/user/Music</Config>
+  <Config Name="WebUI Port" Target="5000" Default="5000" Mode="tcp" Description="Plex-Library-Completer WebUI port" Type="Port" Display="always" Required="true" Mask="false">5000</Config>
+  <Config Name="Library Name" Target="LIBRARY_NAME" Default="Music" Mode="" Description="Exact name of the Plex library to be indexed (e.g. Music)" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="Tautulli API Key" Target="TAUTULLI_API_KEY" Default="" Mode="" Description="Your Tautulli API key." Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="Tautulli Host" Target="TAUTULLI_URL" Default="http://192.168.1.10:8181" Mode="" Description="=Your Tautulli local address + port" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="Plex Token" Target="PLEX_TOKEN" Default="" Mode="" Description="Your Plex Token" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="Plex URL" Target="PLEX_URL" Default="http://192.168.1.10:32400" Mode="" Description="Your Plex local address + port" Type="Variable" Display="always" Required="true" Mask="false"/>
+  <Config Name="OMDb API Key" Target="OMDB_API_KEY" Default="" Mode="" Description="your OMDb API key (optional)." Type="Variable" Display="always" Required="false" Mask="false"/>
+  <Config Name="Deezer Playlist ID" Target="DEEZER_PLAYLIST_ID" Default="" Mode="" Description="Specific Deezer playlist ID number to synchronize, separated by commas (optional)" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Deezer ARL" Target="DEEZER_ARL" Default="" Mode="" Description="Your Deezer ARL (Required for download)" Type="Variable" Display="advanced" Required="true" Mask="true"/>
+  <Config Name="Seconds to Wait" Target="SECONDS_TO_WAIT" Default="3" Mode="" Description="Pause between each download in seconds (optional)" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Run Downloader" Target="RUN_DOWNLOADER" Default="false" Mode="" Description="Run automatic downloader (true/false)" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Schedule (cron)" Target="CRON_SCHEDULE" Default="0 5 * * *" Mode="" Description="Schedule execution (cron)." Type="Variable" Display="advanced" Required="true" Mask="false"/>
+  <Config Name="Activer Gemini Playlist" Target="RUN_GEMINI_PLAYLIST_CREATION" Default="false" Mode="" Description="Create playlists with Gemini AI (true/false)" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Gemini API Key" Target="GEMINI_API_KEY" Default="" Mode="" Description="Your Gemini API key for AI-based playlist generation" Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="Skip Spotify Sync" Target="SKIP_SPOTIFY_SYNC" Default="1" Mode="" Description="Disables Spotify synchronization (1=yes, 0=no)" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Spotify Client ID" Target="SPOTIPY_CLIENT_ID" Default="" Mode="" Description="Your Spotify ID" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="Spotify Client Secret" Target="SPOTIPY_CLIENT_SECRET" Default="" Mode="" Description="Your Spotify Client Secret" Type="Variable" Display="advanced" Required="false" Mask="true"/>
+  <Config Name="PUID" Target="PUID" Default="99" Mode="" Description="User ID (Unraid=99)" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+  <Config Name="PGID" Target="PGID" Default="100" Mode="" Description="Group ID (Unraid=100)" Type="Variable" Display="advanced" Required="false" Mask="false"/>
+</Container>

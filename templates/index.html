@@ -41,6 +41,16 @@
                         </form>
                     </div>
                 </div>
+                
+                <!-- Stop Button (only shown when operation is running) -->
+                <div class="row g-3 mt-2" id="stop-button-container" style="display: none;">
+                    <div class="col-12">
+                        <button id="btn-stop" type="button" class="btn btn-danger w-100 d-flex align-items-center justify-content-center">
+                            <i data-lucide="square" class="me-2" style="width: 18px; height: 18px;"></i>
+                            {{ _('dashboard.actions.stop_operation') }}
+                        </button>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -242,19 +252,29 @@
 
                 buttons.forEach(button => {
                     const isRunning = data.is_running;
-                    button.disabled = isRunning;
-                    
-                    if (isRunning) {
-                        button.innerHTML = `<i data-lucide="loader" class="me-2" style="width: 16px; height: 16px;"></i>${runningText}`;
-                        button.classList.add('pulse');
-                    } else {
-                        const originalText = originalTexts[button.id];
-                        if (originalText) {
-                            button.innerHTML = button.innerHTML.replace(runningText, originalText);
+                    if (button.id !== 'btn-stop') {  // Don't disable stop button
+                        button.disabled = isRunning;
+                        
+                        if (isRunning) {
+                            button.innerHTML = `<i data-lucide="loader" class="me-2" style="width: 16px; height: 16px;"></i>${runningText}`;
+                            button.classList.add('pulse');
+                        } else {
+                            const originalText = originalTexts[button.id];
+                            if (originalText) {
+                                button.innerHTML = button.innerHTML.replace(runningText, originalText);
+                            }
+                            button.classList.remove('pulse');
                         }
-                        button.classList.remove('pulse');
                     }
                 });
+                
+                // Show/hide stop button based on operation state
+                const stopContainer = document.getElementById('stop-button-container');
+                if (data.is_running) {
+                    stopContainer.style.display = 'block';
+                } else {
+                    stopContainer.style.display = 'none';
+                }
                 
                 // Refresh icons after content update
                 if (typeof lucide !== 'undefined') {
@@ -382,6 +402,46 @@
         if (typeof lucide !== 'undefined') {
             lucide.createIcons();
         }
+        
+        // Add stop button event listener
+        document.getElementById('btn-stop').addEventListener('click', function() {
+            if (confirm('{{ _('dashboard.actions.confirm_stop') }}')) {
+                this.disabled = true;
+                this.innerHTML = '<i data-lucide="loader" class="me-2" style="width: 18px; height: 18px;"></i>{{ _('dashboard.actions.stopping') }}';
+                
+                fetch('{{ url_for('stop_operation') }}', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    }
+                })
+                .then(response => response.json())
+                .then(data => {
+                    if (data.success) {
+                        console.log('Stop request sent successfully');
+                        // Update dashboard immediately to reflect stopping state
+                        updateDashboard();
+                    } else {
+                        alert('{{ _('errors.stop_failed') }}: ' + data.error);
+                        // Re-enable button on error
+                        this.disabled = false;
+                        this.innerHTML = '<i data-lucide="square" class="me-2" style="width: 18px; height: 18px;"></i>{{ _('dashboard.actions.stop_operation') }}';
+                    }
+                })
+                .catch(error => {
+                    console.error('Error stopping operation:', error);
+                    alert('{{ _('errors.stop_error') }}');
+                    // Re-enable button on error
+                    this.disabled = false;
+                    this.innerHTML = '<i data-lucide="square" class="me-2" style="width: 18px; height: 18px;"></i>{{ _('dashboard.actions.stop_operation') }}';
+                });
+                
+                // Refresh icons after content update
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        });
     });
 </script>
 {% endblock %}

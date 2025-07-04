@@ -25,7 +25,10 @@
       "build_index": "Update Library Index",
       "restart_indexing": "Restart Optimized Indexing",
       "test_database": "Test Database",
-      "emergency_cleanup": "Emergency Cleanup"
+      "emergency_cleanup": "Emergency Cleanup",
+      "stop_operation": "Stop Operation",
+      "confirm_stop": "Are you sure you want to stop the current operation?",
+      "stopping": "Stopping..."
     },
     "users": {
       "managed_users": "Managed Users",
@@ -217,7 +220,9 @@
     "server_error": "Server error",
     "database_error": "Database error",
     "file_not_found": "File not found",
-    "permission_denied": "Permission denied"
+    "permission_denied": "Permission denied",
+    "stop_failed": "Failed to stop operation",
+    "stop_error": "Error stopping operation"
   },
   "messages": {
     "operation_completed": "Operation completed successfully",

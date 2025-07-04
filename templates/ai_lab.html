@@ -242,6 +242,97 @@
     opacity: 0.8;
 }
 
+/* Playlist Expandable Styles */
+.playlist-item {
+    cursor: pointer;
+    transition: all var(--transition-fast);
+    border-radius: var(--radius-md);
+    padding: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.playlist-item:hover {
+    background: rgba(255,255,255,0.05);
+}
+
+.playlist-item.expanded {
+    background: rgba(29, 185, 84, 0.1);
+}
+
+.playlist-details {
+    display: none;
+    margin-top: 1rem;
+    padding: 1rem;
+    background: var(--bg-tertiary);
+    border-radius: var(--radius-md);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.track-item {
+    display: flex;
+    align-items: center;
+    padding: 0.5rem;
+    margin-bottom: 0.25rem;
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+}
+
+.track-status {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    margin-right: 0.5rem;
+    flex-shrink: 0;
+}
+
+.track-status.found {
+    background: var(--spotify-green);
+}
+
+.track-status.missing {
+    background: #ff6b6b;
+}
+
+.track-info {
+    flex-grow: 1;
+    min-width: 0;
+}
+
+.track-title {
+    font-weight: 500;
+    color: var(--text-primary);
+    margin-bottom: 0.25rem;
+}
+
+.track-artist {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.tracks-summary {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background: var(--bg-secondary);
+    border-radius: var(--radius-md);
+}
+
+.summary-item {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
+.expand-icon {
+    transition: transform var(--transition-fast);
+}
+
+.expand-icon.rotated {
+    transform: rotate(180deg);
+}
+
 {% endblock %}
 
 {% block content %}
@@ -517,10 +608,13 @@
                 {% if existing_playlists %}
                     <div class="playlist-timeline">
                         {% for playlist in existing_playlists %}
-                        <div class="timeline-item">
+                        <div class="timeline-item playlist-item" data-playlist-id="{{ playlist.id }}">
                             <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div class="flex-grow-1 me-2">
-                                    <h6 class="fw-bold mb-1">{{ playlist.title }}</h6>
+                                <div class="flex-grow-1 me-2" onclick="togglePlaylistDetails({{ playlist.id }})">
+                                    <div class="d-flex align-items-center mb-1">
+                                        <h6 class="fw-bold mb-0 me-2">{{ playlist.title }}</h6>
+                                        <i data-lucide="chevron-down" class="expand-icon" style="width: 16px; height: 16px; color: var(--text-secondary);"></i>
+                                    </div>
                                     {% if playlist.description %}
                                     <p class="text-secondary small mb-1">"{{ playlist.description[:50] }}{% if playlist.description|length > 50 %}...{% endif %}"</p>
                                     {% endif %}
@@ -539,6 +633,37 @@
                                         <i data-lucide="trash-2" style="width: 12px; height: 12px;"></i>
                                     </button>
                                 </form>
+                            </div>
+                            
+                            <!-- Expandable Details -->
+                            <div class="playlist-details" id="details-{{ playlist.id }}">
+                                <div class="d-flex align-items-center justify-content-between mb-2">
+                                    <h6 class="mb-0">
+                                        {% if current_language == 'en' %}Track Details{% else %}Dettagli Tracce{% endif %}
+                                    </h6>
+                                    <div class="spinner-border spinner-border-sm" id="loading-{{ playlist.id }}" style="display: none;" role="status">
+                                        <span class="visually-hidden">Loading...</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Tracks Summary -->
+                                <div class="tracks-summary" id="summary-{{ playlist.id }}" style="display: none;">
+                                    <div class="summary-item">
+                                        <div class="track-status found"></div>
+                                        <span class="found-count">0</span>
+                                        <span>{% if current_language == 'en' %}Found{% else %}Trovate{% endif %}</span>
+                                    </div>
+                                    <div class="summary-item">
+                                        <div class="track-status missing"></div>
+                                        <span class="missing-count">0</span>
+                                        <span>{% if current_language == 'en' %}Missing{% else %}Mancanti{% endif %}</span>
+                                    </div>
+                                </div>
+                                
+                                <!-- Tracks List -->
+                                <div class="tracks-list" id="tracks-{{ playlist.id }}">
+                                    <!-- Tracks will be loaded here -->
+                                </div>
                             </div>
                         </div>
                         {% endfor %}
@@ -1012,6 +1137,152 @@ $(document).ready(function() {
         
         addChatMessage('assistant', message);
     }
+    
+    // Playlist expansion functionality
+    window.togglePlaylistDetails = function(playlistId) {
+        const playlistItem = $(`.playlist-item[data-playlist-id="${playlistId}"]`);
+        const detailsDiv = $(`#details-${playlistId}`);
+        const expandIcon = playlistItem.find('.expand-icon');
+        const loadingSpinner = $(`#loading-${playlistId}`);
+        const tracksDiv = $(`#tracks-${playlistId}`);
+        const summaryDiv = $(`#summary-${playlistId}`);
+        
+        if (detailsDiv.is(':visible')) {
+            // Collapse
+            detailsDiv.slideUp(200);
+            expandIcon.removeClass('rotated');
+            playlistItem.removeClass('expanded');
+        } else {
+            // Expand
+            detailsDiv.slideDown(200);
+            expandIcon.addClass('rotated');
+            playlistItem.addClass('expanded');
+            
+            // Load tracks if not already loaded
+            if (tracksDiv.children().length === 0) {
+                loadPlaylistTracks(playlistId);
+            }
+        }
+    };
+    
+    window.loadPlaylistTracks = function(playlistId, verify = false) {
+        const loadingSpinner = $(`#loading-${playlistId}`);
+        const tracksDiv = $(`#tracks-${playlistId}`);
+        const summaryDiv = $(`#summary-${playlistId}`);
+        const selectedUser = $('#user-select').val();
+        
+        console.log(`Loading playlist tracks for ID: ${playlistId}, verify: ${verify}`);
+        
+        loadingSpinner.show();
+        
+        // Add verification parameter
+        const verifyParam = verify ? '&verify=true' : '';
+        const url = `/api/playlist_tracks/${playlistId}?user=${selectedUser}${verifyParam}`;
+        
+        console.log(`Making request to: ${url}`);
+        
+        $.ajax({
+            url: url,
+            method: 'GET',
+            success: function(data) {
+                console.log('Response received:', data);
+                if (data.success) {
+                    // Debug: log missing tracks
+                    const missingTracks = data.tracks.filter(track => !track.found_in_plex);
+                    console.log('Missing tracks found:', missingTracks);
+                    displayPlaylistTracks(playlistId, data);
+                } else {
+                    tracksDiv.html(`<div class="alert alert-danger">Error: ${data.error}</div>`);
+                }
+            },
+            error: function(xhr, status, error) {
+                console.error('AJAX error:', xhr.responseText, status, error);
+                tracksDiv.html(`<div class="alert alert-danger">Failed to load tracks: ${error}</div>`);
+            },
+            complete: function() {
+                loadingSpinner.hide();
+            }
+        });
+    }
+    
+    function displayPlaylistTracks(playlistId, data) {
+        const tracksDiv = $(`#tracks-${playlistId}`);
+        const summaryDiv = $(`#summary-${playlistId}`);
+        
+        // Update summary
+        summaryDiv.find('.found-count').text(data.tracks_found);
+        summaryDiv.find('.missing-count').text(data.tracks_missing);
+        summaryDiv.show();
+        
+        // Add verification mode info and accuracy button
+        let verificationInfo = '';
+        if (data.verification_mode === 'database_index') {
+            verificationInfo = `
+                <div class="verification-info mb-3">
+                    <div class="d-flex align-items-center justify-content-between">
+                        <small class="text-muted">
+                            <i data-lucide="database" style="width: 14px; height: 14px;" class="me-1"></i>
+                            {% if current_language == 'en' %}Fast mode (database index){% else %}Modalità veloce (indice database){% endif %}
+                        </small>
+                        <button class="btn btn-sm btn-outline-warning verify-btn" data-playlist-id="${playlistId}">
+                            <i data-lucide="shield-check" style="width: 14px; height: 14px;" class="me-1"></i>
+                            {% if current_language == 'en' %}Verify with Plex{% else %}Verifica con Plex{% endif %}
+                        </button>
+                    </div>
+                </div>
+            `;
+        } else {
+            verificationInfo = `
+                <div class="verification-info mb-3">
+                    <small class="text-success">
+                        <i data-lucide="shield-check" style="width: 14px; height: 14px;" class="me-1"></i>
+                        {% if current_language == 'en' %}Verified with Plex API{% else %}Verificato con API Plex{% endif %}
+                    </small>
+                </div>
+            `;
+        }
+        
+        // Build tracks HTML
+        let tracksHtml = verificationInfo;
+        data.tracks.forEach(track => {
+            const statusClass = track.found_in_plex ? 'found' : 'missing';
+            const statusTitle = track.found_in_plex ? 
+                ({% if current_language == 'en' %}'Found in Plex'{% else %}'Trovata in Plex'{% endif %}) : 
+                ({% if current_language == 'en' %}'Missing from Plex'{% else %}'Mancante da Plex'{% endif %});
+            
+            tracksHtml += `
+                <div class="track-item">
+                    <div class="track-status ${statusClass}" title="${statusTitle}"></div>
+                    <div class="track-info">
+                        <div class="track-title">${escapeHtml(track.title)}</div>
+                        <div class="track-artist">${escapeHtml(track.artist)}${track.album ? ` • ${escapeHtml(track.album)}` : ''}${track.year ? ` (${track.year})` : ''}</div>
+                    </div>
+                </div>
+            `;
+        });
+        
+        tracksDiv.html(tracksHtml);
+        
+        // Refresh icons
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+    
+    function escapeHtml(text) {
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
+    }
+    
+    // Event listener for verify buttons (delegated event handling)
+    $(document).on('click', '.verify-btn', function() {
+        const playlistId = $(this).data('playlist-id');
+        console.log(`Verify button clicked for playlist ID: ${playlistId}`);
+        window.loadPlaylistTracks(playlistId, true);
+    });
+    
+    console.log('Event listener for verify buttons registered');
     
     // Initialize icons
     if (typeof lucide !== 'undefined') {

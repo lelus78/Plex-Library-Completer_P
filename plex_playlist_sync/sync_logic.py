@@ -13,6 +13,38 @@ import spotipy
 
 logger = logging.getLogger(__name__)
 
+def check_stop_flag():
+    """Check if operation should be stopped (for Flask integration)"""
+    try:
+        # Import here to avoid circular imports
+        from flask import current_app
+        if hasattr(current_app, 'app_state'):
+            return current_app.app_state.get("stop_requested", False)
+    except:
+        # If not in Flask context, check global variable (for background tasks)
+        try:
+            import sys
+            if hasattr(sys.modules.get('app'), 'app_state'):
+                return sys.modules['app'].app_state.get("stop_requested", False)
+        except:
+            pass
+    return False
+
+# Global variable to store app_state reference for background tasks
+_app_state_ref = None
+
+def set_app_state_ref(app_state):
+    """Set global app_state reference for background tasks"""
+    global _app_state_ref
+    _app_state_ref = app_state
+
+def check_stop_flag_direct():
+    """Direct check for stop flag using global reference"""
+    global _app_state_ref
+    if _app_state_ref:
+        return _app_state_ref.get("stop_requested", False)
+    return check_stop_flag()  # Fallback to Flask context method
+
 from .utils.cleanup import delete_old_playlists, delete_previous_week_playlist
 from .utils.deezer import deezer_playlist_sync
 from .utils.helperClasses import UserInputs, Playlist as PlexPlaylist, Track as PlexTrack
@@ -101,6 +133,12 @@ def build_library_index(app_state: Dict):
         batch_num = 0
         
         while container_start < total_tracks:
+            # Check if stop was requested
+            if check_stop_flag_direct():
+                logger.info("🛑 Stop requested during library indexing")
+                app_state['status'] = "Indexing stopped by user request"
+                return
+            
             try:
                 batch_num += 1
                 batch_end = min(container_start + batch_size, total_tracks)
@@ -174,14 +212,26 @@ def sync_playlists_for_user(plex: PlexServer, user_inputs: UserInputs):
             try:
                 # Suppress Spotipy cache warnings - token caching is not critical for sync
                 import warnings
+                import logging as python_logging
+                
+                # Disable spotipy.cache_handler logger specifically
+                spotipy_cache_logger = python_logging.getLogger('spotipy.cache_handler')
+                spotipy_cache_logger.setLevel(python_logging.ERROR)
+                
+                # Also filter warnings
                 warnings.filterwarnings("ignore", message="Couldn't write token to cache")
                 
                 logger.info("🎵 Initializing Spotify API connection...")
+                
+                # Use a custom cache handler that doesn't try to write to disk
+                from spotipy.cache_handler import MemoryCacheHandler
+                memory_cache = MemoryCacheHandler()
+                
                 sp = spotipy.Spotify(
                     auth_manager=SpotifyClientCredentials(
                         client_id=user_inputs.spotipy_client_id,
                         client_secret=user_inputs.spotipy_client_secret,
-                        cache_handler=None  # Disable cache to avoid warning spam
+                        cache_handler=memory_cache  # Use memory cache instead
                     )
                 )
                 logger.info(
@@ -255,6 +305,11 @@ def force_playlist_scan_and_missing_detection():
         total_missing_found = 0
         
         for playlist in music_playlists:
+            # Check if stop was requested
+            if check_stop_flag_direct():
+                logger.info("🛑 Stop requested during playlist scan")
+                return
+            
             try:
                 logger.info(f"Scanning playlist: {playlist.title}")
                 
@@ -263,6 +318,11 @@ def force_playlist_scan_and_missing_detection():
                 missing_count = 0
                 
                 for track in playlist_tracks:
+                    # Check if stop was requested (every 10 tracks for performance)
+                    if missing_count % 10 == 0 and check_stop_flag_direct():
+                        logger.info("🛑 Stop requested during track scanning")
+                        return
+                    
                     try:
                         # Use new smart matching system
                         if not check_track_in_index_smart(track.title, track.grandparentTitle):
@@ -300,6 +360,12 @@ def force_playlist_scan_and_missing_detection():
 def run_downloader_only():
     """Reads missing tracks from DB, searches for links in parallel and starts download."""
     logger.info("--- Starting automatic search and download for missing tracks from DB ---")
+    
+    # Check if stop was requested before starting
+    if check_stop_flag_direct():
+        logger.info("🛑 Stop requested before download start")
+        return False
+    
     missing_tracks_from_db = get_missing_tracks()
     
     if not missing_tracks_from_db:
@@ -315,6 +381,11 @@ def run_downloader_only():
         future_to_track = {executor.submit(DeezerLinkFinder.find_track_link, {'title': track[1], 'artist': track[2]}): track for track in missing_tracks_from_db}
         
         for future in concurrent.futures.as_completed(future_to_track):
+            # Check if stop was requested
+            if check_stop_flag_direct():
+                logger.info("🛑 Stop requested during link search")
+                return False
+            
             track = future_to_track[future]
             link = future.result()
             if link:
@@ -334,6 +405,11 @@ def run_downloader_only():
         
         # Download each unique link and update all associated tracks
         for link, track_ids in unique_links.items():
+            # Check if stop was requested
+            if check_stop_flag_direct():
+                logger.info("🛑 Stop requested during download")
+                return False
+            
             try:
                 logger.info(f"Starting download: {link} (for {len(track_ids)} tracks)")
                 download_single_track_with_streamrip(link)
@@ -364,7 +440,7 @@ def rescan_and_update_missing():
         return
 
     try:
-        plex = PlexServer(plex_url, plex_token)
+        plex = PlexServer(plex_url, plex_token, timeout=120)
         library_name = os.getenv("LIBRARY_NAME", "Musica")
         logger.debug(f"Using library name: {library_name}")
         music_library = plex.library.section(library_name)
@@ -411,7 +487,7 @@ def run_cleanup_only():
         user_tokens = [os.getenv("PLEX_TOKEN"), os.getenv("PLEX_TOKEN_USERS")]
         for token in filter(None, user_tokens):
             try:
-                plex = PlexServer(os.getenv("PLEX_URL"), token)
+                plex = PlexServer(os.getenv("PLEX_URL"), token, timeout=120)
                 logger.info(f"--- Starting cleanup of old playlists for user {token[:4]}... ---")
                 library_name = os.getenv("LIBRARY_NAME", "Musica")
                 logger.debug(f"Using library name: {library_name}")
@@ -420,9 +496,18 @@ def run_cleanup_only():
                 logger.error(f"Error during Plex connection for cleanup (user {token[:4]}...): {e}")
 
 
-def run_full_sync_cycle():
+def run_full_sync_cycle(app_state=None):
     """Performs a complete cycle of synchronization, AI, and then attempts download/rescan."""
     logger.info("Starting new complete synchronization cycle...")
+    
+    # Set app_state reference for background tasks
+    if app_state:
+        set_app_state_ref(app_state)
+    
+    # Check if stop was requested before starting
+    if check_stop_flag_direct():
+        logger.info("🛑 Stop requested before sync cycle start")
+        return
     
     RUN_GEMINI_PLAYLIST_CREATION = os.getenv("RUN_GEMINI_PLAYLIST_CREATION", "0") == "1"
     AUTO_DELETE_AI_PLAYLIST = os.getenv("AUTO_DELETE_AI_PLAYLIST", "0") == "1"
@@ -439,6 +524,11 @@ def run_full_sync_cycle():
     gemini_model, gemini_model_name = configure_gemini() if RUN_GEMINI_PLAYLIST_CREATION else (None, "")
     
     for user_config in user_configs:
+        # Check if stop was requested
+        if check_stop_flag_direct():
+            logger.info("🛑 Stop requested during sync cycle")
+            return
+            
         token = user_config["token"]
         name = user_config["name"]
         favorites_playlist_id = user_config["favorites_id"]
@@ -463,7 +553,7 @@ def run_full_sync_cycle():
         )
         
         try:
-            plex = PlexServer(user_inputs.plex_url, user_inputs.plex_token)
+            plex = PlexServer(user_inputs.plex_url, user_inputs.plex_token, timeout=120)
             sync_playlists_for_user(plex, user_inputs)
             
             if gemini_model and favorites_playlist_id:
@@ -505,6 +595,11 @@ def run_full_sync_cycle():
     
     logger.info(f"✅ Library index OK: {index_stats['total_tracks_indexed']} tracks indexed")
     
+    # Check if stop was requested before playlist scan
+    if check_stop_flag_direct():
+        logger.info("🛑 Stop requested before playlist scan")
+        return
+    
     # Force playlist scan to detect missing tracks if DB is empty
     current_missing_count = len(get_missing_tracks())
     if current_missing_count == 0:
@@ -514,11 +609,23 @@ def run_full_sync_cycle():
         logger.info(f"Found {current_missing_count} missing tracks in existing DB.")
     
     if RUN_DOWNLOADER:
+        # Check if stop was requested before download
+        if check_stop_flag_direct():
+            logger.info("🛑 Stop requested before download phase")
+            return
+        
         download_attempted = run_downloader_only()
         if download_attempted:
             wait_time = int(os.getenv("PLEX_SCAN_WAIT_TIME", "300"))
             logger.info(f"Waiting {wait_time} seconds to give Plex time to index...")
-            time.sleep(wait_time)
+            
+            # Check stop flag during wait time (check every 10 seconds)
+            for i in range(0, wait_time, 10):
+                if check_stop_flag_direct():
+                    logger.info("🛑 Stop requested during Plex scan wait")
+                    return
+                time.sleep(min(10, wait_time - i))
+            
             rescan_and_update_missing()
     else:
         logger.warning("Automatic download skipped as per configuration.")
@@ -548,9 +655,9 @@ def auto_update_ai_playlists(plex, updated_tracks):
         # Create separate connections for each user
         plex_connections = {}
         if main_token:
-            plex_connections['main'] = PlexServer(plex_url, main_token)
+            plex_connections['main'] = PlexServer(plex_url, main_token, timeout=120)
         if secondary_token:
-            plex_connections['secondary'] = PlexServer(plex_url, secondary_token)
+            plex_connections['secondary'] = PlexServer(plex_url, secondary_token, timeout=120)
         
         # Get playlists for each user
         updated_count = 0
@@ -666,7 +773,7 @@ def refresh_managed_ai_playlists():
         
         # Create connections and UserInputs for each user
         if main_token:
-            plex_connections['main'] = PlexServer(plex_url, main_token)
+            plex_connections['main'] = PlexServer(plex_url, main_token, timeout=120)
             user_inputs_map['main'] = UserInputs(
                 plex_url=plex_url, plex_token=main_token,
                 plex_token_others=secondary_token,
@@ -686,7 +793,7 @@ def refresh_managed_ai_playlists():
             )
             
         if secondary_token:
-            plex_connections['secondary'] = PlexServer(plex_url, secondary_token)
+            plex_connections['secondary'] = PlexServer(plex_url, secondary_token, timeout=120)
             user_inputs_map['secondary'] = UserInputs(
                 plex_url=plex_url, plex_token=secondary_token,
                 plex_token_others=main_token,

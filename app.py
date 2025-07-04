@@ -42,7 +42,7 @@ from plex_playlist_sync.utils.database import (
     initialize_db, get_missing_tracks, update_track_status, get_missing_track_by_id, 
     add_managed_ai_playlist, get_managed_ai_playlists_for_user, delete_managed_ai_playlist, get_managed_playlist_details,
     delete_all_missing_tracks, delete_missing_track, check_track_in_index, comprehensive_track_verification, get_library_index_stats,
-    clean_tv_content_from_missing_tracks, clean_resolved_missing_tracks
+    clean_tv_content_from_missing_tracks, clean_resolved_missing_tracks, add_missing_track_if_not_exists
 )
 from plex_playlist_sync.utils.downloader import DeezerLinkFinder, download_single_track_with_streamrip, find_potential_tracks, find_tracks_free_search
 from plex_playlist_sync.utils.i18n import init_i18n_for_app, translate_status
@@ -55,7 +55,7 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "una-chiave-segreta-casuale-e-rob
 # Initialize i18n service
 init_i18n_for_app(app)
 
-app_state = { "status": "In attesa", "last_sync": "Mai eseguito", "is_running": False }
+app_state = { "status": "In attesa", "last_sync": "Mai eseguito", "is_running": False, "stop_requested": False }
 
 # Coda per i download e ThreadPoolExecutor per l'esecuzione parallela
 download_queue = queue.Queue()
@@ -91,18 +91,31 @@ def background_scheduler():
 
 def run_task_in_background(trigger_type, target_function, *args):
     app_state["is_running"] = True
-    task_args = (app_state,) + args if target_function == build_library_index else args
+    app_state["stop_requested"] = False  # Reset stop flag
+    task_args = (app_state,) + args if target_function in [build_library_index, run_full_sync_cycle] else args
     app_state["status"] = f"Operazione ({trigger_type}) in corso..."
     try:
         target_function(*task_args)
         if target_function == run_full_sync_cycle:
             app_state["last_sync"] = time.strftime("%d/%m/%Y %H:%M:%S")
-        app_state["status"] = "In attesa"
+        
+        # Check if operation was stopped
+        if app_state["stop_requested"]:
+            app_state["status"] = "⏹️ Operation stopped by user"
+            log.info(f"🛑 Operation '{trigger_type}' stopped by user request")
+        else:
+            app_state["status"] = "In attesa"
+            
     except Exception as e:
-        log.error(f"Critical error during '{trigger_type}' cycle: {e}", exc_info=True)
-        app_state["status"] = "Error! Check logs."
+        if app_state["stop_requested"]:
+            log.info(f"🛑 Operation '{trigger_type}' interrupted by stop request")
+            app_state["status"] = "⏹️ Operation stopped"
+        else:
+            log.error(f"Critical error during '{trigger_type}' cycle: {e}", exc_info=True)
+            app_state["status"] = "Error! Check logs."
     finally:
         app_state["is_running"] = False
+        app_state["stop_requested"] = False
 
 def get_user_aliases():
     return { 'main': os.getenv('USER_ALIAS_MAIN', 'Utente Principale'), 'secondary': os.getenv('USER_ALIAS_SECONDARY', 'Utente Secondario') }
@@ -142,6 +155,15 @@ def missing_tracks():
     try:
         all_missing_tracks = get_missing_tracks()
         log.info(f"Retrieved {len(all_missing_tracks)} missing tracks")
+        
+        # Debug: log first few tracks
+        if all_missing_tracks:
+            log.info(f"🔍 DEBUG: Prime 3 tracce missing nel database:")
+            for i, track in enumerate(all_missing_tracks[:3]):
+                log.info(f"   {i+1}. ID={track[0]}, Title='{track[1]}', Artist='{track[2]}', Playlist='{track[4] if len(track)>4 else 'N/A'}'")
+        else:
+            log.info("🔍 DEBUG: Nessuna traccia missing trovata nel database")
+            
         return render_template('missing_tracks.html', tracks=all_missing_tracks)
     except Exception as e:
         log.error(f"Error in missing_tracks page: {e}", exc_info=True)
@@ -184,7 +206,7 @@ def stats():
     
     if user_token and plex_url and (target_id or analysis_type == 'library') and not error_msg:
         try:
-            plex = PlexServer(plex_url, user_token)
+            plex = PlexServer(plex_url, user_token, timeout=120)
             log.info(f"Generating statistics for {selected_user} - type: {analysis_type}")
             
             # Get current language for data processing and charts
@@ -223,7 +245,7 @@ def stats():
         # Ottieni nome della playlist dalla configurazione
         try:
             if user_token and plex_url and not error_msg:
-                plex = PlexServer(plex_url, user_token)
+                plex = PlexServer(plex_url, user_token, timeout=120)
                 playlist = plex.fetchItem(int(target_id))
                 data_source_info = {
                     'type': 'playlist',
@@ -313,7 +335,7 @@ def ai_lab():
             else:
                 log.info("Nessun download eseguito, salto la fase di rescan")
         
-        return start_background_task(generate_and_download_task, "Generazione playlist e download automatico avviati!", PlexServer(plex_url, user_token), temp_user_inputs, favorites_id, custom_prompt, selected_user_key)
+        return start_background_task(generate_and_download_task, "Generazione playlist e download automatico avviati!", PlexServer(plex_url, user_token, timeout=120), temp_user_inputs, favorites_id, custom_prompt, selected_user_key)
 
     return render_template('ai_lab.html', aliases=user_aliases, selected_user=selected_user_key, existing_playlists=existing_playlists)
 
@@ -333,7 +355,7 @@ def delete_ai_playlist_route(playlist_db_id):
     plex_url = os.getenv('PLEX_URL')
 
     try:
-        plex = PlexServer(plex_url, user_token)
+        plex = PlexServer(plex_url, user_token, timeout=120)
         plex_playlist = plex.fetchItem(playlist_details['plex_rating_key'])
         log.warning(f"Deleting playlist '{plex_playlist.title}' from Plex...")
         plex_playlist.delete()
@@ -367,6 +389,47 @@ def test_ai_services_route():
             "message": "Errore durante il test"
         }), 500
 
+@app.route('/api/reset_downloaded_tracks', methods=['POST'])
+def reset_downloaded_tracks_route():
+    """Endpoint per resettare le tracce downloaded a missing."""
+    try:
+        if app_state["is_running"]:
+            return jsonify({"success": False, "error": "Operation in progress"}), 409
+        
+        from plex_playlist_sync.utils.database import reset_downloaded_tracks_to_missing
+        reset_count = reset_downloaded_tracks_to_missing()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Reset di {reset_count} tracce da 'downloaded' a 'missing'",
+            "reset_count": reset_count
+        })
+        
+    except Exception as e:
+        log.error(f"Errore durante il reset delle tracce downloaded: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/verify_downloaded_tracks', methods=['POST'])
+def verify_downloaded_tracks_route():
+    """Endpoint per verificare se le tracce downloaded sono realmente in Plex."""
+    try:
+        if app_state["is_running"]:
+            return jsonify({"success": False, "error": "Operation in progress"}), 409
+        
+        from plex_playlist_sync.utils.database import verify_downloaded_tracks_in_plex
+        confirmed_count, reset_count = verify_downloaded_tracks_in_plex()
+        
+        return jsonify({
+            "success": True,
+            "message": f"Verifica completata: {confirmed_count} confermate, {reset_count} resettate",
+            "confirmed_count": confirmed_count,
+            "reset_count": reset_count
+        })
+        
+    except Exception as e:
+        log.error(f"Errore durante la verifica delle tracce downloaded: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/get_notifications')
 def get_notifications_route():
     """Endpoint per ottenere le notifiche dell'applicazione."""
@@ -385,6 +448,213 @@ def get_notifications_route():
             "success": False,
             "error": str(e)
         }), 500
+
+@app.route('/api/playlist_tracks/<int:playlist_id>')
+def get_playlist_tracks(playlist_id):
+    """API endpoint per ottenere le tracce di una playlist AI con status di presenza in Plex."""
+    try:
+        from plex_playlist_sync.utils.database import get_managed_ai_playlist_by_id, add_missing_track_if_not_exists
+        import json
+        
+        # Ottieni la playlist dal database
+        playlist_data = get_managed_ai_playlist_by_id(playlist_id)
+        if not playlist_data:
+            return jsonify({"success": False, "error": "Playlist not found"}), 404
+        
+        # Parse tracklist JSON
+        try:
+            tracklist = json.loads(playlist_data.get('tracklist_json', '[]'))
+        except (json.JSONDecodeError, TypeError):
+            return jsonify({"success": False, "error": "Invalid tracklist data"}), 400
+        
+        # No Plex connection needed - using fast database lookup
+        
+        # Check each track using database lookup with verification option
+        tracks_with_status = []
+        verify_with_plex = request.args.get('verify', 'false').lower() == 'true'
+        
+        # Setup Plex connection only if verification is requested
+        plex = None
+        if verify_with_plex:
+            user_type = request.args.get('user', 'main')
+            plex_token = os.getenv('PLEX_TOKEN') if user_type == 'main' else os.getenv('PLEX_TOKEN_USERS')
+            plex_url = os.getenv('PLEX_URL')
+            
+            if plex_token and plex_url:
+                from plexapi.server import PlexServer
+                plex = PlexServer(plex_url, plex_token, timeout=120)
+        
+        for track_data in tracklist:
+            track_title = track_data.get('title', '')
+            track_artist = track_data.get('artist', '')
+            track_album = track_data.get('album', '')
+            
+            # FIRST: Check if this track was already downloaded
+            from plex_playlist_sync.utils.database import find_missing_track_in_db, update_track_status
+            existing_missing_tracks = find_missing_track_in_db(track_title, track_artist)
+            downloaded_track = None
+            for track in existing_missing_tracks:
+                if len(track) > 6 and track[6] == 'downloaded':
+                    downloaded_track = track
+                    break
+            
+            if downloaded_track:
+                # Track was marked as downloaded, but let's verify it actually exists in Plex
+                if verify_with_plex and plex:
+                    # Perform actual verification for downloaded tracks too
+                    from plex_playlist_sync.utils.plex import search_plex_track
+                    from plex_playlist_sync.utils.helperClasses import Track as PlexTrack
+                    
+                    track_obj = PlexTrack(title=track_title, artist=track_artist, album=track_album, url='')
+                    found_plex_track = search_plex_track(plex, track_obj)
+                    
+                    if found_plex_track:
+                        # Great! The downloaded track is actually in Plex
+                        log.info(f"✅ Traccia scaricata confermata in Plex: '{track_title}' - '{track_artist}'")
+                        tracks_with_status.append({
+                            'title': track_title,
+                            'artist': track_artist,
+                            'album': track_album,
+                            'year': track_data.get('year', ''),
+                            'found_in_plex': True,
+                            'plex_rating_key': found_plex_track.ratingKey,
+                            'download_status': 'downloaded_confirmed'
+                        })
+                        continue
+                    else:
+                        # Downloaded track is NOT in Plex - reset to missing!
+                        log.warning(f"🔄 Traccia marcata come scaricata ma non trovata in Plex, resettando a missing: '{track_title}' - '{track_artist}'")
+                        update_track_status(downloaded_track[0], 'missing')
+                        # Continue with normal verification below
+                else:
+                    # Not doing full verification, assume downloaded tracks are OK
+                    log.info(f"⬇️ Traccia già scaricata (non verificata): '{track_title}' - '{track_artist}'")
+                    tracks_with_status.append({
+                        'title': track_title,
+                        'artist': track_artist,
+                        'album': track_album,
+                        'year': track_data.get('year', ''),
+                        'found_in_plex': True,  # Assume found since it was downloaded
+                        'plex_rating_key': None,
+                        'download_status': 'downloaded_assumed'
+                    })
+                    continue
+            
+            if verify_with_plex and plex:
+                # More accurate but slower: actual Plex search
+                from plex_playlist_sync.utils.plex import search_plex_track
+                from plex_playlist_sync.utils.helperClasses import Track as PlexTrack
+                
+                track_obj = PlexTrack(title=track_title, artist=track_artist, album=track_album, url='')
+                found_plex_track = search_plex_track(plex, track_obj)
+                found_in_plex = bool(found_plex_track)
+                plex_rating_key = found_plex_track.ratingKey if found_plex_track else None
+                
+                # Se la traccia non è trovata con Plex API, aggiungila alle missing tracks
+                if not found_in_plex:
+                    log.info(f"🔍 Traccia non trovata con Plex API, aggiungendo alle missing: '{track_title}' - '{track_artist}'")
+                    add_missing_track_if_not_exists(
+                        title=track_title,
+                        artist=track_artist, 
+                        album=track_album,
+                        source_playlist=playlist_data.get('title', f'AI Playlist {playlist_id}'),
+                        source_type='ai_playlist'
+                    )
+            else:
+                # Fast balanced approach: conservative fuzzy matching
+                from plex_playlist_sync.utils.database import check_track_in_index_balanced
+                found_in_plex = check_track_in_index_balanced(track_title, track_artist)
+                plex_rating_key = None
+                
+                # Se non trovata con fast mode, prova ricerca Plex automatica
+                if not found_in_plex:
+                    user_type = request.args.get('user', 'main')
+                    plex_token = os.getenv('PLEX_TOKEN') if user_type == 'main' else os.getenv('PLEX_TOKEN_USERS')
+                    plex_url = os.getenv('PLEX_URL')
+                    
+                    if plex_token and plex_url:
+                        try:
+                            from plexapi.server import PlexServer
+                            from plex_playlist_sync.utils.plex import search_plex_track
+                            from plex_playlist_sync.utils.helperClasses import Track as PlexTrack
+                            
+                            plex_auto = PlexServer(plex_url, plex_token, timeout=120)
+                            track_obj = PlexTrack(title=track_title, artist=track_artist, album=track_album, url='')
+                            found_plex_track = search_plex_track(plex_auto, track_obj)
+                            
+                            if found_plex_track:
+                                found_in_plex = True
+                                plex_rating_key = found_plex_track.ratingKey
+                                logging.info(f"🔍 Auto-search trovata: '{track_title}' - '{track_artist}'")
+                            else:
+                                # Se non trovata neanche con Plex search, aggiungila alle missing
+                                log.info(f"🔍 Traccia non trovata con auto-search, aggiungendo alle missing: '{track_title}' - '{track_artist}'")
+                                add_missing_track_if_not_exists(
+                                    title=track_title,
+                                    artist=track_artist, 
+                                    album=track_album,
+                                    source_playlist=playlist_data.get('title', f'AI Playlist {playlist_id}'),
+                                    source_type='ai_playlist'
+                                )
+                        except Exception as e:
+                            logging.warning(f"Errore durante auto-search Plex: {e}")
+                            # Fallback: aggiungi comunque alle missing tracks
+                            add_missing_track_if_not_exists(
+                                title=track_title,
+                                artist=track_artist, 
+                                album=track_album,
+                                source_playlist=playlist_data.get('title', f'AI Playlist {playlist_id}'),
+                                source_type='ai_playlist'
+                            )
+            
+            tracks_with_status.append({
+                'title': track_title,
+                'artist': track_artist,
+                'album': track_album,
+                'year': track_data.get('year', ''),
+                'found_in_plex': found_in_plex,
+                'plex_rating_key': plex_rating_key,
+                'download_status': 'not_downloaded'
+            })
+        
+        return jsonify({
+            "success": True,
+            "playlist_title": playlist_data.get('title', ''),
+            "total_tracks": len(tracks_with_status),
+            "tracks_found": sum(1 for t in tracks_with_status if t['found_in_plex']),
+            "tracks_missing": sum(1 for t in tracks_with_status if not t['found_in_plex']),
+            "verification_mode": "plex_api" if verify_with_plex else "database_index",
+            "tracks": tracks_with_status
+        })
+        
+    except Exception as e:
+        log.error(f"Error getting playlist tracks: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/stop_operation', methods=['POST'])
+def stop_operation():
+    """Endpoint per fermare l'operazione corrente in modo sicuro."""
+    try:
+        if not app_state["is_running"]:
+            return jsonify({
+                "success": False, 
+                "error": "No operation is currently running"
+            }), 400
+        
+        # Set stop flag
+        app_state["stop_requested"] = True
+        app_state["status"] = "⏹️ Stopping operation... Please wait"
+        
+        log.info("🛑 Stop operation requested by user")
+        
+        return jsonify({
+            "success": True,
+            "message": "Stop request sent. Operation will terminate safely."
+        })
+        
+    except Exception as e:
+        log.error(f"Error stopping operation: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
 
 @app.route('/gemini_status')
 def gemini_status_route():
@@ -780,8 +1050,10 @@ def search_plex_manual():
     user_token, plex_url = (os.getenv('PLEX_TOKEN'), os.getenv('PLEX_URL')) if user_key == 'main' else (os.getenv('PLEX_TOKEN_USERS'), os.getenv('PLEX_URL'))
     if not (user_token and plex_url): return jsonify({"error": "Credenziali Plex non trovate."}), 500
     try:
-        plex = PlexServer(plex_url, user_token)
-        results = plex.search(query, mediatype='track', limit=15)
+        plex = PlexServer(plex_url, user_token, timeout=120)
+        # Import timeout wrapper for safe search
+        from plex_playlist_sync.utils.plex import _search_with_timeout
+        results = _search_with_timeout(plex, query, limit=15, timeout_seconds=45)
         return jsonify([{'title': r.title, 'artist': r.grandparentTitle, 'album': r.parentTitle, 'ratingKey': r.ratingKey} for r in results if isinstance(r, Track)])
     except Exception as e:
         log.error(f"Errore ricerca manuale Plex: {e}")
@@ -799,7 +1071,7 @@ def associate_track():
     if not (user_token and plex_url): return jsonify({"success": False, "error": "Credenziali Plex non trovate."}), 500
     try:
         log.info(f"Connecting to Plex server...")
-        plex = PlexServer(plex_url, user_token)
+        plex = PlexServer(plex_url, user_token, timeout=120)
         log.info(f"Getting missing track info for ID: {missing_track_id}")
         missing_track_info = get_missing_track_by_id(missing_track_id)
         if not missing_track_info: 

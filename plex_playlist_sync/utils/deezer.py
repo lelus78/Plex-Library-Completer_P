@@ -61,6 +61,12 @@ def deezer_playlist_sync(plex: PlexServer, userInputs: UserInputs) -> None:
     limit = int(os.getenv("TEST_MODE_PLAYLIST_LIMIT", 0))
 
     for i, playlist_id in enumerate(playlist_ids):
+        # Check if stop was requested
+        from ..sync_logic import check_stop_flag_direct
+        if check_stop_flag_direct():
+            logging.info("🛑 Stop requested during Deezer playlist sync")
+            return
+            
         if limit > 0 and i >= limit:
             logging.warning(f"MODALITÀ TEST: Limite di {limit} playlist raggiunto per Deezer. Interrompo.")
             break

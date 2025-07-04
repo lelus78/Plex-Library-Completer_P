@@ -1,6 +1,8 @@
 import logging
 import re
 from typing import List
+import concurrent.futures
+from concurrent.futures import TimeoutError
 
 from plexapi.exceptions import NotFound
 from plexapi.server import PlexServer
@@ -19,10 +21,34 @@ def _clean_string_for_search(text: str) -> str:
     text = re.sub(r'[^\w\s\-\']', '', text).strip()
     return text
 
+def _search_with_timeout(plex: PlexServer, query: str, limit: int, timeout_seconds: int = 60):
+    """
+    Wrapper per plex.search() con timeout management usando concurrent.futures.
+    """
+    def _search():
+        return plex.search(query, mediatype='track', limit=limit)
+    
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        future = executor.submit(_search)
+        try:
+            return future.result(timeout=timeout_seconds)
+        except TimeoutError:
+            logging.warning(f"⏱️ Search timeout after {timeout_seconds}s for query: {query}")
+            return []
+        except Exception as e:
+            logging.error(f"❌ Search error for query '{query}': {e}")
+            return []
+
 def search_plex_track(plex: PlexServer, track: Track, limit: int = 10) -> "plexapi.audio.Track | None":
     """
     Cerca una singola traccia su Plex. È la funzione principale di ricerca.
     """
+    # Check if stop was requested before starting search
+    from ..sync_logic import check_stop_flag_direct
+    if check_stop_flag_direct():
+        logging.info("🛑 Stop requested during track search")
+        return None
+    
     # Controllo preliminare: verifica se l'indice locale è popolato
     from .database import check_track_in_index
     if check_track_in_index(track.title, track.artist):
@@ -49,7 +75,8 @@ def search_plex_track(plex: PlexServer, track: Track, limit: int = 10) -> "plexa
         if not query.strip():
             continue
         try:
-            search_results = plex.search(query, mediatype='track', limit=limit)
+            # Use timeout wrapper to prevent hanging searches
+            search_results = _search_with_timeout(plex, query, limit, timeout_seconds=45)
             logging.debug(f"Ricerca Plex per query '{query}': {len(search_results)} risultati")
             for result in search_results:
                 if not isinstance(result, PlexTrack):
@@ -83,7 +110,14 @@ def search_plex_track(plex: PlexServer, track: Track, limit: int = 10) -> "plexa
 def _get_available_plex_tracks(plex: PlexServer, tracks: List[Track]) -> tuple[list, list]:
     """Trova le tracce Plex corrispondenti."""
     plex_tracks, potentially_missing = [], []
-    for track in tracks:
+    for i, track in enumerate(tracks):
+        # Check if stop was requested (every 5 tracks for performance)
+        if i % 5 == 0:
+            from ..sync_logic import check_stop_flag_direct
+            if check_stop_flag_direct():
+                logging.info("🛑 Stop requested during track search")
+                break
+        
         if check_track_in_index(track.title, track.artist):
             logging.info(f"De-duplicazione: Traccia '{track.title}' trovata nell'indice. Cerco l'oggetto Plex...")
         

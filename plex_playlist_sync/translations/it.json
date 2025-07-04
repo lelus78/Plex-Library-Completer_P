@@ -25,7 +25,10 @@
       "build_index": "Aggiorna Indice Libreria",
       "restart_indexing": "Riavvia Indicizzazione Ottimizzata",
       "test_database": "Test Database",
-      "emergency_cleanup": "Pulizia Emergenza"
+      "emergency_cleanup": "Pulizia Emergenza",
+      "stop_operation": "Ferma Operazione",
+      "confirm_stop": "Sei sicuro di voler fermare l'operazione corrente?",
+      "stopping": "Fermando..."
     },
     "users": {
       "managed_users": "Utenti Gestiti",
@@ -217,7 +220,9 @@
     "server_error": "Errore del server",
     "database_error": "Errore database",
     "file_not_found": "File non trovato",
-    "permission_denied": "Permesso negato"
+    "permission_denied": "Permesso negato",
+    "stop_failed": "Impossibile fermare l'operazione",
+    "stop_error": "Errore nel fermare l'operazione"
   },
   "messages": {
     "operation_completed": "Operazione completata con successo",

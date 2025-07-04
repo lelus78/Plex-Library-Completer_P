@@ -113,6 +113,12 @@ def spotify_playlist_sync(
         playlists = _get_sp_user_playlists(sp, userInputs.spotify_user_id, userInputs, suffix)
     if playlists:
         for playlist in playlists:
+            # Check if stop was requested
+            from ..sync_logic import check_stop_flag_direct
+            if check_stop_flag_direct():
+                logging.info("🛑 Stop requested during Spotify playlist sync")
+                return
+            
             tracks = _get_sp_tracks_from_playlist(sp, playlist)
             update_or_create_plex_playlist(plex, playlist, tracks, userInputs)
     else:

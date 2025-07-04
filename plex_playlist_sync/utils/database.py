@@ -315,6 +315,18 @@ def initialize_db():
         logging.error(f"❌ Errore critico nell'inizializzazione del database: {e}", exc_info=True)
         raise  # Re-raise per far fallire l'operazione
 
+def get_managed_ai_playlist_by_id(playlist_id: int) -> Dict:
+    """Recupera una playlist AI specifica tramite ID."""
+    try:
+        with sqlite3.connect(DB_PATH) as con:
+            con.row_factory = sqlite3.Row
+            cur = con.cursor()
+            res = cur.execute("SELECT * FROM managed_ai_playlists WHERE id = ?", (playlist_id,))
+            row = res.fetchone()
+            return dict(row) if row else None
+    except Exception as e:
+        logging.error(f"Errore nel recuperare la playlist AI con ID {playlist_id}: {e}")
+        return None
 
 def add_managed_ai_playlist(playlist_info: Dict[str, Any]):
     """Aggiunge una nuova playlist AI permanente al database."""
@@ -424,6 +436,51 @@ def add_missing_track(track_info: Dict[str, Any]):
     except Exception as e:
         logging.error(f"Errore nell'aggiungere la traccia mancante al DB: {e}")
 
+def add_missing_track_if_not_exists(title: str, artist: str, album: str = "", source_playlist: str = "", source_type: str = ""):
+    """
+    Aggiunge una traccia mancante al database se non esiste già.
+    Supporta sia playlist sync che playlist AI.
+    """
+    try:
+        with sqlite3.connect(DB_PATH) as con:
+            cur = con.cursor()
+            
+            # Controlla se la traccia esiste già nelle missing tracks
+            cur.execute("""
+                SELECT id FROM missing_tracks 
+                WHERE title = ? AND artist = ? AND source_playlist_title = ?
+            """, (title, artist, source_playlist))
+            
+            existing = cur.fetchone()
+            if existing:
+                logging.info(f"🔄 Traccia già presente nelle missing tracks: '{title}' - '{artist}' da '{source_playlist}' (ID: {existing[0]})")
+                return
+            else:
+                logging.info(f"📝 Traccia NON presente, procedo con inserimento: '{title}' - '{artist}' da '{source_playlist}'")
+            
+            # Aggiungi la traccia
+            cur.execute("""
+                INSERT INTO missing_tracks (title, artist, album, source_playlist_title, source_playlist_id, status)
+                VALUES (?, ?, ?, ?, ?, 'missing')
+            """, (
+                title,
+                artist,
+                album,
+                source_playlist,
+                None  # Use NULL for source_playlist_id instead of string
+            ))
+            con.commit()
+            
+            logging.info(f"✅ Aggiunta traccia mancante: '{title}' - '{artist}' da playlist '{source_playlist}'")
+            
+            # Debug: verifica che sia stata effettivamente inserita
+            cur.execute("SELECT COUNT(*) FROM missing_tracks WHERE title = ? AND artist = ?", (title, artist))
+            count = cur.fetchone()[0]
+            logging.info(f"🔍 DEBUG: Tracce con title='{title}' e artist='{artist}' nel DB: {count}")
+            
+    except Exception as e:
+        logging.error(f"Errore nell'aggiungere la traccia mancante: {e}")
+
 def delete_missing_track(track_id: int):
     """
     Elimina permanentemente una traccia dalla tabella dei brani mancanti.
@@ -457,10 +514,54 @@ def get_missing_tracks():
             conn = sqlite3.connect(DB_PATH)
             cursor = conn.cursor()
         
-        cursor.execute("SELECT * FROM missing_tracks WHERE status = 'missing' OR status IS NULL")
+        cursor.execute("SELECT * FROM missing_tracks WHERE status = 'missing' OR status IS NULL ORDER BY id DESC")
         rows = cursor.fetchall()
         conn.close()
         logging.info(f"Recuperate {len(rows)} tracce mancanti dal database")
+        
+        # Debug: log ALL tracks to see if Reggae tracks are there
+        logging.info(f"🔍 DEBUG: Tutte le tracce missing (prime 10):")
+        for i, row in enumerate(rows[:10]):
+            logging.info(f"   {i+1}. ID={row[0]}, Title='{row[1]}', Artist='{row[2]}', Playlist='{row[4] if len(row)>4 else 'N/A'}'")
+        
+        # Debug: search specifically for missing Reggae Vibes tracks
+        cursor = sqlite3.connect(DB_PATH).cursor()
+        cursor.execute("SELECT * FROM missing_tracks WHERE source_playlist_title LIKE '%Reggae Vibes%' AND (status = 'missing' OR status IS NULL)")
+        missing_reggae_tracks = cursor.fetchall()
+        
+        # Also check for any Reggae tracks with invalid status values
+        cursor.execute("SELECT * FROM missing_tracks WHERE source_playlist_title LIKE '%Reggae Vibes%' AND status NOT IN ('missing', 'downloaded', 'resolved_manual')")
+        invalid_reggae_tracks = cursor.fetchall()
+        
+        if missing_reggae_tracks:
+            logging.info(f"🎵 DEBUG: Tracce Reggae Vibes MANCANTI ({len(missing_reggae_tracks)}):")
+            for track in missing_reggae_tracks[:5]:  # Only show first 5
+                logging.info(f"   ID={track[0]}, '{track[1]}' - '{track[2]}', Status='{track[5] if len(track)>5 else 'N/A'}'")
+        
+        if invalid_reggae_tracks:
+            logging.warning(f"🚨 PROBLEMA: {len(invalid_reggae_tracks)} tracce Reggae con status non valido!")
+            for track in invalid_reggae_tracks[:3]:
+                logging.warning(f"   ID={track[0]}, '{track[1]}' - Status='{track[5] if len(track)>5 else 'N/A'}'")
+            
+            logging.warning(f"🔧 Aggiornamento status corrotto per tutte le tracce...")
+            
+            # Fix all corrupted status values in the database
+            try:
+                fixed_count = fix_corrupted_status_values()
+                logging.info(f"✅ Status corretto per {fixed_count} tracce totali")
+                
+                # Re-query the data after fix
+                cursor.execute("SELECT * FROM missing_tracks WHERE status = 'missing' OR status IS NULL ORDER BY id DESC")
+                rows = cursor.fetchall()
+                logging.info(f"🔄 Dopo il fix: {len(rows)} tracce missing trovate")
+                
+            except Exception as fix_error:
+                logging.error(f"Errore nel correggere status: {fix_error}")
+                # Continue without the fix
+        
+        if not missing_reggae_tracks and not invalid_reggae_tracks:
+            logging.info(f"🎵 DEBUG: Nessuna traccia Reggae Vibes mancante nel database")
+        
         return rows
     except Exception as e:
         logging.error(f"Errore in get_missing_tracks: {e}", exc_info=True)
@@ -504,6 +605,98 @@ def update_track_status(track_id: int, new_status: str):
         logging.info(f"Stato della traccia ID {track_id} aggiornato a '{new_status}'.")
     except Exception as e:
         logging.error(f"Errore nell'aggiornare lo stato della traccia ID {track_id}: {e}")
+
+def reset_downloaded_tracks_to_missing():
+    """
+    Resetta tutte le tracce con status 'downloaded' a 'missing' per forzare una nuova verifica.
+    Utile quando si sospetta che alcune tracce siano state erroneamente marcate come scaricate.
+    """
+    try:
+        with sqlite3.connect(DB_PATH) as con:
+            cur = con.cursor()
+            
+            # Conta quante tracce verranno resettate
+            cur.execute("SELECT COUNT(*) FROM missing_tracks WHERE status = 'downloaded'")
+            count_before = cur.fetchone()[0]
+            
+            if count_before == 0:
+                logging.info("✅ Nessuna traccia con status 'downloaded' da resettare")
+                return 0
+            
+            # Resetta tutte le tracce downloaded a missing
+            cur.execute("UPDATE missing_tracks SET status = 'missing' WHERE status = 'downloaded'")
+            updated_count = cur.rowcount
+            con.commit()
+            
+            logging.info(f"🔄 Reset di {updated_count} tracce da 'downloaded' a 'missing'")
+            return updated_count
+            
+    except Exception as e:
+        logging.error(f"Errore durante il reset delle tracce downloaded: {e}")
+        return 0
+
+def verify_downloaded_tracks_in_plex():
+    """
+    Verifica che tutte le tracce marcate come 'downloaded' siano effettivamente presenti in Plex.
+    Se non trovate, le rimette automaticamente a 'missing'.
+    """
+    try:
+        import os
+        from plexapi.server import PlexServer
+        from plex_playlist_sync.utils.plex import search_plex_track
+        from plex_playlist_sync.utils.helperClasses import Track as PlexTrack
+        
+        plex_url = os.getenv("PLEX_URL")
+        plex_token = os.getenv("PLEX_TOKEN")
+        
+        if not (plex_url and plex_token):
+            logging.error("❌ Credenziali Plex non configurate per verifica")
+            return 0, 0
+        
+        plex = PlexServer(plex_url, plex_token, timeout=120)
+        
+        with sqlite3.connect(DB_PATH) as con:
+            cur = con.cursor()
+            
+            # Ottieni tutte le tracce downloaded
+            cur.execute("SELECT id, title, artist, album FROM missing_tracks WHERE status = 'downloaded'")
+            downloaded_tracks = cur.fetchall()
+            
+            if not downloaded_tracks:
+                logging.info("✅ Nessuna traccia downloaded da verificare")
+                return 0, 0
+            
+            logging.info(f"🔍 Verifica di {len(downloaded_tracks)} tracce marcate come downloaded...")
+            
+            confirmed_count = 0
+            reset_count = 0
+            
+            for track_id, title, artist, album in downloaded_tracks:
+                try:
+                    track_obj = PlexTrack(title=title, artist=artist, album=album, url='')
+                    found_plex_track = search_plex_track(plex, track_obj)
+                    
+                    if found_plex_track:
+                        confirmed_count += 1
+                        logging.debug(f"✅ Confermata: '{title}' - '{artist}'")
+                    else:
+                        # Non trovata in Plex, resetta a missing
+                        cur.execute("UPDATE missing_tracks SET status = 'missing' WHERE id = ?", (track_id,))
+                        reset_count += 1
+                        logging.warning(f"🔄 Reset a missing: '{title}' - '{artist}' (ID: {track_id})")
+                        
+                except Exception as e:
+                    logging.error(f"Errore nella verifica di '{title}' - '{artist}': {e}")
+                    continue
+            
+            con.commit()
+            
+            logging.info(f"📊 Verifica completata: {confirmed_count} confermate, {reset_count} resettate a missing")
+            return confirmed_count, reset_count
+            
+    except Exception as e:
+        logging.error(f"Errore durante la verifica delle tracce downloaded: {e}")
+        return 0, 0
 
 # --- Funzioni per PLEX_LIBRARY_INDEX ---
 def _clean_string(text: str) -> str:
@@ -637,6 +830,108 @@ def check_track_in_index_smart(title: str, artist: str, debug: bool = False) -> 
             
     except Exception as e:
         logging.error(f"Errore nel matching intelligente: {e}")
+        return check_track_in_index(title, artist)  # Fallback
+
+def check_track_in_index_balanced(title: str, artist: str, debug: bool = False) -> bool:
+    """
+    Versione bilanciata del matching - più flessibile di exact ma più conservativa di smart.
+    Usa soglie moderate e weighted scoring per bilanciare accuratezza e recall.
+    IMPROVED: Soglie più basse, migliore substring matching, title-only fallback.
+    """
+    try:
+        from thefuzz import fuzz
+        
+        title_clean = _clean_string(title)
+        artist_clean = _clean_string(artist)
+        
+        if debug:
+            logging.info(f"🔍 BALANCED: Cerca '{title}' -> '{title_clean}' | '{artist}' -> '{artist_clean}'")
+        
+        with sqlite3.connect(DB_PATH) as con:
+            cur = con.cursor()
+            
+            # LIVELLO 1: Exact match (più veloce e affidabile)
+            res = cur.execute(
+                "SELECT id FROM plex_library_index WHERE title_clean = ? AND artist_clean = ?",
+                (title_clean, artist_clean)
+            )
+            if res.fetchone():
+                return True
+            
+            # LIVELLO 2: Title-only match per artisti problematici
+            if artist_clean and len(artist_clean) > 1:  # Reduced from > 2
+                res = cur.execute(
+                    "SELECT id FROM plex_library_index WHERE title_clean = ? AND (artist_clean = ? OR artist_clean = '')",
+                    (title_clean, artist_clean)
+                )
+                if res.fetchone():
+                    return True
+            
+            # LIVELLO 3: Partial artist match con titolo esatto
+            if artist_clean and len(artist_clean) > 2:  # Reduced from > 3
+                res = cur.execute(
+                    "SELECT id FROM plex_library_index WHERE title_clean = ? AND artist_clean LIKE ?",
+                    (title_clean, f"%{artist_clean[:4]}%")
+                )
+                if res.fetchone():
+                    return True
+            
+            # LIVELLO 4: Fuzzy matching con soglie moderate
+            # Cerca candidati usando substring più ampi e multipli
+            search_patterns = []
+            if len(title_clean) > 3:
+                search_patterns.append(f"%{title_clean[:4]}%")
+                if len(title_clean) > 6:
+                    search_patterns.append(f"%{title_clean[:6]}%")
+            if len(artist_clean) > 2:  # Reduced from > 3
+                search_patterns.append(f"%{artist_clean[:4]}%")
+                if len(artist_clean) > 5:
+                    search_patterns.append(f"%{artist_clean[:5]}%")
+            
+            if search_patterns:
+                query = "SELECT title_clean, artist_clean FROM plex_library_index WHERE "
+                conditions = []
+                params = []
+                
+                for pattern in search_patterns:
+                    conditions.append("title_clean LIKE ? OR artist_clean LIKE ?")
+                    params.extend([pattern, pattern])
+                
+                query += " OR ".join(conditions)
+                res = cur.execute(query, params)
+                candidates = res.fetchall()
+                
+                # Soglie più flessibili: 85, 80, 75, 70 (migliore recall)
+                for threshold in [85, 80, 75, 70]:
+                    for db_title, db_artist in candidates:
+                        title_score = fuzz.token_set_ratio(title_clean, db_title)
+                        artist_score = fuzz.token_set_ratio(artist_clean, db_artist) if artist_clean and db_artist else 100
+                        
+                        # Weighted scoring: titolo ancora più importante dell'artista
+                        if not db_artist or not artist_clean:
+                            combined_score = title_score
+                        else:
+                            combined_score = (title_score * 0.75) + (artist_score * 0.25)  # Increased title weight
+                        
+                        if combined_score >= threshold:
+                            return True
+            
+            # LIVELLO 5: Title-only fuzzy matching as last resort
+            if len(title_clean) > 3:
+                # More efficient: use substring match to get candidates first
+                title_substring = f"%{title_clean[:3]}%"
+                res = cur.execute("SELECT title_clean FROM plex_library_index WHERE title_clean LIKE ?", (title_substring,))
+                title_candidates = [row[0] for row in res.fetchall()]
+                
+                for db_title in title_candidates:
+                    title_score = fuzz.token_set_ratio(title_clean, db_title)
+                    if title_score >= 75:  # Lower threshold for title-only
+                        return True
+            
+            return False
+            
+    except Exception as e:
+        logging.error(f"Errore nel matching bilanciato: {e}")
         return check_track_in_index(title, artist)  # Fallback
 
 def check_track_in_index_fuzzy(title: str, artist: str, threshold: int = 85) -> bool:
@@ -987,6 +1282,42 @@ def clean_invalid_missing_tracks():
                 
     except Exception as e:
         logging.error(f"Errore durante la pulizia: {e}")
+
+def fix_corrupted_status_values():
+    """Corregge i valori di status corrotti nel database (numerici invece che stringhe)."""
+    try:
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            # Trova tutti i record con status numerici/corrotti
+            cur.execute("""
+                SELECT id, status FROM missing_tracks 
+                WHERE status NOT IN ('missing', 'downloaded', 'resolved_manual') 
+                OR status IS NULL
+            """)
+            corrupted_records = cur.fetchall()
+            
+            if corrupted_records:
+                logging.info(f"🔧 Trovati {len(corrupted_records)} record con status corrotto")
+                
+                # Correggi tutti i valori corrotti impostandoli a 'missing'
+                cur.execute("""
+                    UPDATE missing_tracks 
+                    SET status = 'missing' 
+                    WHERE status NOT IN ('missing', 'downloaded', 'resolved_manual') 
+                    OR status IS NULL
+                """)
+                
+                fixed_count = cur.rowcount
+                logging.info(f"✅ Status corretto per {fixed_count} tracce")
+                return fixed_count
+            else:
+                logging.info("✅ Nessun status corrotto trovato")
+                return 0
+                
+    except Exception as e:
+        logging.error(f"Errore durante la correzione status: {e}")
+        return 0
 
 def clean_resolved_missing_tracks():
     """Rimuove tutte le tracce che sono state risolte (downloaded o resolved_manual)."""
