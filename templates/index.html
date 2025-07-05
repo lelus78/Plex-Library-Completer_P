@@ -198,7 +198,7 @@
 
 <!-- Quick Stats Row -->
 <div class="row mb-4">
-    <div class="col-md-3 mb-3">
+    <div class="col-lg mb-3">
         <div class="card text-center animate-slide-up" style="animation-delay: 0.2s;">
             <div class="card-body py-4">
                 <i data-lucide="music" class="mb-3" style="width: 32px; height: 32px; color: var(--spotify-green);"></i>
@@ -207,7 +207,17 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 mb-3">
+    <div class="col-lg mb-3">
+        <div class="card text-center animate-slide-up" style="animation-delay: 0.25s;">
+            <div class="card-body py-4">
+                <i data-lucide="list" class="mb-3" style="width: 32px; height: 32px; color: var(--accent-blue);"></i>
+                <h5 class="card-title mb-1" style="font-size: 0.9rem;">Playlist Selezionate</h5>
+                <p class="fs-3 fw-bold text-info mb-0" id="selected-playlists-count" data-bs-toggle="tooltip" title="Click per dettagli" style="cursor: pointer;">-</p>
+                <small class="text-muted" id="selected-playlists-breakdown" style="font-size: 0.75rem;"></small>
+            </div>
+        </div>
+    </div>
+    <div class="col-lg mb-3">
         <div class="card text-center animate-slide-up" style="animation-delay: 0.3s;">
             <div class="card-body py-4">
                 <i data-lucide="search" class="mb-3" style="width: 32px; height: 32px; color: var(--accent-red);"></i>
@@ -216,7 +226,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 mb-3">
+    <div class="col-lg mb-3">
         <div class="card text-center animate-slide-up" style="animation-delay: 0.4s;">
             <div class="card-body py-4">
                 <i data-lucide="brain" class="mb-3" style="width: 32px; height: 32px; color: var(--accent-purple);"></i>
@@ -225,7 +235,7 @@
             </div>
         </div>
     </div>
-    <div class="col-md-3 mb-3">
+    <div class="col-lg mb-3">
         <div class="card text-center animate-slide-up" style="animation-delay: 0.5s;">
             <div class="card-body py-4">
                 <i data-lucide="clock" class="mb-3" style="width: 32px; height: 32px; color: var(--accent-blue);"></i>
@@ -381,6 +391,9 @@
                 // Update sync health indicator
                 updateSyncHealth(data.library.sync_health, data.missing_tracks.total);
                 
+                // Update selected playlists count
+                updateSelectedPlaylistsCount();
+                
                 // Log stats for debugging
                 console.log('Stats updated successfully - tracks:', data.library.total_tracks);
             })
@@ -435,6 +448,58 @@
             }
             element.innerText = Math.floor(current);
         }, 50);
+    }
+    
+    function updateSelectedPlaylistsCount() {
+        fetch('/api/selected_playlists_count')
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    const countData = data.data;
+                    const totalCount = countData.total;
+                    
+                    // Update main count with animation
+                    animateNumber('selected-playlists-count', totalCount);
+                    
+                    // Create breakdown text
+                    let breakdownText = '';
+                    if (countData.breakdown && Object.keys(countData.breakdown).length > 0) {
+                        const userParts = [];
+                        for (const [userType, services] of Object.entries(countData.breakdown)) {
+                            const userTotal = countData.user_totals[userType] || 0;
+                            const userLabel = userType === 'main' ? 'Main' : 'Secondary';
+                            userParts.push(`${userLabel}: ${userTotal}`);
+                        }
+                        breakdownText = userParts.join(' | ');
+                    } else {
+                        breakdownText = 'Nessuna playlist selezionata';
+                    }
+                    
+                    document.getElementById('selected-playlists-breakdown').innerText = breakdownText;
+                    
+                    // Update color based on count
+                    const countElement = document.getElementById('selected-playlists-count');
+                    if (totalCount === 0) {
+                        countElement.className = 'fs-3 fw-bold text-warning mb-0';
+                        countElement.style.cursor = 'pointer';
+                    } else if (totalCount > 20) {
+                        countElement.className = 'fs-3 fw-bold text-danger mb-0';
+                        countElement.style.cursor = 'pointer';
+                    } else {
+                        countElement.className = 'fs-3 fw-bold text-info mb-0';
+                        countElement.style.cursor = 'pointer';
+                    }
+                } else {
+                    console.error('Error fetching playlist count:', data.error);
+                    document.getElementById('selected-playlists-count').innerText = '?';
+                    document.getElementById('selected-playlists-breakdown').innerText = 'Errore caricamento';
+                }
+            })
+            .catch(error => {
+                console.error('Error fetching selected playlists count:', error);
+                document.getElementById('selected-playlists-count').innerText = '?';
+                document.getElementById('selected-playlists-breakdown').innerText = 'Errore connessione';
+            });
     }
     
     // Function to check service configuration and show warnings
@@ -505,6 +570,11 @@
             card.addEventListener('mouseleave', () => {
                 card.style.transform = 'translateY(0)';
             });
+        });
+        
+        // Add click handler for selected playlists count
+        document.getElementById('selected-playlists-count').addEventListener('click', function() {
+            window.location.href = '{{ url_for('playlist_management') }}';
         });
         
         // Initialize icons

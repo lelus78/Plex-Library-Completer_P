@@ -41,6 +41,35 @@ def _get_sp_user_playlists(
     return playlists
 
 
+def extract_spotify_playlist_id(url_or_id: str) -> str:
+    """
+    Estrae l'ID della playlist da un URL Spotify o restituisce l'ID se già fornito.
+    
+    Esempi:
+    - https://open.spotify.com/playlist/57EG9lWmdn7HHofXuQVsow -> 57EG9lWmdn7HHofXuQVsow
+    - spotify:playlist:57EG9lWmdn7HHofXuQVsow -> 57EG9lWmdn7HHofXuQVsow  
+    - 57EG9lWmdn7HHofXuQVsow -> 57EG9lWmdn7HHofXuQVsow
+    """
+    url_or_id = url_or_id.strip()
+    
+    # Se è già un ID (22 caratteri alfanumerici)
+    if len(url_or_id) == 22 and url_or_id.isalnum():
+        return url_or_id
+    
+    # Estrai da URL open.spotify.com
+    if "open.spotify.com/playlist/" in url_or_id:
+        # https://open.spotify.com/playlist/57EG9lWmdn7HHofXuQVsow?si=...
+        playlist_id = url_or_id.split("playlist/")[1].split("?")[0].split("&")[0]
+        return playlist_id
+    
+    # Estrai da URI spotify:
+    if url_or_id.startswith("spotify:playlist:"):
+        return url_or_id.replace("spotify:playlist:", "")
+    
+    # Se non riesce a estrarre, restituisce l'input originale
+    logging.warning(f"Impossibile estrarre ID playlist da: {url_or_id}")
+    return url_or_id
+
 def _get_sp_playlists_by_ids(
     sp: spotipy.Spotify, ids: List[str], suffix: str = " - Spotify"
 ) -> List[Playlist]:
@@ -63,6 +92,49 @@ def _get_sp_playlists_by_ids(
         except Exception as e:
             logging.error(f"Error fetching playlist {pid}: {e}")
     return playlists
+
+def get_spotify_public_playlist(sp: spotipy.Spotify, url_or_id: str) -> dict:
+    """
+    Recupera metadati di una playlist pubblica Spotify tramite URL o ID.
+    
+    Args:
+        sp: Oggetto Spotify autenticato
+        url_or_id: URL completo o ID della playlist
+        
+    Returns:
+        Dict con metadati della playlist o None se errore
+    """
+    try:
+        playlist_id = extract_spotify_playlist_id(url_or_id)
+        playlist_data = sp.playlist(playlist_id)
+        
+        # Recupera prime 5 tracce per anteprima
+        tracks_data = sp.playlist_items(playlist_id, limit=5, fields='items(track(name,artists(name)))')
+        preview_tracks = []
+        
+        for item in tracks_data.get('items', []):
+            track = item.get('track')
+            if track and track.get('name'):
+                artist_name = track.get('artists', [{}])[0].get('name', 'Unknown Artist')
+                preview_tracks.append(f"{track['name']} - {artist_name}")
+        
+        return {
+            'id': playlist_data['id'],
+            'name': playlist_data['name'],
+            'description': playlist_data.get('description', ''),
+            'poster': playlist_data.get('images', [{}])[0].get('url', ''),
+            'track_count': playlist_data.get('tracks', {}).get('total', 0),
+            'playlist_type': 'public',
+            'preview_tracks': preview_tracks,
+            'owner': playlist_data.get('owner', {}).get('display_name', ''),
+            'public': playlist_data.get('public', False),
+            'collaborative': playlist_data.get('collaborative', False),
+            'url': url_or_id if url_or_id.startswith('http') else f"https://open.spotify.com/playlist/{playlist_id}"
+        }
+        
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando playlist pubblica Spotify {url_or_id}: {e}")
+        return None
 
 
 def _get_sp_tracks_from_playlist(

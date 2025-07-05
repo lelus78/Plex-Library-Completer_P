@@ -317,11 +317,34 @@ def initialize_db():
                 )
             """)
             
+            # Aggiunge colonna per condivisione playlist se non esiste
+            try:
+                cur.execute("ALTER TABLE user_playlist_selections ADD COLUMN shared_with TEXT;")
+                logging.info("✅ Aggiunta colonna shared_with per condivisione playlist")
+            except sqlite3.OperationalError:
+                pass # La colonna esiste già
+            
+            # Aggiunge colonne per il nuovo sistema di copia fisica
+            try:
+                cur.execute("ALTER TABLE user_playlist_selections ADD COLUMN original_playlist_id TEXT;")
+                logging.info("✅ Aggiunta colonna original_playlist_id per tracciare playlist originali")
+            except sqlite3.OperationalError:
+                pass # La colonna esiste già
+                
+            try:
+                cur.execute("ALTER TABLE user_playlist_selections ADD COLUMN is_shared_copy BOOLEAN NOT NULL DEFAULT 0;")
+                logging.info("✅ Aggiunta colonna is_shared_copy per identificare copie condivise")
+            except sqlite3.OperationalError:
+                pass # La colonna esiste già
+            
             # Indici per user_playlist_selections (per performance nelle query)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_user_service ON user_playlist_selections (user_type, service)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_selected ON user_playlist_selections (user_type, service, is_selected)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_type ON user_playlist_selections (playlist_type)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_updated ON user_playlist_selections (last_updated)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_shared ON user_playlist_selections (shared_with)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_original ON user_playlist_selections (original_playlist_id)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_copy ON user_playlist_selections (is_shared_copy)")
             
             logging.info("✅ Indici database creati con successo")
             
@@ -1507,9 +1530,11 @@ def save_discovered_playlists(user_type: str, service: str, playlists: List[Dict
             
             con.commit()
             logging.info(f"✅ Salvate {len(playlists)} playlist {playlist_type} per {user_type}/{service}")
+            return True
             
     except Exception as e:
         logging.error(f"❌ Errore salvando playlist scoperte: {e}")
+        return False
 
 def get_user_playlist_selections(user_type: str, service: str = None, selected_only: bool = False) -> List[Dict]:
     """
@@ -1563,18 +1588,20 @@ def get_user_playlist_selections(user_type: str, service: str = None, selected_o
         return []
 
 def toggle_playlist_selection(user_type: str, service: str, playlist_id: str, selected: bool = True):
-    """Abilita/disabilita la selezione di una playlist."""
+    """
+    Abilita/disabilita la selezione di una playlist.
+    Gestisce correttamente le playlist del sistema di copie fisiche.
+    """
     try:
         with get_db_connection() as con:
             cur = con.cursor()
             
+            # Trova la playlist specifica per questo utente
             cur.execute("""
                 UPDATE user_playlist_selections 
                 SET is_selected = ?, last_updated = CURRENT_TIMESTAMP
                 WHERE user_type = ? AND service = ? AND playlist_id = ?
             """, (selected, user_type, service, playlist_id))
-            
-            con.commit()
             
             if cur.rowcount > 0:
                 action = "selezionata" if selected else "deselezionata"
@@ -1591,51 +1618,406 @@ def toggle_playlist_selection(user_type: str, service: str, playlist_id: str, se
 def get_selected_playlist_ids(user_type: str, service: str) -> List[str]:
     """
     Recupera solo gli ID delle playlist selezionate per la sincronizzazione.
+    Include anche le playlist condivise con questo utente.
     Filtra automaticamente i contenuti non sincronizzabili (generi e radio Deezer).
     """
     try:
         with get_db_connection() as con:
             cur = con.cursor()
             
-            # Filtra contenuti non sincronizzabili per Deezer
+            # Base filter per contenuti sincronizzabili
             if service == 'deezer':
-                res = cur.execute("""
-                    SELECT playlist_id FROM user_playlist_selections 
-                    WHERE user_type = ? AND service = ? AND is_selected = 1
+                sync_filter = """
                     AND playlist_type NOT IN ('genres', 'radios')
                     AND playlist_id NOT LIKE 'genre_%'
                     AND playlist_id NOT LIKE 'radio_%'
                     AND playlist_id NOT LIKE 'chart_tracks_%'
                     AND playlist_id NOT LIKE 'chart_albums_%'
-                    ORDER BY playlist_name
-                """, (user_type, service))
+                """
             else:
-                # Per Spotify, sincronizza tutto normalmente
-                res = cur.execute("""
-                    SELECT playlist_id FROM user_playlist_selections 
-                    WHERE user_type = ? AND service = ? AND is_selected = 1
-                    ORDER BY playlist_name
-                """, (user_type, service))
+                sync_filter = ""
             
+            # Query per playlist proprie + condivise
+            query = f"""
+                SELECT DISTINCT playlist_id FROM user_playlist_selections 
+                WHERE service = ? AND is_selected = 1 {sync_filter}
+                AND (
+                    user_type = ?  -- Playlist proprie
+                    OR shared_with = ?  -- Playlist condivise con questo utente
+                    OR shared_with = 'both'  -- Playlist condivise con tutti
+                )
+                ORDER BY playlist_name
+            """
+            
+            res = cur.execute(query, (service, user_type, user_type))
             playlist_ids = [row[0] for row in res.fetchall()]
+            
+            # Log informazioni dettagliate
+            res_own = cur.execute(f"""
+                SELECT COUNT(*) FROM user_playlist_selections 
+                WHERE user_type = ? AND service = ? AND is_selected = 1 {sync_filter}
+            """, (user_type, service))
+            own_count = res_own.fetchone()[0]
+            
+            res_shared = cur.execute(f"""
+                SELECT COUNT(*) FROM user_playlist_selections 
+                WHERE service = ? AND is_selected = 1 {sync_filter}
+                AND (shared_with = ? OR shared_with = 'both')
+                AND user_type != ?
+            """, (service, user_type, user_type))
+            shared_count = res_shared.fetchone()[0]
             
             # Conta quanti sono stati filtrati per Deezer
             if service == 'deezer':
-                res_total = cur.execute("""
+                res_total_own = cur.execute("""
                     SELECT COUNT(*) FROM user_playlist_selections 
                     WHERE user_type = ? AND service = ? AND is_selected = 1
                 """, (user_type, service))
-                total_selected = res_total.fetchone()[0]
-                filtered_count = total_selected - len(playlist_ids)
+                res_total_shared = cur.execute("""
+                    SELECT COUNT(*) FROM user_playlist_selections 
+                    WHERE service = ? AND is_selected = 1
+                    AND (shared_with = ? OR shared_with = 'both')
+                    AND user_type != ?
+                """, (service, user_type, user_type))
+                
+                total_own = res_total_own.fetchone()[0]
+                total_shared = res_total_shared.fetchone()[0]
+                filtered_count = (total_own - own_count) + (total_shared - shared_count)
                 
                 if filtered_count > 0:
                     logging.info(f"🚫 Filtrati {filtered_count} contenuti non sincronizzabili Deezer (generi/radio)")
             
             logging.info(f"📋 Trovate {len(playlist_ids)} playlist sincronizzabili per {user_type}/{service}")
+            logging.info(f"   👤 Proprie: {own_count}, 🤝 Condivise: {shared_count}")
             return playlist_ids
             
     except Exception as e:
         logging.error(f"❌ Errore recuperando playlist ID selezionati: {e}")
+        return []
+
+def get_total_selected_playlists_count():
+    """
+    Restituisce il conteggio totale delle playlist selezionate per tutti gli utenti e servizi.
+    
+    NUOVO COMPORTAMENTO: Con il sistema di copia fisica, ogni playlist selezionata
+    da ogni utente viene contata. Se main e secondary selezionano la stessa playlist
+    (tramite condivisione), conta come 2 playlist selezionate.
+    """
+    try:
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            # NUOVA QUERY: Conta TUTTE le playlist selezionate (anche copie condivise)
+            res = cur.execute("""
+                SELECT 
+                    playlist_id,
+                    service,
+                    user_type,
+                    is_shared_copy
+                FROM user_playlist_selections 
+                WHERE is_selected = 1
+                AND (
+                    service != 'deezer' OR 
+                    (playlist_type NOT IN ('genres', 'radios')
+                     AND playlist_id NOT LIKE 'genre_%'
+                     AND playlist_id NOT LIKE 'radio_%'
+                     AND playlist_id NOT LIKE 'chart_tracks_%'
+                     AND playlist_id NOT LIKE 'chart_albums_%')
+                )
+                ORDER BY user_type, service, playlist_id
+            """)
+            
+            # NUOVA LOGICA: Conta tutte le playlist selezionate
+            breakdown = {}
+            shared_copy_count = 0
+            
+            for row in res.fetchall():
+                playlist_id, service, user_type, is_shared_copy = row
+                
+                # Breakdown per utente
+                if user_type not in breakdown:
+                    breakdown[user_type] = {}
+                if service not in breakdown[user_type]:
+                    breakdown[user_type][service] = 0
+                breakdown[user_type][service] += 1
+                
+                # Conta le copie condivise
+                if is_shared_copy:
+                    shared_copy_count += 1
+            
+            # Calcola totale
+            total_count = sum(
+                sum(services.values()) for services in breakdown.values()
+            )
+            
+            # Calcola totali per utente
+            user_totals = {}
+            for user_type, services in breakdown.items():
+                user_totals[user_type] = sum(services.values())
+            
+            return {
+                'total': total_count,
+                'breakdown': breakdown,
+                'user_totals': user_totals,
+                'shared_copies_count': shared_copy_count,
+                'note': 'Each user playlist counted separately, including shared copies'
+            }
+            
+    except Exception as e:
+        logging.error(f"❌ Errore contando playlist selezionate: {e}")
+        return {'total': 0, 'breakdown': {}, 'user_totals': {}, 'shared_count': 0}
+
+def share_playlist_with_user(user_type: str, service: str, playlist_id: str, share_with: str):
+    """
+    Condivide una playlist con un altro utente creando una copia fisica.
+    
+    NUOVO COMPORTAMENTO:
+    - Crea una copia completa della playlist per l'utente destinatario
+    - Ogni utente ha controllo indipendente della selezione
+    - Mantiene collegamento tramite original_playlist_id
+    
+    Args:
+        user_type: Utente proprietario ('main' o 'secondary')
+        service: Servizio ('spotify' o 'deezer')
+        playlist_id: ID della playlist da condividere
+        share_with: Utente con cui condividere ('main', 'secondary', o None per rimuovere condivisione)
+    
+    Returns:
+        bool: True se successo, False altrimenti
+    """
+    try:
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            if not share_with:
+                # Rimozione condivisione: elimina la copia condivisa
+                return _remove_shared_copy(cur, user_type, service, playlist_id)
+            
+            # Recupera i dati della playlist originale
+            res = cur.execute("""
+                SELECT playlist_name, playlist_description, playlist_poster, playlist_type,
+                       track_count, metadata_json, is_selected
+                FROM user_playlist_selections 
+                WHERE user_type = ? AND service = ? AND playlist_id = ?
+            """, (user_type, service, playlist_id))
+            
+            original_playlist = res.fetchone()
+            if not original_playlist:
+                logging.error(f"❌ Playlist {playlist_id} non trovata per {user_type}/{service}")
+                return False
+            
+            playlist_name, description, poster, playlist_type, track_count, metadata_json, is_selected = original_playlist
+            
+            # Verifica se esiste già una copia condivisa
+            res = cur.execute("""
+                SELECT id FROM user_playlist_selections 
+                WHERE user_type = ? AND service = ? AND original_playlist_id = ?
+            """, (share_with, service, playlist_id))
+            
+            existing_copy = res.fetchone()
+            if existing_copy:
+                logging.info(f"✅ Playlist '{playlist_name}' già condivisa con {share_with}")
+                return True
+            
+            # Crea la copia per l'utente destinatario
+            cur.execute("""
+                INSERT INTO user_playlist_selections (
+                    user_type, service, playlist_id, playlist_name, 
+                    playlist_description, playlist_poster, playlist_type,
+                    track_count, is_selected, metadata_json,
+                    original_playlist_id, is_shared_copy, shared_with,
+                    auto_discovered, last_updated
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, ?, 1, CURRENT_TIMESTAMP)
+            """, (
+                share_with, service, playlist_id, playlist_name,
+                description, poster, playlist_type, track_count,
+                0,  # Inizialmente non selezionata per l'utente destinatario
+                metadata_json, playlist_id, user_type
+            ))
+            
+            # Marca l'originale come condivisa (per backwards compatibility)
+            cur.execute("""
+                UPDATE user_playlist_selections 
+                SET shared_with = ?, last_updated = CURRENT_TIMESTAMP
+                WHERE user_type = ? AND service = ? AND playlist_id = ?
+            """, (share_with, user_type, service, playlist_id))
+            
+            logging.info(f"✅ Playlist '{playlist_name}' di {user_type}/{service} copiata e condivisa con {share_with}")
+            return True
+            
+    except Exception as e:
+        logging.error(f"❌ Errore nella condivisione playlist: {e}")
+        return False
+
+def _remove_shared_copy(cur, user_type: str, service: str, playlist_id: str):
+    """Helper function per rimuovere copie condivise."""
+    try:
+        # Trova e rimuovi le copie condivise
+        res = cur.execute("""
+            SELECT user_type, playlist_name FROM user_playlist_selections 
+            WHERE original_playlist_id = ? AND service = ? AND is_shared_copy = 1
+        """, (playlist_id, service))
+        
+        shared_copies = res.fetchall()
+        
+        # Elimina le copie condivise
+        cur.execute("""
+            DELETE FROM user_playlist_selections 
+            WHERE original_playlist_id = ? AND service = ? AND is_shared_copy = 1
+        """, (playlist_id, service))
+        
+        # Rimuovi il marker di condivisione dall'originale
+        cur.execute("""
+            UPDATE user_playlist_selections 
+            SET shared_with = NULL, last_updated = CURRENT_TIMESTAMP
+            WHERE user_type = ? AND service = ? AND playlist_id = ?
+        """, (user_type, service, playlist_id))
+        
+        for copy_user, playlist_name in shared_copies:
+            logging.info(f"✅ Rimossa copia condivisa di '{playlist_name}' per {copy_user}")
+        
+        return True
+        
+    except Exception as e:
+        logging.error(f"❌ Errore rimozione condivisione: {e}")
+        return False
+
+def get_shared_playlists(target_user: str):
+    """
+    Recupera tutte le playlist condivise con un utente specifico.
+    
+    Args:
+        target_user: Utente destinatario ('main' o 'secondary')
+    
+    Returns:
+        list: Lista delle playlist condivise con l'utente
+    """
+    try:
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            res = cur.execute("""
+                SELECT 
+                    user_type, service, playlist_id, playlist_name, 
+                    playlist_description, playlist_poster, playlist_type,
+                    track_count, is_selected, metadata_json, last_updated
+                FROM user_playlist_selections 
+                WHERE shared_with = ? OR shared_with = 'both'
+                ORDER BY service, playlist_name
+            """, (target_user,))
+            
+            shared_playlists = []
+            for row in res.fetchall():
+                shared_playlists.append({
+                    'owner_user': row[0],
+                    'service': row[1],
+                    'playlist_id': row[2],
+                    'playlist_name': row[3],
+                    'playlist_description': row[4],
+                    'playlist_poster': row[5],
+                    'playlist_type': row[6],
+                    'track_count': row[7],
+                    'is_selected': bool(row[8]),
+                    'metadata_json': row[9],
+                    'last_updated': row[10],
+                    'is_shared': True
+                })
+            
+            logging.info(f"📋 Trovate {len(shared_playlists)} playlist condivise con {target_user}")
+            return shared_playlists
+            
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando playlist condivise: {e}")
+        return []
+
+def get_user_playlist_selections_with_sharing(user_type: str, service: str, selected_only: bool = False):
+    """
+    Recupera TUTTE le playlist dell'utente:
+    - Playlist proprie (create o scoperte da lui)
+    - Copie condivise (ricevute da altri utenti)
+    
+    NUOVO COMPORTAMENTO: Con il sistema di copia fisica, ogni utente
+    ha le proprie playlist nel database, incluse le copie condivise.
+    
+    Args:
+        user_type: Tipo utente ('main' o 'secondary')
+        service: Servizio ('spotify' o 'deezer')
+        selected_only: Se True, restituisce solo quelle selezionate
+    
+    Returns:
+        list: Lista di tutte le playlist dell'utente (proprie + copie condivise)
+    """
+    try:
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            # NUOVA LOGICA SEMPLIFICATA:
+            # Tutte le playlist dell'utente sono nel database con user_type = user_type
+            # Le copie condivise hanno is_shared_copy = 1
+            
+            where_clause = "WHERE user_type = ? AND service = ?"
+            params = [user_type, service]
+            
+            if selected_only:
+                where_clause += " AND is_selected = 1"
+            
+            res = cur.execute(f"""
+                SELECT 
+                    playlist_id, playlist_name, playlist_description, playlist_poster,
+                    playlist_type, track_count, is_selected, auto_discovered, 
+                    last_updated, metadata_json, shared_with, 
+                    original_playlist_id, is_shared_copy
+                FROM user_playlist_selections 
+                {where_clause}
+                ORDER BY playlist_name
+            """, params)
+            
+            playlists = []
+            for row in res.fetchall():
+                playlist = {
+                    'playlist_id': row[0],
+                    'playlist_name': row[1],
+                    'playlist_description': row[2],
+                    'playlist_poster': row[3],
+                    'playlist_type': row[4],
+                    'track_count': row[5],
+                    'is_selected': bool(row[6]),
+                    'auto_discovered': bool(row[7]),
+                    'last_updated': row[8],
+                    'metadata_json': row[9],
+                    'shared_with': row[10],
+                    'original_playlist_id': row[11],
+                    'is_shared_copy': bool(row[12]),
+                }
+                
+                # Determina proprietà e condivisione
+                if playlist['is_shared_copy']:
+                    # È una copia ricevuta da un altro utente
+                    playlist['is_owner'] = False
+                    playlist['owner_user'] = playlist['shared_with']  # Chi l'ha condivisa
+                    playlist['is_shared'] = True
+                else:
+                    # È una playlist propria
+                    playlist['is_owner'] = True
+                    playlist['owner_user'] = user_type
+                    playlist['is_shared'] = bool(playlist['shared_with'])
+                
+                # Aggiungi metadati
+                if playlist['metadata_json']:
+                    try:
+                        playlist['metadata'] = json.loads(playlist['metadata_json'])
+                    except json.JSONDecodeError:
+                        playlist['metadata'] = {}
+                else:
+                    playlist['metadata'] = {}
+                
+                playlists.append(playlist)
+                
+            logging.debug(f"📋 Trovate {len(playlists)} playlist per {user_type}/{service}")
+            return playlists
+            
+    except Exception as e:
+        logging.error(f"❌ Errore recuperando playlist: {e}")
         return []
 
 def migrate_env_playlists_to_database():

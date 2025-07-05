@@ -3,7 +3,10 @@
 ![Python](https://img.shields.io/badge/Python-3.11-blue?style=for-the-badge&logo=python)
 ![Docker](https://img.shields.io/badge/Docker-20.10-blue?style=for-the-badge&logo=docker)
 ![Plex](https://img.shields.io/badge/Plex-Media%20Server-orange?style=for-the-badge&logo=plex)
+![Spotify](https://img.shields.io/badge/Spotify-API-1DB954?style=for-the-badge&logo=spotify)
+![Deezer](https://img.shields.io/badge/Deezer-API-FF5500?style=for-the-badge&logo=deezer)
 ![Gemini](https://img.shields.io/badge/Google%20Gemini-AI%20Playlists-purple?style=for-the-badge&logo=google)
+![Ollama](https://img.shields.io/badge/Ollama-Local%20AI-000000?style=for-the-badge&logo=ollama)
 
 ![Docker Pulls](https://img.shields.io/docker/pulls/lelus78/plex-library-completer)
 ![Docker Image Size](https://img.shields.io/docker/image-size/lelus78/plex-library-completer)
@@ -11,12 +14,30 @@
 
 A comprehensive Python application, executed via Docker, that keeps your Plex music library synchronized with streaming services like Spotify and Deezer. Features an interactive web-based playlist management system, automatic missing track downloads, AI-generated playlists with Google Gemini, and complete automation with manual control options.
 
+## 📋 Table of Contents
+
+- [✨ Key Features](#-key-features)
+- [🆕 What's New](#-whats-new)
+- [🚀 Quick Start](#-quick-start)
+- [🎛️ Interactive Playlist Management](#️-interactive-playlist-management)
+- [🔧 Installation Methods](#-installation-methods)
+  - [Docker Compose (Recommended)](#-docker-compose-recommended)
+  - [Platform-Specific Installations](#platform-specific-installations)
+- [⚙️ Configuration](#️-configuration)
+  - [Environment Variables](#environment-variables-env)
+- [🖥️ Web Interface](#️-web-interface)
+- [🌐 Internationalization](#-internationalization)
+- [🔧 Troubleshooting](#-troubleshooting)
+- [📸 Screenshots](#-screenshots)
+
 ## ✨ Key Features
 
 - **🎵 Multi-Platform Synchronization**: Automatically syncs playlists from **Spotify** and **Deezer** to your Plex library
 - **🎛️ Interactive Playlist Management**: NEW! Web-based interface for discovering, selecting, and managing playlists with real-time statistics
 - **🔍 Advanced Auto-Discovery**: Automatically discover user playlists, curated content, charts, genres, and radio stations
 - **👥 Multi-User Management**: Supports multiple Plex users with individual configurations and playlists
+- **🔗 Playlist Sharing System**: Share playlists between users with independent selection control and physical copy architecture
+- **📎 Manual Playlist Addition**: Add any public Spotify playlist directly via URL or ID through the web interface
 - **🤖 AI Playlist Generation**: Uses **Google Gemini** with **Ollama fallback** to create personalized weekly playlists and refresh existing AI playlists
 - **📊 Smart Missing Track Detection**: Identifies songs missing from your library with advanced matching algorithms
 - **⬇️ Automatic Downloads**: Uses **streamrip** to download missing tracks from Deezer automatically
@@ -26,29 +47,38 @@ A comprehensive Python application, executed via Docker, that keeps your Plex mu
 - **🌍 Multilingual Interface**: Complete English/Italian support with automatic language detection
 - **💾 Database-Driven Configuration**: Modern database storage with migration from environment variables
 
-## 🌐 Internationalization
+## 🆕 What's New
 
-The application features a complete bilingual interface supporting both **English** and **Italian** languages:
+### 🔄 Real-Time Interface Synchronization (LATEST!)
+- **Live Badge Updates**: All statistics badges update instantly without page refresh
+- **Database Synchronization**: Interface elements sync directly with database state
+- **Smart Checkbox Management**: Checkbox states automatically reflect actual database selections
+- **Global Counter Updates**: Total playlist count updates in real-time across all sections
+- **Physical Copy System**: Enhanced playlist sharing with independent selection states per user
+- **Instant Feedback**: All playlist selections show immediate visual confirmation
 
-### Language Features
-- **Automatic Detection**: The interface automatically detects the user's preferred language from browser settings
-- **Manual Switching**: Users can manually switch between languages using the language selector
-- **Complete Translation**: All interface elements are translated including:
-  - Dashboard and navigation menus
-  - Chart labels and statistics
-  - AI assistant messages and prompts
-  - Error messages and notifications
-  - Form placeholders and buttons
+### 🔗 Advanced Playlist Management
+- **Playlist Sharing System**: Share playlists between main and secondary users with independent control
+- **Manual Spotify Playlist Addition**: Add any public Spotify playlist by URL or ID directly through the web interface
+- **Physical Copy Architecture**: Each user maintains independent selection states for shared playlists
+- **Cross-User Synchronization**: Shared playlists appear in both user sections with separate controls
 
-### How Language Switching Works
-- **Session-Based**: Language preference is stored in the user's session
-- **Dynamic Charts**: All statistical charts (genre distribution, artist rankings, etc.) update their labels based on the selected language
-- **AI Integration**: The AI assistant adapts its responses and suggestions to the selected language
-- **Real-Time**: Language changes take effect immediately without requiring a page refresh
+### 🎛️ Interactive Web Interface
+- **Web-Based Discovery**: Automatically discover playlists from Spotify and Deezer with one-click
+- **Curated Content Access**: Access to Deezer charts, genres, radio stations, and editorial playlists
+- **Real-Time Statistics**: Live track counts and selection feedback in the interface
+- **Database-Driven**: Modern database storage with migration from legacy environment variables
+- **Bulk Operations**: Select/deselect all playlists with instant visual feedback
+- **Multi-User Support**: Separate playlist management for main and secondary users
+- **Visual Interface**: Playlist cards with covers, metadata, and type indicators
 
-The language system is powered by a custom i18n service with JSON-based translation files located in `plex_playlist_sync/translations/`.
+### 🤖 Enhanced AI Features
+- **Automatic Updates**: AI-generated playlists now automatically refresh with new content from your library
+- **Smart Regeneration**: Maintains original theme while adding fresh tracks
+- **Dual AI System**: Google Gemini with Ollama local fallback for unlimited AI playlist generation
+- **Weekly Management**: Weekly AI playlists are separately managed with their own persistence system
 
-## 🚀 Quick Start Guide
+## 🚀 Quick Start
 
 This section provides step-by-step instructions for beginners to get the system running with minimal configuration.
 
@@ -263,9 +293,9 @@ Before running, ensure you have created these files:
 - [ ] `docker-compose.yml` (with correct volume paths)
 - [ ] Created `state_data/` directory (will be created automatically)
 
-## 🎛️ Interactive Playlist Management Guide
+## 🎛️ Interactive Playlist Management
 
-The application now features a comprehensive web-based playlist management system that replaces the need for manual playlist ID configuration.
+The application features a comprehensive web-based playlist management system that replaces the need for manual playlist ID configuration.
 
 ### How to Use Playlist Management
 
@@ -303,6 +333,31 @@ If you have existing playlist IDs in your `.env` file:
 - **Deselect All**: Clear all selections for a service  
 - **Discover All**: Find playlists for all services and users at once
 
+### Playlist Sharing Between Users
+
+The application supports sharing playlists between main and secondary users:
+
+1. **Share a Playlist**: Click the share dropdown button next to any playlist
+2. **Select Target User**: Choose which user to share the playlist with
+3. **Independent Control**: Each user can independently select/deselect shared playlists
+4. **Visual Indicators**: Shared playlists show badges indicating their shared status
+5. **Physical Copies**: Shared playlists create independent copies for each user
+
+### Manual Playlist Addition
+
+Add any public Spotify playlist manually:
+
+1. **Get Playlist URL**: Copy any public Spotify playlist URL from the Spotify app or web player
+2. **Access Add Function**: Use the "Add Public Playlist" feature in the Spotify sections
+3. **Paste URL or ID**: Enter the full URL or just the playlist ID
+4. **Automatic Import**: The system will fetch metadata and add it to your available playlists
+5. **Immediate Selection**: The playlist becomes available for selection and sync
+
+**Supported URL Formats:**
+- `https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M`
+- `spotify:playlist:37i9dQZF1DXcBWIGoYBM5M`
+- `37i9dQZF1DXcBWIGoYBM5M` (just the ID)
+
 ### Benefits of the New System
 
 - **🎯 No More Manual ID Hunting**: Automatically discover content without finding playlist IDs
@@ -311,8 +366,47 @@ If you have existing playlist IDs in your `.env` file:
 - **🎨 Visual Interface**: Playlist covers and metadata make selection easier  
 - **💾 Persistent Storage**: Settings saved in database, not just environment files
 - **🚀 Curated Content Access**: Discover trending and editorial content you might miss otherwise
+- **⚡ Instant Synchronization**: All interface elements update automatically without page refresh
+- **🔄 Database-Driven Stats**: All counters and badges sync directly with database state
+- **✅ Smart Visual Feedback**: Checkbox states automatically reflect actual database selections
 
-## 🔧 Advanced Configuration
+## 🔧 Installation Methods
+
+### 🐳 Docker Compose (Recommended)
+
+The recommended installation method using the provided `docker-compose.yml`:
+
+```bash
+# Clone and setup
+git clone <repository_url>
+cd plex-library-completer
+cp .env.example .env
+cp config.example.toml config.toml
+
+# Edit configuration files with your credentials
+# Start the application
+docker-compose up -d --build
+```
+
+### 🐳 Docker Run (Single Command)
+
+For quick testing without docker-compose:
+
+```bash
+docker run -d \
+  --name plex-library-completer \
+  -p 5000:5000 \
+  -v /path/to/your/music:/music \
+  -v ./state_data:/app/state_data \
+  -v ./config.toml:/root/.config/streamrip/config.toml \
+  -v ./.env:/app/.env \
+  -e PUID=1000 \
+  -e PGID=1000 \
+  --restart unless-stopped \
+  lelus78/plex-library-completer:latest
+```
+
+## ⚙️ Configuration
 
 ### Understanding Configuration Files
 
@@ -360,25 +454,7 @@ arl = "your_deezer_arl_token_here"
 4. Find the `arl` cookie value
 5. Copy this value to the config file
 
-### Alternative Installation Methods
-
-#### 🐳 Docker Run Command (Single Command)
-
-For quick testing without docker-compose:
-
-```bash
-docker run -d \
-  --name plex-library-completer \
-  -p 5000:5000 \
-  -v /path/to/your/music:/music \
-  -v ./state_data:/app/state_data \
-  -v ./config.toml:/root/.config/streamrip/config.toml \
-  -v ./.env:/app/.env \
-  -e PUID=1000 \
-  -e PGID=1000 \
-  --restart unless-stopped \
-  lelus78/plex-library-completer:latest
-```
+### Platform-Specific Installations
 
 #### 🔧 Portainer Deployment
 
@@ -712,7 +788,7 @@ To stop the container:
 docker-compose down
 ```
 
-#### Portainer
+#### Portainer Management
 
 If using Portainer:
 1. **Start**: Click the "Start" button on your stack in Portainer
@@ -721,20 +797,67 @@ If using Portainer:
 4. **Update**: Use "Pull and redeploy" to update the container with new images
 5. **Restart**: Use the "Restart" button to restart the stack after configuration changes
 
-#### Web Interface
+## 🖥️ Web Interface
 
 Once running, access the web interface at:
 - **Local**: `http://localhost:5000`
 - **Network**: `http://[your-server-ip]:5000`
 
-The interface provides:
-- **Dashboard** with sync status and statistics
-- **Interactive Playlist Management** with discovery and selection (NEW!)
-- **Missing Tracks Management** with download capabilities
-- **AI Playlist Laboratory** for creating custom playlists
-- **Detailed Statistics** and charts for music library insights
+### Interface Sections
 
-## Environment Variables (`.env`)
+#### 📊 Dashboard
+- **Sync Status**: Real-time synchronization status and last sync information
+- **Library Statistics**: Total tracks, missing tracks, and sync progress
+- **Quick Actions**: Start sync, index library, and access other features
+
+#### 🎛️ Playlist Management (Interactive)
+- **Auto-Discovery**: One-click discovery of playlists from Spotify and Deezer
+- **Curated Content**: Access to charts, genres, radio stations, and editorial playlists
+- **Real-Time Selection**: Instant visual feedback with live track counts
+- **Playlist Sharing**: Share playlists between users with independent controls
+- **Manual Addition**: Add any public Spotify playlist by URL or ID
+
+#### 🎵 Missing Tracks Management
+- **Track Detection**: Advanced algorithms identify missing songs
+- **Manual Search**: Search Plex library manually for specific tracks
+- **Automatic Downloads**: One-click download of missing tracks via streamrip
+- **Verification System**: Comprehensive verification to reduce false positives
+
+#### 🤖 AI Playlist Laboratory
+- **Custom Generation**: Create personalized playlists using AI assistance
+- **Automatic Refresh**: AI playlists update automatically with new content
+- **Dual AI System**: Google Gemini with Ollama local fallback
+- **Theme Preservation**: Maintains original playlist themes while adding fresh content
+
+#### 📈 Statistics & Analytics
+- **Genre Distribution**: Visual charts of your music collection by genre
+- **Artist Rankings**: Top artists by track count and popularity
+- **Sync Insights**: Detailed analytics on synchronization performance
+- **Multilingual Charts**: All charts adapt to selected language
+
+## 🌐 Internationalization
+
+The application features a complete bilingual interface supporting both **English** and **Italian** languages:
+
+### Language Features
+- **Automatic Detection**: The interface automatically detects the user's preferred language from browser settings
+- **Manual Switching**: Users can manually switch between languages using the language selector
+- **Complete Translation**: All interface elements are translated including:
+  - Dashboard and navigation menus
+  - Chart labels and statistics
+  - AI assistant messages and prompts
+  - Error messages and notifications
+  - Form placeholders and buttons
+
+### How Language Switching Works
+- **Session-Based**: Language preference is stored in the user's session
+- **Dynamic Charts**: All statistical charts (genre distribution, artist rankings, etc.) update their labels based on the selected language
+- **AI Integration**: The AI assistant adapts its responses and suggestions to the selected language
+- **Real-Time**: Language changes take effect immediately without requiring a page refresh
+
+The language system is powered by a custom i18n service with JSON-based translation files located in `plex_playlist_sync/translations/`.
+
+### Environment Variables (`.env`)
 
 This is the complete list of variables to configure in the `.env` file.
 
@@ -769,27 +892,6 @@ This is the complete list of variables to configure in the `.env` file.
 | `RUN_GEMINI_PLAYLIST_CREATION`  | Set to `1` to enable weekly AI playlist creation                                                     | `1` (enabled)                                 | ❌ |
 | `AUTO_DELETE_AI_PLAYLIST`       | Set to `1` to auto-delete old AI playlists                                                           | `1` (enabled)                                 | ❌ |
 | `TEST_MODE_RUN_ONCE`            | Set to `1` to run only one sync cycle (for testing)                                                  | `0` (disabled)                                | ❌ |
-
-## Project Structure
-
-```
-Plex-Library-Completer/
-├── .env                  # Your secret environment variables
-├── .gitignore            # Files and folders to ignore for Git
-├── config.toml           # Streamrip configuration (e.g. ARL)
-├── docker-compose.yml    # Docker orchestration file
-├── Dockerfile            # Instructions to build the image
-├── README.md             # This file
-├── requirements.txt      # Python dependencies
-│
-└── plex_playlist_sync/   # Application source code
-    ├── run.py
-    └── utils/
-        ├── cleanup.py
-        ├── deezer.py
-        ├── downloader.py
-        └── ...
-```
 
 ## 🔧 Troubleshooting
 
@@ -848,6 +950,21 @@ ls -la .env config.toml
 # Test docker-compose syntax
 docker-compose config
 ```
+
+#### ❌ Interface not updating in real-time
+**Cause**: Cached page or browser issues
+**Solution**:
+- Hard refresh the page (Ctrl+F5 or Cmd+Shift+R)
+- Clear browser cache for the application
+- Check browser console for JavaScript errors
+- **Fixed in latest version**: Interface now automatically syncs with database
+
+#### ❌ Badge counts showing wrong numbers
+**Cause**: Interface was calculating from HTML elements instead of database
+**Solution**:
+- **Auto-resolved in latest version**: All badges now update from database in real-time
+- No page refresh needed for accurate counts
+- Global and section badges sync automatically with selections
 
 ### Configuration Validation
 
@@ -909,42 +1026,6 @@ If you're still having issues:
    - Container logs: `/app/logs/plex_sync.log`
    - Database: `/app/state_data/sync_database.db`
    - Config files: `/app/.env`, `/root/.config/streamrip/config.toml`
-
-## 🆕 Latest Features
-
-### 🎛️ Interactive Playlist Management (NEW!)
-- **Web-Based Discovery**: Automatically discover playlists from Spotify and Deezer with one-click
-- **Curated Content Access**: Access to Deezer charts, genres, radio stations, and editorial playlists
-- **Real-Time Statistics**: Live track counts and selection feedback in the interface
-- **Database-Driven**: Modern database storage with migration from legacy environment variables
-- **Bulk Operations**: Select/deselect all playlists with instant visual feedback
-- **Multi-User Support**: Separate playlist management for main and secondary users
-- **Visual Interface**: Playlist cards with covers, metadata, and type indicators
-
-### 🔍 Advanced Auto-Discovery
-- **Spotify Integration**: Discover user playlists, featured playlists, and category-based content
-- **Deezer Curated Content**: Access official charts, genres, radio stations, and editorial selections
-- **Smart Filtering**: Automatic content categorization (regular playlists, radio streams, genres)
-- **Metadata Enrichment**: Complete playlist information with covers, descriptions, and track counts
-
-### 🎤 AI Playlist Auto-Refresh
-- **Automatic Updates**: AI-generated playlists now automatically refresh with new content from your library
-- **Smart Regeneration**: Maintains original theme while adding fresh tracks
-- **Manual & Automatic**: Works during both manual syncs and scheduled automatic syncs
-- **Weekly Management**: Weekly AI playlists are separately managed with their own persistence system
-
-### 🚀 Enhanced Synchronization
-- **Manual Control**: Optional automatic synchronization (set `AUTO_SYNC_ENABLED=0` for manual only)
-- **Real-time Stats**: Dashboard shows actual track counts instead of hardcoded values
-- **Improved Logging**: Fixed log display in web interface with proper file paths
-- **Permission Handling**: Better container permissions management for downloads
-- **Multi-user Support**: Separate AI playlist management for main and secondary users
-
-### ⚡ Performance Improvements
-- **Faster Indexing**: Optimized library scanning with batch processing
-- **Smart Matching**: Advanced track matching algorithms reduce false positives
-- **Concurrent Operations**: Parallel processing for API calls and downloads
-- **Database Optimization**: Improved SQLite performance with proper indexing and connection pooling
 
 ## 📸 Screenshots
 

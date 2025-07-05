@@ -42,7 +42,8 @@ from plex_playlist_sync.utils.database import (
     initialize_db, get_missing_tracks, update_track_status, get_missing_track_by_id, 
     add_managed_ai_playlist, get_managed_ai_playlists_for_user, delete_managed_ai_playlist, get_managed_playlist_details,
     delete_all_missing_tracks, delete_missing_track, check_track_in_index, comprehensive_track_verification, get_library_index_stats,
-    clean_tv_content_from_missing_tracks, clean_resolved_missing_tracks, add_missing_track_if_not_exists
+    clean_tv_content_from_missing_tracks, clean_resolved_missing_tracks, add_missing_track_if_not_exists,
+    get_total_selected_playlists_count, share_playlist_with_user, get_shared_playlists, get_user_playlist_selections_with_sharing
 )
 from plex_playlist_sync.utils.downloader import DeezerLinkFinder, download_single_track_with_streamrip, find_potential_tracks, find_tracks_free_search
 from plex_playlist_sync.utils.i18n import init_i18n_for_app, translate_status
@@ -192,12 +193,13 @@ def missing_tracks():
 def playlist_management():
     """Pagina per la gestione interattiva delle playlist"""
     try:
-        from plex_playlist_sync.utils.database import get_user_playlist_selections
+        from plex_playlist_sync.utils.database import get_user_playlist_selections_with_sharing
         
-        # Recupera playlist per entrambi gli utenti
-        main_spotify = get_user_playlist_selections('main', 'spotify')
-        main_deezer = get_user_playlist_selections('main', 'deezer')
-        secondary_deezer = get_user_playlist_selections('secondary', 'deezer')
+        # Recupera playlist per entrambi gli utenti (include condivisioni)
+        main_spotify = get_user_playlist_selections_with_sharing('main', 'spotify')
+        main_deezer = get_user_playlist_selections_with_sharing('main', 'deezer')
+        secondary_spotify = get_user_playlist_selections_with_sharing('secondary', 'spotify')
+        secondary_deezer = get_user_playlist_selections_with_sharing('secondary', 'deezer')
         
         playlist_data = {
             'main': {
@@ -205,6 +207,7 @@ def playlist_management():
                 'deezer': main_deezer
             },
             'secondary': {
+                'spotify': secondary_spotify,
                 'deezer': secondary_deezer
             }
         }
@@ -1581,13 +1584,13 @@ def api_get_user_playlists(user_type, service):
         service: 'spotify' o 'deezer'
     """
     try:
-        from plex_playlist_sync.utils.database import get_user_playlist_selections
+        from plex_playlist_sync.utils.database import get_user_playlist_selections_with_sharing
         
         # Parametri query opzionali
         selected_only = request.args.get('selected_only', 'false').lower() == 'true'
         playlist_type = request.args.get('type')  # user, curated, chart, radio
         
-        playlists = get_user_playlist_selections(user_type, service, selected_only)
+        playlists = get_user_playlist_selections_with_sharing(user_type, service, selected_only)
         
         # Filtra per tipo se specificato
         if playlist_type:
@@ -1719,6 +1722,157 @@ def api_migrate_env_playlists():
         
     except Exception as e:
         log.error(f"Errore durante migrazione playlist: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/add_public_playlist', methods=['POST'])
+def api_add_public_playlist():
+    """
+    Aggiunge una playlist pubblica Spotify tramite URL o ID.
+    """
+    try:
+        data = request.get_json()
+        url_or_id = data.get('url_or_id', '').strip()
+        user_type = data.get('user_type', 'main')
+        
+        if not url_or_id:
+            return jsonify({"success": False, "error": "URL o ID playlist richiesto"}), 400
+        
+        # Ottieni credenziali Spotify
+        spotify_client_id = os.getenv("SPOTIFY_CLIENT_ID", "")
+        spotify_client_secret = os.getenv("SPOTIFY_CLIENT_SECRET", "")
+        
+        if not spotify_client_id or not spotify_client_secret:
+            return jsonify({"success": False, "error": "Credenziali Spotify non configurate"}), 400
+        
+        # Connetti a Spotify
+        import spotipy
+        from spotipy.oauth2 import SpotifyClientCredentials
+        from spotipy.cache_handler import MemoryCacheHandler
+        
+        memory_cache = MemoryCacheHandler()
+        sp = spotipy.Spotify(
+            auth_manager=SpotifyClientCredentials(
+                client_id=spotify_client_id,
+                client_secret=spotify_client_secret,
+                cache_handler=memory_cache
+            )
+        )
+        
+        # Recupera metadati playlist
+        from plex_playlist_sync.utils.spotify import get_spotify_public_playlist
+        playlist_data = get_spotify_public_playlist(sp, url_or_id)
+        
+        if not playlist_data:
+            return jsonify({"success": False, "error": "Impossibile recuperare la playlist. Verifica che sia pubblica e accessibile."}), 404
+        
+        # Salva nel database
+        from plex_playlist_sync.utils.database import save_discovered_playlists
+        result = save_discovered_playlists(user_type, 'spotify', [playlist_data], 'public')
+        
+        if result:
+            return jsonify({
+                "success": True,
+                "message": f"Playlist pubblica '{playlist_data['name']}' aggiunta con successo",
+                "playlist": {
+                    "id": playlist_data['id'],
+                    "name": playlist_data['name'],
+                    "track_count": playlist_data['track_count'],
+                    "owner": playlist_data['owner']
+                }
+            })
+        else:
+            return jsonify({"success": False, "error": "Errore salvando la playlist nel database"}), 500
+        
+    except Exception as e:
+        log.error(f"Errore aggiungendo playlist pubblica: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/selected_playlists_count')
+def api_selected_playlists_count():
+    """
+    API endpoint per ottenere il conteggio totale delle playlist selezionate.
+    Restituisce totale e breakdown per utente/servizio.
+    """
+    try:
+        count_data = get_total_selected_playlists_count()
+        return jsonify({
+            "success": True,
+            "data": count_data
+        })
+    except Exception as e:
+        log.error(f"Errore nel recupero conteggio playlist: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/share_playlist', methods=['POST'])
+def api_share_playlist():
+    """
+    API endpoint per condividere una playlist con un altro utente.
+    
+    Expected JSON body:
+    {
+        "owner_user": "main",
+        "service": "spotify",
+        "playlist_id": "xyz",
+        "share_with": "secondary"  // o null per rimuovere condivisione
+    }
+    """
+    try:
+        data = request.get_json()
+        
+        owner_user = data.get('owner_user')
+        service = data.get('service')
+        playlist_id = data.get('playlist_id')
+        share_with = data.get('share_with')
+        
+        if not all([owner_user, service, playlist_id]):
+            return jsonify({"success": False, "error": "Missing required fields"}), 400
+        
+        # Validazione share_with
+        if share_with and share_with not in ['main', 'secondary']:
+            return jsonify({"success": False, "error": "Invalid share_with value"}), 400
+        
+        # Non può condividere con se stesso
+        if share_with == owner_user:
+            return jsonify({"success": False, "error": "Cannot share playlist with yourself"}), 400
+        
+        success = share_playlist_with_user(owner_user, service, playlist_id, share_with)
+        
+        if success:
+            action = "condivisa" if share_with else "condivisione rimossa"
+            return jsonify({
+                "success": True,
+                "message": f"Playlist {action} con successo"
+            })
+        else:
+            return jsonify({"success": False, "error": "Failed to update playlist sharing"}), 500
+            
+    except Exception as e:
+        log.error(f"Errore nella condivisione playlist: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/shared_playlists/<user_type>')
+def api_get_shared_playlists(user_type):
+    """
+    API endpoint per ottenere le playlist condivise con un utente.
+    
+    Args:
+        user_type: 'main' o 'secondary'
+    """
+    try:
+        if user_type not in ['main', 'secondary']:
+            return jsonify({"success": False, "error": "Invalid user type"}), 400
+        
+        shared_playlists = get_shared_playlists(user_type)
+        
+        return jsonify({
+            "success": True,
+            "shared_playlists": shared_playlists,
+            "total": len(shared_playlists),
+            "user_type": user_type
+        })
+        
+    except Exception as e:
+        log.error(f"Errore recuperando playlist condivise per {user_type}: {e}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':

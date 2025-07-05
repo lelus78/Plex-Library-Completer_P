@@ -23,9 +23,22 @@
                         </button>
                     </div>
                 </div>
-                <p class="text-secondary mb-0">
+                <p class="text-secondary mb-3">
                     {{ _('playlist_management.subtitle') }}
                 </p>
+                
+                <!-- Total Selected Playlists Alert -->
+                <div id="total-playlists-alert" class="alert alert-info d-flex align-items-center mb-0" role="alert">
+                    <i data-lucide="info" class="me-2" style="width: 16px; height: 16px;"></i>
+                    <div>
+                        <strong>{{ _('playlist_management.selected_for_sync') }}: <span id="total-selected-count">-</span></strong>
+                        <div id="detailed-breakdown" class="small mt-1 text-muted"></div>
+                        <div class="small mt-2 text-muted">
+                            <i data-lucide="share-2" style="width: 12px; height: 12px;" class="me-1"></i>
+                            <em>{{ _('playlist_management.shared_count_explanation') }}</em>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
@@ -74,6 +87,10 @@
                                 <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
                                 {{ _('playlist_management.discover') }}
                             </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="showAddPublicPlaylistModal('main')">
+                                <i data-lucide="link" class="me-1" style="width: 14px; height: 14px;"></i>
+                                Aggiungi Pubblica
+                            </button>
                             <button class="btn btn-sm btn-outline-success" onclick="selectAll('main', 'spotify', true)">
                                 {{ _('playlist_management.select_all') }}
                             </button>
@@ -90,6 +107,30 @@
                                     <div class="d-flex align-items-center">
                                         <input type="checkbox" class="playlist-checkbox me-3" 
                                                {% if playlist.is_selected %}checked{% endif %}>
+                                        <!-- Share button -->
+                                        <div class="dropdown me-3">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle share-btn" type="button" 
+                                                    data-bs-toggle="dropdown" data-playlist-id="{{ playlist.playlist_id }}" 
+                                                    data-user="main" data-service="spotify">
+                                                <i data-lucide="share-2" style="width: 12px; height: 12px;"></i>
+                                                {% if playlist.shared_with %}
+                                                <i data-lucide="check" style="width: 10px; height: 10px; color: green;"></i>
+                                                {% endif %}
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><h6 class="dropdown-header">Condividi con:</h6></li>
+                                                <li><a class="dropdown-item share-option" href="#" data-target="secondary">
+                                                    <i data-lucide="user" class="me-2" style="width: 14px; height: 14px;"></i>
+                                                    {{ aliases.secondary }}
+                                                    {% if playlist.shared_with == 'secondary' %}<i data-lucide="check" class="ms-auto" style="width: 14px; height: 14px; color: green;"></i>{% endif %}
+                                                </a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item share-option text-danger" href="#" data-target="">
+                                                    <i data-lucide="x" class="me-2" style="width: 14px; height: 14px;"></i>
+                                                    Rimuovi condivisione
+                                                </a></li>
+                                            </ul>
+                                        </div>
                                         <div class="playlist-info flex-grow-1">
                                             <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
                                             <p class="text-secondary small mb-1">{{ playlist.playlist_description or _('playlist_management.no_description') }}</p>
@@ -101,7 +142,7 @@
                                                 </span>
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    Non sincronizzabile
+                                                    {{ _('playlist_management.non_syncable') }}
                                                 </span>
                                                 {% elif playlist.playlist_type == 'genres' %}
                                                 <span class="badge bg-purple">
@@ -110,7 +151,7 @@
                                                 </span>
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    Non sincronizzabile
+                                                    {{ _('playlist_management.non_syncable') }}
                                                 </span>
                                                 {% else %}
                                                 <span class="badge bg-secondary">
@@ -119,10 +160,16 @@
                                                 </span>
                                                 <span class="badge bg-success">
                                                     <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    Sincronizzabile
+                                                    {{ _('playlist_management.syncable') }}
                                                 </span>
                                                 {% endif %}
                                                 <span class="badge bg-info">{{ playlist.playlist_type }}</span>
+                                                {% if playlist.shared_with %}
+                                                <span class="badge bg-warning" data-bs-toggle="tooltip" title="{{ _('playlist_management.shared_tooltip') }}">
+                                                    <i data-lucide="share-2" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.shared_with') }} {{ aliases.secondary if playlist.shared_with == 'secondary' else aliases.main }}
+                                                </span>
+                                                {% endif %}
                                                 {% if playlist.last_updated %}
                                                 <span class="badge bg-dark">
                                                     <i data-lucide="clock" style="width: 12px; height: 12px;" class="me-1"></i>
@@ -184,6 +231,30 @@
                                     <div class="d-flex align-items-center">
                                         <input type="checkbox" class="playlist-checkbox me-3" 
                                                {% if playlist.is_selected %}checked{% endif %}>
+                                        <!-- Share button -->
+                                        <div class="dropdown me-3">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle share-btn" type="button" 
+                                                    data-bs-toggle="dropdown" data-playlist-id="{{ playlist.playlist_id }}" 
+                                                    data-user="main" data-service="deezer">
+                                                <i data-lucide="share-2" style="width: 12px; height: 12px;"></i>
+                                                {% if playlist.shared_with %}
+                                                <i data-lucide="check" style="width: 10px; height: 10px; color: green;"></i>
+                                                {% endif %}
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><h6 class="dropdown-header">Condividi con:</h6></li>
+                                                <li><a class="dropdown-item share-option" href="#" data-target="secondary">
+                                                    <i data-lucide="user" class="me-2" style="width: 14px; height: 14px;"></i>
+                                                    {{ aliases.secondary }}
+                                                    {% if playlist.shared_with == 'secondary' %}<i data-lucide="check" class="ms-auto" style="width: 14px; height: 14px; color: green;"></i>{% endif %}
+                                                </a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item share-option text-danger" href="#" data-target="">
+                                                    <i data-lucide="x" class="me-2" style="width: 14px; height: 14px;"></i>
+                                                    Rimuovi condivisione
+                                                </a></li>
+                                            </ul>
+                                        </div>
                                         <div class="playlist-info flex-grow-1">
                                             <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
                                             <p class="text-secondary small mb-1">{{ playlist.playlist_description or _('playlist_management.no_description') }}</p>
@@ -195,7 +266,7 @@
                                                 </span>
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    Non sincronizzabile
+                                                    {{ _('playlist_management.non_syncable') }}
                                                 </span>
                                                 {% elif playlist.playlist_type == 'genres' %}
                                                 <span class="badge bg-purple">
@@ -204,7 +275,7 @@
                                                 </span>
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    Non sincronizzabile
+                                                    {{ _('playlist_management.non_syncable') }}
                                                 </span>
                                                 {% else %}
                                                 <span class="badge bg-secondary">
@@ -213,10 +284,16 @@
                                                 </span>
                                                 <span class="badge bg-success">
                                                     <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    Sincronizzabile
+                                                    {{ _('playlist_management.syncable') }}
                                                 </span>
                                                 {% endif %}
                                                 <span class="badge bg-warning">{{ playlist.playlist_type }}</span>
+                                                {% if playlist.shared_with %}
+                                                <span class="badge bg-primary" data-bs-toggle="tooltip" title="{{ _('playlist_management.shared_tooltip') }}">
+                                                    <i data-lucide="share-2" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.shared_with') }} {{ aliases.secondary if playlist.shared_with == 'secondary' else aliases.main }}
+                                                </span>
+                                                {% endif %}
                                                 {% if playlist.last_updated %}
                                                 <span class="badge bg-dark">
                                                     <i data-lucide="clock" style="width: 12px; height: 12px;" class="me-1"></i>
@@ -246,7 +323,135 @@
 
     <!-- Secondary User -->
     <div class="tab-pane fade" id="secondary" role="tabpanel">
-        <!-- Deezer Section (only for secondary user) -->
+        <!-- Spotify Section -->
+        <div class="row mb-4">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header d-flex align-items-center justify-content-between">
+                        <div class="d-flex align-items-center">
+                            <i data-lucide="music" class="me-2" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                            <h5 class="mb-0">Spotify - {{ aliases.secondary }}</h5>
+                            <span id="spotify-secondary-stats" class="badge bg-primary ms-2">
+                                {% set selected_spotify = playlists.secondary.spotify | selectattr('is_selected') | list %}
+                                {% set total_tracks = selected_spotify | sum(attribute='track_count') %}
+                                {{ selected_spotify | length }}/{{ playlists.secondary.spotify | length }} {{ _('playlist_management.playlists') }} ({{ total_tracks }} {{ _('playlist_management.tracks') }})
+                            </span>
+                        </div>
+                        <div class="d-flex gap-2">
+                            <button class="btn btn-sm btn-outline-primary" onclick="discoverPlaylists('secondary', 'spotify')">
+                                <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
+                                {{ _('playlist_management.discover') }}
+                            </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="showAddPublicPlaylistModal('secondary')">
+                                <i data-lucide="link" class="me-1" style="width: 14px; height: 14px;"></i>
+                                Aggiungi Pubblica
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="selectAll('secondary', 'spotify', true)">
+                                {{ _('playlist_management.select_all') }}
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="selectAll('secondary', 'spotify', false)">
+                                {{ _('playlist_management.deselect_all') }}
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="spotify-secondary-playlists" class="playlist-container">
+                            {% if playlists.secondary.spotify %}
+                                {% for playlist in playlists.secondary.spotify %}
+                                <div class="playlist-card" data-user="secondary" data-service="spotify" data-id="{{ playlist.playlist_id }}">
+                                    <div class="d-flex align-items-center">
+                                        <input type="checkbox" class="playlist-checkbox me-3" 
+                                               {% if playlist.is_selected %}checked{% endif %}>
+                                        <!-- Share button -->
+                                        <div class="dropdown me-3">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle share-btn" type="button" 
+                                                    data-bs-toggle="dropdown" data-playlist-id="{{ playlist.playlist_id }}" 
+                                                    data-user="secondary" data-service="spotify">
+                                                <i data-lucide="share-2" style="width: 12px; height: 12px;"></i>
+                                                {% if playlist.shared_with %}
+                                                <i data-lucide="check" style="width: 10px; height: 10px; color: green;"></i>
+                                                {% endif %}
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><h6 class="dropdown-header">Condividi con:</h6></li>
+                                                <li><a class="dropdown-item share-option" href="#" data-target="main">
+                                                    <i data-lucide="user" class="me-2" style="width: 14px; height: 14px;"></i>
+                                                    {{ aliases.main }}
+                                                    {% if playlist.shared_with == 'main' %}<i data-lucide="check" class="ms-auto" style="width: 14px; height: 14px; color: green;"></i>{% endif %}
+                                                </a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item share-option text-danger" href="#" data-target="">
+                                                    <i data-lucide="x" class="me-2" style="width: 14px; height: 14px;"></i>
+                                                    Rimuovi condivisione
+                                                </a></li>
+                                            </ul>
+                                        </div>
+                                        <div class="playlist-info flex-grow-1">
+                                            <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
+                                            <p class="text-secondary small mb-1">{{ playlist.playlist_description or _('playlist_management.no_description') }}</p>
+                                            <div class="d-flex gap-2 mb-2">
+                                                {% if playlist.playlist_type == 'radios' %}
+                                                <span class="badge bg-danger">
+                                                    <i data-lucide="radio" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.continuous_stream') }}
+                                                </span>
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.non_syncable') }}
+                                                </span>
+                                                {% elif playlist.playlist_type == 'genres' %}
+                                                <span class="badge bg-purple">
+                                                    <i data-lucide="tag" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.category') }}
+                                                </span>
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.non_syncable') }}
+                                                </span>
+                                                {% else %}
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.track_count or 0 }} {{ _('playlist_management.tracks') }}
+                                                </span>
+                                                <span class="badge bg-success">
+                                                    <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.syncable') }}
+                                                </span>
+                                                {% endif %}
+                                                <span class="badge bg-info">{{ playlist.playlist_type }}</span>
+                                                {% if playlist.shared_with %}
+                                                <span class="badge bg-primary" data-bs-toggle="tooltip" title="{{ _('playlist_management.shared_tooltip') }}">
+                                                    <i data-lucide="share-2" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.shared_with') }} {{ aliases.main if playlist.shared_with == 'main' else aliases.secondary }}
+                                                </span>
+                                                {% endif %}
+                                                {% if playlist.last_updated %}
+                                                <span class="badge bg-dark">
+                                                    <i data-lucide="clock" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.last_updated[:10] }}
+                                                </span>
+                                                {% endif %}
+                                            </div>
+                                        </div>
+                                        {% if playlist.playlist_poster %}
+                                        <img src="{{ playlist.playlist_poster }}" alt="Cover" class="playlist-cover ms-3">
+                                        {% endif %}
+                                    </div>
+                                </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="text-center text-secondary py-4">
+                                    <i data-lucide="search" style="width: 48px; height: 48px; opacity: 0.5;"></i>
+                                    <p class="mt-2">{{ _('playlist_management.no_playlists_found') }}</p>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Deezer Section -->
         <div class="row mb-4">
             <div class="col-12">
                 <div class="card">
@@ -281,6 +486,30 @@
                                     <div class="d-flex align-items-center">
                                         <input type="checkbox" class="playlist-checkbox me-3" 
                                                {% if playlist.is_selected %}checked{% endif %}>
+                                        <!-- Share button -->
+                                        <div class="dropdown me-3">
+                                            <button class="btn btn-sm btn-outline-secondary dropdown-toggle share-btn" type="button" 
+                                                    data-bs-toggle="dropdown" data-playlist-id="{{ playlist.playlist_id }}" 
+                                                    data-user="secondary" data-service="deezer">
+                                                <i data-lucide="share-2" style="width: 12px; height: 12px;"></i>
+                                                {% if playlist.shared_with %}
+                                                <i data-lucide="check" style="width: 10px; height: 10px; color: green;"></i>
+                                                {% endif %}
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li><h6 class="dropdown-header">Condividi con:</h6></li>
+                                                <li><a class="dropdown-item share-option" href="#" data-target="main">
+                                                    <i data-lucide="user" class="me-2" style="width: 14px; height: 14px;"></i>
+                                                    {{ aliases.main }}
+                                                    {% if playlist.shared_with == 'main' %}<i data-lucide="check" class="ms-auto" style="width: 14px; height: 14px; color: green;"></i>{% endif %}
+                                                </a></li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li><a class="dropdown-item share-option text-danger" href="#" data-target="">
+                                                    <i data-lucide="x" class="me-2" style="width: 14px; height: 14px;"></i>
+                                                    Rimuovi condivisione
+                                                </a></li>
+                                            </ul>
+                                        </div>
                                         <div class="playlist-info flex-grow-1">
                                             <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
                                             <p class="text-secondary small mb-1">{{ playlist.playlist_description or _('playlist_management.no_description') }}</p>
@@ -292,7 +521,7 @@
                                                 </span>
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    Non sincronizzabile
+                                                    {{ _('playlist_management.non_syncable') }}
                                                 </span>
                                                 {% elif playlist.playlist_type == 'genres' %}
                                                 <span class="badge bg-purple">
@@ -301,7 +530,7 @@
                                                 </span>
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    Non sincronizzabile
+                                                    {{ _('playlist_management.non_syncable') }}
                                                 </span>
                                                 {% else %}
                                                 <span class="badge bg-secondary">
@@ -310,10 +539,16 @@
                                                 </span>
                                                 <span class="badge bg-success">
                                                     <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="me-1"></i>
-                                                    Sincronizzabile
+                                                    {{ _('playlist_management.syncable') }}
                                                 </span>
                                                 {% endif %}
                                                 <span class="badge bg-warning">{{ playlist.playlist_type }}</span>
+                                                {% if playlist.shared_with %}
+                                                <span class="badge bg-primary" data-bs-toggle="tooltip" title="{{ _('playlist_management.shared_tooltip') }}">
+                                                    <i data-lucide="share-2" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.shared_with') }} {{ aliases.secondary if playlist.shared_with == 'secondary' else aliases.main }}
+                                                </span>
+                                                {% endif %}
                                                 {% if playlist.last_updated %}
                                                 <span class="badge bg-dark">
                                                     <i data-lucide="clock" style="width: 12px; height: 12px;" class="me-1"></i>
@@ -354,6 +589,42 @@
                     <div class="spinner-border me-3" role="status"></div>
                     <span id="status-message">{{ _('playlist_management.loading') }}</span>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Public Playlist Modal -->
+<div class="modal fade" id="addPublicPlaylistModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i data-lucide="link" class="me-2" style="width: 20px; height: 20px;"></i>
+                    Aggiungi Playlist Pubblica Spotify
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="playlistUrl" class="form-label">URL o ID Playlist</label>
+                    <input type="text" class="form-control" id="playlistUrl" 
+                           placeholder="https://open.spotify.com/playlist/57EG9lWmdn7HHofXuQVsow">
+                    <div class="form-text">
+                        Incolla l'URL completo della playlist Spotify o solo l'ID (es. 57EG9lWmdn7HHofXuQVsow)
+                    </div>
+                </div>
+                <div class="alert alert-info">
+                    <i data-lucide="info" class="me-2" style="width: 16px; height: 16px;"></i>
+                    La playlist deve essere <strong>pubblica</strong> per poter essere aggiunta.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                <button type="button" class="btn btn-primary" onclick="addPublicPlaylist()">
+                    <i data-lucide="plus" class="me-1" style="width: 16px; height: 16px;"></i>
+                    Aggiungi Playlist
+                </button>
             </div>
         </div>
     </div>
@@ -462,6 +733,7 @@ function selectAll(userType, service, selected) {
     
     // Aggiorna immediatamente le statistiche
     updateStatsDisplay(userType, service);
+    updateTotalSelectedCount();
 }
 
 function updatePlaylistSelections(userType, service, selections) {
@@ -480,8 +752,12 @@ function updatePlaylistSelections(userType, service, selections) {
     .then(data => {
         if (data.success) {
             console.log(`✅ ${t('updated_playlists', {count: data.success_count, user: userType, service: service})}`);
+            // Ricarica le checkbox dal database per sincronizzare l'interfaccia
+            refreshCheckboxStates(userType, service);
             // Aggiorna le statistiche in tempo reale
             updateStatsDisplay(userType, service);
+            // Aggiorna il conteggio totale globale
+            updateTotalSelectedCount();
         } else {
             console.error(`❌ ${t('error_updating_playlists', {error: data.error})}`);
         }
@@ -491,55 +767,87 @@ function updatePlaylistSelections(userType, service, selections) {
     });
 }
 
+function refreshCheckboxStates(userType, service) {
+    // Ricarica lo stato delle checkbox dal database per sincronizzare l'interfaccia
+    fetch(`/api/user_playlists/${userType}/${service}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const playlists = data.playlists;
+                
+                // Aggiorna ogni checkbox in base allo stato del database
+                playlists.forEach(playlist => {
+                    const checkbox = document.querySelector(`[data-user="${userType}"][data-service="${service}"][data-id="${playlist.playlist_id}"] .playlist-checkbox`);
+                    if (checkbox) {
+                        checkbox.checked = playlist.is_selected;
+                    }
+                });
+                
+                console.log(`🔄 Checkbox states refreshed for ${userType}/${service}`);
+            }
+        })
+        .catch(error => {
+            console.error('Error refreshing checkbox states:', error);
+        });
+}
+
 function updateStatsDisplay(userType, service) {
     const statsId = `${service}-${userType}-stats`;
     const statsElement = document.getElementById(statsId);
     if (!statsElement) return;
     
-    // Calcola statistiche dalle checkbox attualmente selezionate
-    const checkboxes = document.querySelectorAll(`[data-user="${userType}"][data-service="${service}"] .playlist-checkbox`);
-    let selectedCount = 0;
-    let totalTracks = 0;
-    let totalPlaylists = checkboxes.length;
-    let hasSpecialTypes = false; // radio o generi
-    
-    checkboxes.forEach(checkbox => {
-        if (checkbox.checked) {
-            selectedCount++;
-            // Trova il numero di tracce dal badge della playlist
-            const playlistCard = checkbox.closest('.playlist-card');
-            const tracksBadge = playlistCard.querySelector('.badge');
-            if (tracksBadge) {
-                const tracksText = tracksBadge.textContent;
-                // Solo conta le tracce se non è radio o genere
-                if (tracksText.includes(t('continuous_stream')) || tracksText.includes(t('category'))) {
-                    hasSpecialTypes = true;
-                } else {
-                    const trackMatch = tracksText.match(/(\d+)\s+/);
-                    if (trackMatch) {
-                        totalTracks += parseInt(trackMatch[1]);
+    // Ottieni i dati aggiornati dal database invece che dalle checkbox
+    fetch(`/api/user_playlists/${userType}/${service}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const playlists = data.playlists;
+                
+                let selectedCount = 0;
+                let totalTracks = 0;
+                let totalPlaylists = playlists.length;
+                let hasSpecialTypes = false;
+                
+                playlists.forEach(playlist => {
+                    if (playlist.is_selected) {
+                        selectedCount++;
+                        
+                        // Conta le tracce solo per playlist sincronizzabili
+                        if (playlist.playlist_type === 'genres' || playlist.playlist_type === 'radios') {
+                            hasSpecialTypes = true;
+                        } else {
+                            totalTracks += playlist.track_count || 0;
+                        }
                     }
+                });
+                
+                // Aggiorna il testo delle statistiche
+                let statsText = `${selectedCount}/${totalPlaylists} ${t('playlists')}`;
+                if (totalTracks > 0) {
+                    statsText += ` (${totalTracks} ${t('tracks')}`;
+                    if (hasSpecialTypes) {
+                        statsText += t('stats_with_radio_genres');
+                    }
+                    statsText += ')';
+                } else if (hasSpecialTypes && selectedCount > 0) {
+                    statsText += t('stats_radio_genres_only');
                 }
+                
+                statsElement.textContent = statsText;
+                
+                // Cambia colore del badge in base alla selezione
+                if (selectedCount > 0) {
+                    statsElement.className = 'badge bg-success ms-2';
+                } else {
+                    statsElement.className = 'badge bg-warning ms-2';
+                }
+                
+                console.log(`📊 Stats updated for ${userType}/${service}: ${selectedCount}/${totalPlaylists} playlists, ${totalTracks} tracks`);
             }
-        }
-    });
-    
-    // Aggiorna il testo delle statistiche con informazioni più precise
-    let statsText = `${selectedCount}/${totalPlaylists} ${t('playlists')}`;
-    if (totalTracks > 0) {
-        statsText += ` (${totalTracks} ${t('tracks')}`;
-        if (hasSpecialTypes) {
-            statsText += t('stats_with_radio_genres');
-        }
-        statsText += ')';
-    } else if (hasSpecialTypes && selectedCount > 0) {
-        statsText += t('stats_radio_genres_only');
-    }
-    
-    statsElement.textContent = statsText;
-    
-    // Cambia colore del badge in base alla selezione
-    statsElement.className = selectedCount > 0 ? 'badge bg-success ms-2' : 'badge bg-secondary ms-2';
+        })
+        .catch(error => {
+            console.error('Error updating stats:', error);
+        });
 }
 
 function initializeStats() {
@@ -553,6 +861,67 @@ function initializeStats() {
     sections.forEach(({ userType, service }) => {
         updateStatsDisplay(userType, service);
     });
+    
+    // Carica il conteggio totale
+    updateTotalSelectedCount();
+}
+
+function updateTotalSelectedCount() {
+    fetch('/api/selected_playlists_count')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const countData = data.data;
+                const totalCount = countData.total;
+                
+                // Aggiorna il conteggio totale
+                document.getElementById('total-selected-count').textContent = totalCount;
+                
+                // Crea il breakdown dettagliato
+                let breakdownHtml = '';
+                if (countData.breakdown && Object.keys(countData.breakdown).length > 0) {
+                    const parts = [];
+                    for (const [userType, services] of Object.entries(countData.breakdown)) {
+                        const userLabel = userType === 'main' ? '{{ aliases.main }}' : '{{ aliases.secondary }}';
+                        const userTotal = countData.user_totals[userType] || 0;
+                        
+                        if (userTotal > 0) {
+                            const serviceParts = [];
+                            for (const [service, count] of Object.entries(services)) {
+                                if (count > 0) {
+                                    serviceParts.push(`${service.charAt(0).toUpperCase() + service.slice(1)}: ${count}`);
+                                }
+                            }
+                            parts.push(`<strong>${userLabel}</strong> (${userTotal}): ${serviceParts.join(', ')}`);
+                        }
+                    }
+                    breakdownHtml = parts.join(' | ');
+                } else {
+                    breakdownHtml = '<em>Nessuna playlist selezionata</em>';
+                }
+                
+                document.getElementById('detailed-breakdown').innerHTML = breakdownHtml;
+                
+                // Aggiorna il colore dell'alert in base al conteggio
+                const alertElement = document.getElementById('total-playlists-alert');
+                if (totalCount === 0) {
+                    alertElement.className = 'alert alert-warning d-flex align-items-center mb-0';
+                } else if (totalCount > 20) {
+                    alertElement.className = 'alert alert-danger d-flex align-items-center mb-0';
+                } else {
+                    alertElement.className = 'alert alert-success d-flex align-items-center mb-0';
+                }
+            } else {
+                console.error('Error fetching total playlist count:', data.error);
+                document.getElementById('total-selected-count').textContent = '?';
+                document.getElementById('detailed-breakdown').innerHTML = '<em>Errore nel caricamento</em>';
+            }
+        })
+        .catch(error => {
+            console.error('Error fetching total selected playlists count:', error);
+            document.getElementById('total-selected-count').textContent = '?';
+            document.getElementById('detailed-breakdown').innerHTML = '<em>Errore di connessione</em>';
+        });
 }
 
 function migrateFromEnv() {
@@ -594,11 +963,127 @@ function hideStatus() {
     }
 }
 
+// Playlist Sharing Functions
+function sharePlaylist(ownerUser, service, playlistId, shareWith) {
+    const shareData = {
+        owner_user: ownerUser,
+        service: service,
+        playlist_id: playlistId,
+        share_with: shareWith || null
+    };
+    
+    fetch('/api/share_playlist', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(shareData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Feedback visivo
+            const shareBtn = document.querySelector(`[data-playlist-id="${playlistId}"][data-user="${ownerUser}"][data-service="${service}"]`);
+            if (shareBtn) {
+                const checkIcon = shareBtn.querySelector('i[data-lucide="check"]');
+                if (shareWith) {
+                    // Aggiunge icona di conferma se non esiste
+                    if (!checkIcon) {
+                        const newCheckIcon = document.createElement('i');
+                        newCheckIcon.setAttribute('data-lucide', 'check');
+                        newCheckIcon.style.width = '10px';
+                        newCheckIcon.style.height = '10px';
+                        newCheckIcon.style.color = 'green';
+                        shareBtn.appendChild(newCheckIcon);
+                        lucide.createIcons();
+                    }
+                } else {
+                    // Rimuove icona di conferma
+                    if (checkIcon) {
+                        checkIcon.remove();
+                    }
+                }
+            }
+            
+            // Aggiorna il conteggio totale delle playlist
+            updateTotalSelectedCount();
+            
+            // Messaggio di successo discreto
+            console.log('✅ ' + data.message);
+        } else {
+            alert('❌ Errore: ' + data.error);
+        }
+    })
+    .catch(error => {
+        console.error('Error sharing playlist:', error);
+        alert('❌ Errore durante la condivisione della playlist');
+    });
+}
+
+// Public Playlist Functions
+let currentUserType = 'main';
+
+function showAddPublicPlaylistModal(userType) {
+    currentUserType = userType;
+    const modal = new bootstrap.Modal(document.getElementById('addPublicPlaylistModal'));
+    document.getElementById('playlistUrl').value = '';
+    modal.show();
+}
+
+function addPublicPlaylist() {
+    const url = document.getElementById('playlistUrl').value.trim();
+    
+    if (!url) {
+        alert('⚠️ Inserisci l\'URL o ID della playlist');
+        return;
+    }
+    
+    // Chiudi il modal e mostra status
+    const modal = bootstrap.Modal.getInstance(document.getElementById('addPublicPlaylistModal'));
+    modal.hide();
+    
+    showStatus('Aggiungendo playlist pubblica...');
+    
+    fetch('/api/add_public_playlist', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+            url_or_id: url,
+            user_type: currentUserType
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideStatus();
+        if (data.success) {
+            alert(`✅ ${data.message}\n🎵 ${data.playlist.track_count} tracce\n👤 Proprietario: ${data.playlist.owner}`);
+            location.reload(); // Ricarica per mostrare la nuova playlist
+        } else {
+            alert(`❌ Errore: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        hideStatus();
+        console.error('Error:', error);
+        alert('❌ Errore durante l\'aggiunta della playlist');
+    });
+}
+
 // Event Listeners
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize icons
     if (typeof lucide !== 'undefined') {
         lucide.createIcons();
+    }
+    
+    // Initialize Bootstrap tooltips
+    if (typeof bootstrap !== 'undefined') {
+        const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+        tooltipTriggerList.map(function (tooltipTriggerEl) {
+            return new bootstrap.Tooltip(tooltipTriggerEl);
+        });
     }
     
     // Inizializza le statistiche
@@ -618,8 +1103,29 @@ document.addEventListener('DOMContentLoaded', function() {
                 selected: selected
             }]);
             
-            // Aggiorna immediatamente le statistiche per feedback istantaneo
-            updateStatsDisplay(userType, service);
+            // Le statistiche verranno aggiornate automaticamente da updatePlaylistSelections
+        });
+    });
+    
+    // Add share button listeners
+    document.querySelectorAll('.share-option').forEach(option => {
+        option.addEventListener('click', function(e) {
+            e.preventDefault();
+            
+            const shareButton = this.closest('.dropdown').querySelector('.share-btn');
+            const ownerUser = shareButton.dataset.user;
+            const service = shareButton.dataset.service;
+            const playlistId = shareButton.dataset.playlistId;
+            const shareWith = this.dataset.target;
+            
+            // Chiude il dropdown
+            const dropdown = bootstrap.Dropdown.getInstance(shareButton);
+            if (dropdown) {
+                dropdown.hide();
+            }
+            
+            // Chiama la funzione di condivisione
+            sharePlaylist(ownerUser, service, playlistId, shareWith);
         });
     });
     

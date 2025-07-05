@@ -483,6 +483,12 @@
     "badge_radio": "Stream Continuo",
     "badge_genre": "Categoria",
     "stats_with_radio_genres": " + radio/generi",
-    "stats_radio_genres_only": " (radio/generi)"
+    "stats_radio_genres_only": " (radio/generi)",
+    "syncable": "Sincronizzabile",
+    "non_syncable": "Non sincronizzabile",
+    "shared_with": "Condivisa con",
+    "shared_tooltip": "Questa playlist è condivisa. Le modifiche di selezione influenzano entrambi gli utenti.",
+    "selected_for_sync": "Playlist selezionate per la sincronizzazione",
+    "shared_count_explanation": "Le playlist condivise appaiono in entrambe le sezioni ma contano come una sola playlist"
   }
 }
