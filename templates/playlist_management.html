@@ -94,20 +94,32 @@
                                             <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
                                             <p class="text-secondary small mb-1">{{ playlist.playlist_description or _('playlist_management.no_description') }}</p>
                                             <div class="d-flex gap-2 mb-2">
-                                                {% if playlist.playlist_type == 'radio' %}
+                                                {% if playlist.playlist_type == 'radios' %}
                                                 <span class="badge bg-danger">
                                                     <i data-lucide="radio" style="width: 12px; height: 12px;" class="me-1"></i>
                                                     {{ _('playlist_management.continuous_stream') }}
                                                 </span>
-                                                {% elif playlist.playlist_type == 'genre' %}
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    Non sincronizzabile
+                                                </span>
+                                                {% elif playlist.playlist_type == 'genres' %}
                                                 <span class="badge bg-purple">
                                                     <i data-lucide="tag" style="width: 12px; height: 12px;" class="me-1"></i>
                                                     {{ _('playlist_management.category') }}
+                                                </span>
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    Non sincronizzabile
                                                 </span>
                                                 {% else %}
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
                                                     {{ playlist.track_count or 0 }} {{ _('playlist_management.tracks') }}
+                                                </span>
+                                                <span class="badge bg-success">
+                                                    <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    Sincronizzabile
                                                 </span>
                                                 {% endif %}
                                                 <span class="badge bg-info">{{ playlist.playlist_type }}</span>
@@ -176,10 +188,34 @@
                                             <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
                                             <p class="text-secondary small mb-1">{{ playlist.playlist_description or _('playlist_management.no_description') }}</p>
                                             <div class="d-flex gap-2 mb-2">
+                                                {% if playlist.playlist_type == 'radios' %}
+                                                <span class="badge bg-danger">
+                                                    <i data-lucide="radio" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.continuous_stream') }}
+                                                </span>
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    Non sincronizzabile
+                                                </span>
+                                                {% elif playlist.playlist_type == 'genres' %}
+                                                <span class="badge bg-purple">
+                                                    <i data-lucide="tag" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.category') }}
+                                                </span>
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    Non sincronizzabile
+                                                </span>
+                                                {% else %}
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
                                                     {{ playlist.track_count or 0 }} {{ _('playlist_management.tracks') }}
                                                 </span>
+                                                <span class="badge bg-success">
+                                                    <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    Sincronizzabile
+                                                </span>
+                                                {% endif %}
                                                 <span class="badge bg-warning">{{ playlist.playlist_type }}</span>
                                                 {% if playlist.last_updated %}
                                                 <span class="badge bg-dark">
@@ -249,10 +285,34 @@
                                             <h6 class="mb-1">{{ playlist.playlist_name }}</h6>
                                             <p class="text-secondary small mb-1">{{ playlist.playlist_description or _('playlist_management.no_description') }}</p>
                                             <div class="d-flex gap-2 mb-2">
+                                                {% if playlist.playlist_type == 'radios' %}
+                                                <span class="badge bg-danger">
+                                                    <i data-lucide="radio" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.continuous_stream') }}
+                                                </span>
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    Non sincronizzabile
+                                                </span>
+                                                {% elif playlist.playlist_type == 'genres' %}
+                                                <span class="badge bg-purple">
+                                                    <i data-lucide="tag" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.category') }}
+                                                </span>
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    Non sincronizzabile
+                                                </span>
+                                                {% else %}
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
                                                     {{ playlist.track_count or 0 }} {{ _('playlist_management.tracks') }}
                                                 </span>
+                                                <span class="badge bg-success">
+                                                    <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    Sincronizzabile
+                                                </span>
+                                                {% endif %}
                                                 <span class="badge bg-warning">{{ playlist.playlist_type }}</span>
                                                 {% if playlist.last_updated %}
                                                 <span class="badge bg-dark">

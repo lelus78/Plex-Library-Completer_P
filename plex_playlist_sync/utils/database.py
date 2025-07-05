@@ -1591,20 +1591,47 @@ def toggle_playlist_selection(user_type: str, service: str, playlist_id: str, se
 def get_selected_playlist_ids(user_type: str, service: str) -> List[str]:
     """
     Recupera solo gli ID delle playlist selezionate per la sincronizzazione.
-    Questa funzione sostituirà la lettura da environment variables.
+    Filtra automaticamente i contenuti non sincronizzabili (generi e radio Deezer).
     """
     try:
         with get_db_connection() as con:
             cur = con.cursor()
             
-            res = cur.execute("""
-                SELECT playlist_id FROM user_playlist_selections 
-                WHERE user_type = ? AND service = ? AND is_selected = 1
-                ORDER BY playlist_name
-            """, (user_type, service))
+            # Filtra contenuti non sincronizzabili per Deezer
+            if service == 'deezer':
+                res = cur.execute("""
+                    SELECT playlist_id FROM user_playlist_selections 
+                    WHERE user_type = ? AND service = ? AND is_selected = 1
+                    AND playlist_type NOT IN ('genres', 'radios')
+                    AND playlist_id NOT LIKE 'genre_%'
+                    AND playlist_id NOT LIKE 'radio_%'
+                    AND playlist_id NOT LIKE 'chart_tracks_%'
+                    AND playlist_id NOT LIKE 'chart_albums_%'
+                    ORDER BY playlist_name
+                """, (user_type, service))
+            else:
+                # Per Spotify, sincronizza tutto normalmente
+                res = cur.execute("""
+                    SELECT playlist_id FROM user_playlist_selections 
+                    WHERE user_type = ? AND service = ? AND is_selected = 1
+                    ORDER BY playlist_name
+                """, (user_type, service))
             
             playlist_ids = [row[0] for row in res.fetchall()]
-            logging.info(f"📋 Trovati {len(playlist_ids)} playlist ID selezionati per {user_type}/{service}")
+            
+            # Conta quanti sono stati filtrati per Deezer
+            if service == 'deezer':
+                res_total = cur.execute("""
+                    SELECT COUNT(*) FROM user_playlist_selections 
+                    WHERE user_type = ? AND service = ? AND is_selected = 1
+                """, (user_type, service))
+                total_selected = res_total.fetchone()[0]
+                filtered_count = total_selected - len(playlist_ids)
+                
+                if filtered_count > 0:
+                    logging.info(f"🚫 Filtrati {filtered_count} contenuti non sincronizzabili Deezer (generi/radio)")
+            
+            logging.info(f"📋 Trovate {len(playlist_ids)} playlist sincronizzabili per {user_type}/{service}")
             return playlist_ids
             
     except Exception as e:
