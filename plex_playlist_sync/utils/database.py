@@ -337,6 +337,13 @@ def initialize_db():
             except sqlite3.OperationalError:
                 pass # La colonna esiste già
             
+            # Aggiunge colonna per macrocategorie
+            try:
+                cur.execute("ALTER TABLE user_playlist_selections ADD COLUMN macro_category TEXT;")
+                logging.info("✅ Aggiunta colonna macro_category per sistema di macrocategorie")
+            except sqlite3.OperationalError:
+                pass # La colonna esiste già
+            
             # Indici per user_playlist_selections (per performance nelle query)
             cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_user_service ON user_playlist_selections (user_type, service)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_selected ON user_playlist_selections (user_type, service, is_selected)")
@@ -345,6 +352,7 @@ def initialize_db():
             cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_shared ON user_playlist_selections (shared_with)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_original ON user_playlist_selections (original_playlist_id)")
             cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_copy ON user_playlist_selections (is_shared_copy)")
+            cur.execute("CREATE INDEX IF NOT EXISTS idx_playlist_selections_macro_category ON user_playlist_selections (macro_category)")
             
             logging.info("✅ Indici database creati con successo")
             
@@ -1483,6 +1491,142 @@ def clear_library_index():
 # GESTIONE PLAYLIST SELEZIONATE
 # ================================
 
+def get_macro_category(playlist_type: str, name: str = "", description: str = "") -> str:
+    """
+    Determina la macrocategoria di una playlist basandosi sul tipo e metadati.
+    
+    Args:
+        playlist_type: Tipo playlist ('user', 'curated', 'popular', 'chart', 'genre', 'radio')
+        name: Nome della playlist (opzionale)
+        description: Descrizione della playlist (opzionale)
+        
+    Returns:
+        Macrocategoria: 'PERSONAL', 'POPULAR', 'EDITORIAL', 'THEMATIC', 'GENRE_BASED', 'CHARTS', 'DISCOVERY'
+    """
+    # Normalizza input
+    name_lower = name.lower() if name else ""
+    desc_lower = description.lower() if description else ""
+    combined_text = f"{name_lower} {desc_lower}"
+    
+    # Mappatura diretta per tipo - solo per casi molto specifici
+    if playlist_type == 'user':
+        return 'PERSONAL'
+    elif playlist_type in ['chart', 'charts']:
+        return 'CHARTS'
+    elif playlist_type in ['genre', 'genres', 'radio', 'radios']:
+        return 'GENRE_BASED'
+    
+    # ANALISI BASATA SU CONTENUTO (priorità su tipo)
+    
+    # 1. CHARTS - parole chiave per classifiche
+    chart_keywords = [
+        'chart', 'top 100', 'top 50', 'top 40', 'top 20', 'top 10',
+        'billboard', 'classifica', 'ranking', 'hit parade', 'charts',
+        'top songs', 'top tracks', 'number 1', 'best selling'
+    ]
+    if any(keyword in combined_text for keyword in chart_keywords):
+        return 'CHARTS'
+    
+    # 2. DISCOVERY - parole chiave per nuove scoperte
+    discovery_keywords = [
+        'new music', 'discover', 'fresh', 'emerging', 'upcoming', 'rising',
+        'underground', 'indie finds', 'hidden gems', 'experimental',
+        'breakthrough', 'next big thing', 'radar', 'discovery', 'new releases'
+    ]
+    if any(keyword in combined_text for keyword in discovery_keywords):
+        return 'DISCOVERY'
+    
+    # 3. THEMATIC - parole chiave molto specifiche per mood/attività
+    thematic_keywords = [
+        # Attività fisiche
+        'workout', 'gym', 'fitness', 'running', 'cardio', 'training', 'sport',
+        'exercise', 'beast mode', 'power workout',
+        
+        # Relax e benessere
+        'chill', 'relax', 'calm', 'peaceful', 'meditation', 'zen', 'ambient',
+        'sleep', 'bedtime', 'tranquil', 'serene', 'soft',
+        
+        # Studio e concentrazione
+        'study', 'focus', 'concentration', 'reading', 'work', 'productivity',
+        'coffee shop', 'lo-fi',
+        
+        # Festa e social
+        'party', 'dance', 'club', 'night out', 'celebration', 'dancing',
+        'party mix', 'dance party',
+        
+        # Viaggi e movimento
+        'road trip', 'travel', 'car', 'driving', 'highway', 'journey',
+        'sing in the car', 'road',
+        
+        # Mood specifici
+        'happy', 'sad', 'melancholy', 'energy', 'mood booster', 'feel good',
+        'good vibes', 'uplifting', 'motivational', 'emotional',
+        
+        # Stagioni e occasioni
+        'summer', 'winter', 'spring', 'autumn', 'christmas', 'holiday',
+        'valentine', 'halloween', 'morning', 'evening', 'weekend',
+        
+        # Casa e vita quotidiana
+        'cooking', 'kitchen', 'dinner', 'shower', 'cleaning'
+    ]
+    if any(keyword in combined_text for keyword in thematic_keywords):
+        return 'THEMATIC'
+    
+    # 4. GENRE_BASED - parole chiave per generi musicali
+    genre_keywords = [
+        # Generi principali
+        'rock', 'pop', 'jazz', 'blues', 'classical', 'country', 'folk',
+        'electronic', 'techno', 'house', 'edm', 'dubstep', 'trance',
+        'hip hop', 'rap', 'hip-hop', 'r&b', 'rnb', 'soul', 'funk',
+        'metal', 'punk', 'hardcore', 'alternative', 'grunge',
+        'reggae', 'ska', 'latin', 'salsa', 'bachata', 'merengue',
+        'indie', 'indie rock', 'indie pop', 'shoegaze',
+        'gospel', 'spiritual', 'world music', 'ambient',
+        
+        # Sottogeneri e stili
+        'deep house', 'prog rock', 'death metal', 'black metal',
+        'classic rock', 'hard rock', 'soft rock', 'punk rock',
+        'nu metal', 'heavy metal', 'thrash metal',
+        'jazz fusion', 'smooth jazz', 'bebop', 'swing',
+        'drum and bass', 'breakbeat', 'garage', 'trap',
+        'phonk', 'brazilian funk', 'afrobeat'
+    ]
+    if any(keyword in combined_text for keyword in genre_keywords):
+        return 'GENRE_BASED'
+    
+    # 5. POPULAR - contenuto mainstream e virale
+    popular_keywords = [
+        'hit', 'hits', 'top hits', 'viral', 'trending', 'mainstream',
+        'popular', 'greatest hits', 'best', 'most played', 'radio hits',
+        'smash hits', 'all time hits', 'biggest hits', 'global hits',
+        '2024', '2025', 'today', 'now', 'current', 'latest'
+    ]
+    if any(keyword in combined_text for keyword in popular_keywords):
+        return 'POPULAR'
+    
+    # 6. EDITORIAL - playlist curate e professionali
+    editorial_keywords = [
+        'curated', 'handpicked', 'selected', 'editor', 'editorial',
+        'spotify', 'official', 'featured', 'recommended', 'staff picks',
+        'essential', 'definitive', 'ultimate', 'collection'
+    ]
+    if any(keyword in combined_text for keyword in editorial_keywords):
+        return 'EDITORIAL'
+    
+    # FALLBACK basato su tipo quando l'analisi del contenuto non trova nulla
+    if playlist_type == 'curated':
+        return 'EDITORIAL'
+    elif playlist_type == 'popular':
+        return 'POPULAR'
+    elif playlist_type in ['editorial', 'featured']:
+        return 'EDITORIAL'
+    
+    # Default finale - classifiche se sembra ufficiale, altrimenti popolare
+    if 'spotify' in combined_text or 'official' in combined_text:
+        return 'EDITORIAL'
+    
+    return 'POPULAR'  # Default conservativo
+
 def save_discovered_playlists(user_type: str, service: str, playlists: List[Dict], playlist_type: str = 'user'):
     """
     Salva le playlist scoperte nel database.
@@ -1505,6 +1649,9 @@ def save_discovered_playlists(user_type: str, service: str, playlists: List[Dict
                 poster = playlist.get('poster', '')
                 track_count = playlist.get('track_count', 0)
                 
+                # Determina macrocategoria
+                macro_category = get_macro_category(playlist_type, name, description)
+                
                 # Serializza metadati aggiuntivi se presenti
                 metadata = {}
                 if 'preview_tracks' in playlist:
@@ -1518,13 +1665,13 @@ def save_discovered_playlists(user_type: str, service: str, playlists: List[Dict
                     INSERT OR REPLACE INTO user_playlist_selections 
                     (user_type, service, playlist_id, playlist_name, playlist_description, 
                      playlist_poster, playlist_type, track_count, auto_discovered, 
-                     last_updated, metadata_json, is_selected)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, 
+                     last_updated, metadata_json, macro_category, is_selected)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, CURRENT_TIMESTAMP, ?, ?, 
                             COALESCE((SELECT is_selected FROM user_playlist_selections 
                                     WHERE user_type=? AND service=? AND playlist_id=?), 0))
                 """, (
                     user_type, service, playlist_id, name, description, poster,
-                    playlist_type, track_count, metadata_json,
+                    playlist_type, track_count, metadata_json, macro_category,
                     user_type, service, playlist_id
                 ))
             
@@ -1535,6 +1682,103 @@ def save_discovered_playlists(user_type: str, service: str, playlists: List[Dict
     except Exception as e:
         logging.error(f"❌ Errore salvando playlist scoperte: {e}")
         return False
+
+def get_macro_category_stats(user_type: str = None, service: str = None) -> Dict:
+    """
+    Ottiene statistiche per macrocategoria.
+    
+    Args:
+        user_type: 'main' o 'secondary' (opzionale)
+        service: 'spotify' o 'deezer' (opzionale)
+        
+    Returns:
+        Dict con statistiche per macrocategoria
+    """
+    try:
+        with get_db_connection() as con:
+            con.row_factory = sqlite3.Row
+            cur = con.cursor()
+            
+            query = """
+                SELECT 
+                    macro_category,
+                    COUNT(*) as total_playlists,
+                    SUM(CASE WHEN is_selected = 1 THEN 1 ELSE 0 END) as selected_playlists,
+                    SUM(track_count) as total_tracks
+                FROM user_playlist_selections 
+                WHERE 1=1
+            """
+            params = []
+            
+            if user_type:
+                query += " AND user_type = ?"
+                params.append(user_type)
+                
+            if service:
+                query += " AND service = ?"
+                params.append(service)
+                
+            query += " GROUP BY macro_category ORDER BY total_playlists DESC"
+            
+            cur.execute(query, params)
+            rows = cur.fetchall()
+            
+            stats = {}
+            for row in rows:
+                category = row['macro_category'] or 'UNKNOWN'
+                stats[category] = {
+                    'total_playlists': row['total_playlists'],
+                    'selected_playlists': row['selected_playlists'],
+                    'total_tracks': row['total_tracks'],
+                    'selection_rate': (row['selected_playlists'] / row['total_playlists'] * 100) if row['total_playlists'] > 0 else 0
+                }
+            
+            return stats
+            
+    except Exception as e:
+        logging.error(f"❌ Errore ottenendo statistiche macrocategorie: {e}")
+        return {}
+
+def update_existing_playlists_macro_categories():
+    """
+    Aggiorna le macrocategorie per tutte le playlist esistenti nel database.
+    """
+    try:
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            # Recupera tutte le playlist senza macrocategoria o con NULL
+            cur.execute("""
+                SELECT id, playlist_name, playlist_description, playlist_type 
+                FROM user_playlist_selections 
+                WHERE macro_category IS NULL OR macro_category = ''
+            """)
+            
+            playlists_to_update = cur.fetchall()
+            updated_count = 0
+            
+            for playlist in playlists_to_update:
+                playlist_id, name, description, playlist_type = playlist
+                
+                # Calcola la macrocategoria
+                macro_category = get_macro_category(playlist_type or '', name or '', description or '')
+                
+                # Aggiorna nel database
+                cur.execute("""
+                    UPDATE user_playlist_selections 
+                    SET macro_category = ? 
+                    WHERE id = ?
+                """, (macro_category, playlist_id))
+                
+                updated_count += 1
+            
+            con.commit()
+            logging.info(f"✅ Aggiornate {updated_count} playlist con nuove macrocategorie")
+            return updated_count
+            
+    except Exception as e:
+        logging.error(f"❌ Errore aggiornando macrocategorie: {e}")
+        return 0
 
 def get_user_playlist_selections(user_type: str, service: str = None, selected_only: bool = False) -> List[Dict]:
     """
@@ -2068,4 +2312,74 @@ def migrate_env_playlists_to_database():
         
     except Exception as e:
         logging.error(f"❌ Errore durante migrazione playlist: {e}")
+        return 0
+
+def save_user_playlists(user_type: str, service: str, playlists: list, playlist_type: str = 'user') -> int:
+    """
+    Salva una lista di playlist nel database per un utente specifico.
+    
+    Args:
+        user_type: Tipo utente ('main' o 'secondary')
+        service: Servizio ('spotify' o 'deezer')
+        playlists: Lista di dizionari con metadati playlist
+        playlist_type: Tipo di playlist ('user', 'curated', 'popular', ecc.)
+        
+    Returns:
+        Numero di playlist salvate
+    """
+    try:
+        saved_count = 0
+        
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            for playlist in playlists:
+                # Estrai campi dai metadati playlist
+                playlist_id = playlist.get('id', '')
+                playlist_name = playlist.get('name', '')
+                playlist_description = playlist.get('description', '')
+                playlist_poster = playlist.get('poster', '')
+                track_count = playlist.get('track_count', 0)
+                effective_playlist_type = playlist.get('playlist_type', playlist_type)
+                
+                # Controlla se la playlist esiste già
+                cur.execute("""
+                    SELECT id FROM user_playlist_selections 
+                    WHERE user_type = ? AND service = ? AND playlist_id = ?
+                """, (user_type, service, playlist_id))
+                
+                existing = cur.fetchone()
+                
+                if existing:
+                    # Aggiorna playlist esistente
+                    cur.execute("""
+                        UPDATE user_playlist_selections 
+                        SET playlist_name = ?, playlist_description = ?, playlist_poster = ?,
+                            playlist_type = ?, track_count = ?, auto_discovered = 1
+                        WHERE user_type = ? AND service = ? AND playlist_id = ?
+                    """, (playlist_name, playlist_description, playlist_poster, 
+                          effective_playlist_type, track_count, user_type, service, playlist_id))
+                else:
+                    # Inserisci nuova playlist
+                    cur.execute("""
+                        INSERT INTO user_playlist_selections 
+                        (user_type, service, playlist_id, playlist_name, playlist_description, 
+                         playlist_poster, playlist_type, track_count, is_selected, auto_discovered)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0, 1)
+                    """, (user_type, service, playlist_id, playlist_name, playlist_description,
+                          playlist_poster, effective_playlist_type, track_count))
+                    
+                    saved_count += 1
+            
+            con.commit()
+            
+        if saved_count > 0:
+            logging.info(f"✅ Salvate {saved_count} nuove playlist {effective_playlist_type} per {user_type}/{service}")
+        else:
+            logging.info(f"ℹ️ Nessuna nuova playlist da salvare per {user_type}/{service}")
+            
+        return saved_count
+        
+    except Exception as e:
+        logging.error(f"❌ Errore salvando playlist {user_type}/{service}: {e}")
         return 0

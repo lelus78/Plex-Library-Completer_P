@@ -81,3 +81,10 @@ venv.bak
 config.toml
 state_data/
 claude.md
+
+#test file
+test_categorization_final.py
+test_full_webscraping.py
+test_spotifyscraper_methods.py
+test_spotifyscraper.py
+test_track_limits.py

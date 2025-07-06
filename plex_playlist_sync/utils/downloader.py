@@ -356,7 +356,7 @@ def download_single_track_with_streamrip(link: str):
         os.makedirs(config_dir, exist_ok=True)
         
         # Crea la directory Downloads se non esiste
-        downloads_dir = "/music"  # Usa /music che è mappato a M:\Organizzata
+        downloads_dir = os.getenv("MUSIC_DOWNLOAD_PATH", "/music")  # Usa /music che è mappato a M:\Organizzata
         os.makedirs(downloads_dir, exist_ok=True)
         
         # Controlla se esiste già un config.toml (backward compatibility)

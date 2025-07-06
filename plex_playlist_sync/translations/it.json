@@ -489,6 +489,30 @@
     "shared_with": "Condivisa con",
     "shared_tooltip": "Questa playlist è condivisa. Le modifiche di selezione influenzano entrambi gli utenti.",
     "selected_for_sync": "Playlist selezionate per la sincronizzazione",
-    "shared_count_explanation": "Le playlist condivise appaiono in entrambe le sezioni ma contano come una sola playlist"
+    "shared_count_explanation": "Le playlist condivise appaiono in entrambe le sezioni ma contano come una sola playlist",
+    "popular_playlists": "Playlist Popolari",
+    "most_followed": "Più Seguite",
+    "trending": "In Tendenza",
+    "filter_all": "Tutte",
+    "filter_user": "Utente",
+    "filter_popular": "Popolari",
+    "filter_editorial": "Editoriali",
+    "filter_charts": "Classifiche",
+    "filter_public": "Pubbliche",
+    "macro_categories": {
+      "PERSONAL": "Personali",
+      "POPULAR": "Popolari e Tendenze",
+      "EDITORIAL": "Editoriali e Curate",
+      "THEMATIC": "Tematiche e Mood",
+      "GENRE_BASED": "Basate su Generi",
+      "CHARTS": "Classifiche e Ranking",
+      "DISCOVERY": "Scoperta e Novità",
+      "UNKNOWN": "Non Categorizzate"
+    },
+    "macro_stats": "Statistiche Categorie",
+    "filter_macro_categories": "Filtra per Categoria",
+    "filter_categories": "Categorie",
+    "test_spotifyscraper": "Test SpotifyScraper",
+    "recalculate_categories": "Ricalcola Categorie"
   }
 }

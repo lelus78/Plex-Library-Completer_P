@@ -83,10 +83,28 @@
                             </span>
                         </div>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-sm btn-outline-primary" onclick="discoverPlaylists('main', 'spotify')">
-                                <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
-                                {{ _('playlist_management.discover') }}
-                            </button>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
+                                    {{ _('playlist_management.discover') }}
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><h6 class="dropdown-header">Metodo di ricerca:</h6></li>
+                                    <li><a class="dropdown-item" href="#" onclick="discoverPlaylists('main', 'spotify')">
+                                        <i data-lucide="search" class="me-2" style="width: 14px; height: 14px;"></i>
+                                        Discovery Standard
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="discoverPlaylistsWebScraping('main', 'spotify')">
+                                        <i data-lucide="globe" class="me-2" style="width: 14px; height: 14px;"></i>
+                                        🌐 Web Scraping Avanzato
+                                    </a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><small class="dropdown-item-text text-muted">
+                                        <i data-lucide="info" style="width: 12px; height: 12px;" class="me-1"></i>
+                                        Web Scraping trova più playlist ma è più lento
+                                    </small></li>
+                                </ul>
+                            </div>
                             <button class="btn btn-sm btn-outline-info" onclick="showAddPublicPlaylistModal('main')">
                                 <i data-lucide="link" class="me-1" style="width: 14px; height: 14px;"></i>
                                 Aggiungi Pubblica
@@ -100,10 +118,95 @@
                         </div>
                     </div>
                     <div class="card-body">
+                        <!-- Filtri per tipo di playlist -->
+                        <div class="mb-3">
+                            <ul class="nav nav-pills nav-sm playlist-filters" role="tablist" data-user="main" data-service="spotify">
+                                <li class="nav-item">
+                                    <button class="nav-link active filter-btn" data-filter="all">
+                                        <i data-lucide="list" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_all') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="user">
+                                        <i data-lucide="user" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_user') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="popular">
+                                        <i data-lucide="trending-up" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_popular') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="editorial">
+                                        <i data-lucide="star" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_editorial') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="category">
+                                        <i data-lucide="folder" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_categories') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="public">
+                                        <i data-lucide="globe" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_public') }}
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
+                        
+                        <!-- Filtro per macrocategorie -->
+                        <div class="mb-3">
+                            <div class="d-flex align-items-center mb-2">
+                                <i data-lucide="filter" style="width: 16px; height: 16px;" class="me-2"></i>
+                                <strong>{{ _('playlist_management.filter_macro_categories') }}:</strong>
+                                <div class="ms-auto d-flex gap-2">
+                                    <button class="btn btn-sm btn-outline-warning" onclick="updateMacroCategories()">
+                                        <i data-lucide="refresh-cw" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        Ricalcola Categorie
+                                    </button>
+                                    <button class="btn btn-sm btn-link text-decoration-none" onclick="loadMacroCategoryStats()">
+                                        <i data-lucide="bar-chart-3" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.macro_stats') }}
+                                    </button>
+                                </div>
+                            </div>
+                            <div class="d-flex flex-wrap gap-2" id="macro-category-filters">
+                                <button class="btn btn-sm btn-outline-primary active" data-macro-filter="all">
+                                    {{ _('playlist_management.filter_all') }}
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" data-macro-filter="PERSONAL">
+                                    {{ _('playlist_management.macro_categories.PERSONAL') }}
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning" data-macro-filter="POPULAR">
+                                    {{ _('playlist_management.macro_categories.POPULAR') }}
+                                </button>
+                                <button class="btn btn-sm btn-outline-info" data-macro-filter="EDITORIAL">
+                                    {{ _('playlist_management.macro_categories.EDITORIAL') }}
+                                </button>
+                                <button class="btn btn-sm btn-outline-success" data-macro-filter="THEMATIC">
+                                    {{ _('playlist_management.macro_categories.THEMATIC') }}
+                                </button>
+                                <button class="btn btn-sm btn-outline-purple" data-macro-filter="GENRE_BASED">
+                                    {{ _('playlist_management.macro_categories.GENRE_BASED') }}
+                                </button>
+                                <button class="btn btn-sm btn-outline-danger" data-macro-filter="CHARTS">
+                                    {{ _('playlist_management.macro_categories.CHARTS') }}
+                                </button>
+                                <button class="btn btn-sm btn-outline-dark" data-macro-filter="DISCOVERY">
+                                    {{ _('playlist_management.macro_categories.DISCOVERY') }}
+                                </button>
+                            </div>
+                        </div>
                         <div id="spotify-main-playlists" class="playlist-container">
                             {% if playlists.main.spotify %}
                                 {% for playlist in playlists.main.spotify %}
-                                <div class="playlist-card" data-user="main" data-service="spotify" data-id="{{ playlist.playlist_id }}">
+                                <div class="playlist-card" data-user="main" data-service="spotify" data-id="{{ playlist.playlist_id }}" data-type="{{ playlist.playlist_type }}" data-macro-category="{{ playlist.macro_category or 'UNKNOWN' }}">
                                     <div class="d-flex align-items-center">
                                         <input type="checkbox" class="playlist-checkbox me-3" 
                                                {% if playlist.is_selected %}checked{% endif %}>
@@ -153,6 +256,19 @@
                                                     <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
                                                     {{ _('playlist_management.non_syncable') }}
                                                 </span>
+                                                {% elif playlist.playlist_type == 'popular' %}
+                                                <span class="badge bg-warning">
+                                                    <i data-lucide="trending-up" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.popular_playlists') }}
+                                                </span>
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.track_count or 0 }} {{ _('playlist_management.tracks') }}
+                                                </span>
+                                                <span class="badge bg-success">
+                                                    <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.syncable') }}
+                                                </span>
                                                 {% else %}
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
@@ -164,6 +280,44 @@
                                                 </span>
                                                 {% endif %}
                                                 <span class="badge bg-info">{{ playlist.playlist_type }}</span>
+                                                <!-- Badge macrocategoria -->
+                                                {% set macro_cat = playlist.macro_category or 'UNKNOWN' %}
+                                                {% if macro_cat == 'PERSONAL' %}
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="user" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.macro_categories.PERSONAL') }}
+                                                </span>
+                                                {% elif macro_cat == 'POPULAR' %}
+                                                <span class="badge bg-warning">
+                                                    <i data-lucide="trending-up" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.macro_categories.POPULAR') }}
+                                                </span>
+                                                {% elif macro_cat == 'EDITORIAL' %}
+                                                <span class="badge bg-info">
+                                                    <i data-lucide="star" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.macro_categories.EDITORIAL') }}
+                                                </span>
+                                                {% elif macro_cat == 'THEMATIC' %}
+                                                <span class="badge bg-success">
+                                                    <i data-lucide="heart" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.macro_categories.THEMATIC') }}
+                                                </span>
+                                                {% elif macro_cat == 'GENRE_BASED' %}
+                                                <span class="badge bg-purple">
+                                                    <i data-lucide="tag" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.macro_categories.GENRE_BASED') }}
+                                                </span>
+                                                {% elif macro_cat == 'CHARTS' %}
+                                                <span class="badge bg-danger">
+                                                    <i data-lucide="bar-chart-3" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.macro_categories.CHARTS') }}
+                                                </span>
+                                                {% elif macro_cat == 'DISCOVERY' %}
+                                                <span class="badge bg-dark">
+                                                    <i data-lucide="compass" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.macro_categories.DISCOVERY') }}
+                                                </span>
+                                                {% endif %}
                                                 {% if playlist.shared_with %}
                                                 <span class="badge bg-warning" data-bs-toggle="tooltip" title="{{ _('playlist_management.shared_tooltip') }}">
                                                     <i data-lucide="share-2" style="width: 12px; height: 12px;" class="me-1"></i>
@@ -224,10 +378,39 @@
                         </div>
                     </div>
                     <div class="card-body">
+                        <!-- Filtri per tipo di playlist -->
+                        <div class="mb-3">
+                            <ul class="nav nav-pills nav-sm playlist-filters" role="tablist" data-user="main" data-service="deezer">
+                                <li class="nav-item">
+                                    <button class="nav-link active filter-btn" data-filter="all">
+                                        <i data-lucide="list" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_all') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="user">
+                                        <i data-lucide="user" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_user') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="charts">
+                                        <i data-lucide="bar-chart" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_charts') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="editorial">
+                                        <i data-lucide="star" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_editorial') }}
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
                         <div id="deezer-main-playlists" class="playlist-container">
                             {% if playlists.main.deezer %}
                                 {% for playlist in playlists.main.deezer %}
-                                <div class="playlist-card" data-user="main" data-service="deezer" data-id="{{ playlist.playlist_id }}">
+                                <div class="playlist-card" data-user="main" data-service="deezer" data-id="{{ playlist.playlist_id }}" data-type="{{ playlist.playlist_type }}">
                                     <div class="d-flex align-items-center">
                                         <input type="checkbox" class="playlist-checkbox me-3" 
                                                {% if playlist.is_selected %}checked{% endif %}>
@@ -276,6 +459,19 @@
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
                                                     {{ _('playlist_management.non_syncable') }}
+                                                </span>
+                                                {% elif playlist.playlist_type == 'popular' %}
+                                                <span class="badge bg-warning">
+                                                    <i data-lucide="trending-up" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.popular_playlists') }}
+                                                </span>
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.track_count or 0 }} {{ _('playlist_management.tracks') }}
+                                                </span>
+                                                <span class="badge bg-success">
+                                                    <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.syncable') }}
                                                 </span>
                                                 {% else %}
                                                 <span class="badge bg-secondary">
@@ -338,10 +534,28 @@
                             </span>
                         </div>
                         <div class="d-flex gap-2">
-                            <button class="btn btn-sm btn-outline-primary" onclick="discoverPlaylists('secondary', 'spotify')">
-                                <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
-                                {{ _('playlist_management.discover') }}
-                            </button>
+                            <div class="dropdown">
+                                <button class="btn btn-sm btn-outline-primary dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                                    <i data-lucide="search" class="me-1" style="width: 14px; height: 14px;"></i>
+                                    {{ _('playlist_management.discover') }}
+                                </button>
+                                <ul class="dropdown-menu">
+                                    <li><h6 class="dropdown-header">Metodo di ricerca:</h6></li>
+                                    <li><a class="dropdown-item" href="#" onclick="discoverPlaylists('secondary', 'spotify')">
+                                        <i data-lucide="search" class="me-2" style="width: 14px; height: 14px;"></i>
+                                        Discovery Standard
+                                    </a></li>
+                                    <li><a class="dropdown-item" href="#" onclick="discoverPlaylistsWebScraping('secondary', 'spotify')">
+                                        <i data-lucide="globe" class="me-2" style="width: 14px; height: 14px;"></i>
+                                        🌐 Web Scraping Avanzato
+                                    </a></li>
+                                    <li><hr class="dropdown-divider"></li>
+                                    <li><small class="dropdown-item-text text-muted">
+                                        <i data-lucide="info" style="width: 12px; height: 12px;" class="me-1"></i>
+                                        Web Scraping trova più playlist ma è più lento
+                                    </small></li>
+                                </ul>
+                            </div>
                             <button class="btn btn-sm btn-outline-info" onclick="showAddPublicPlaylistModal('secondary')">
                                 <i data-lucide="link" class="me-1" style="width: 14px; height: 14px;"></i>
                                 Aggiungi Pubblica
@@ -355,10 +569,51 @@
                         </div>
                     </div>
                     <div class="card-body">
+                        <!-- Filtri per tipo di playlist -->
+                        <div class="mb-3">
+                            <ul class="nav nav-pills nav-sm playlist-filters" role="tablist" data-user="secondary" data-service="spotify">
+                                <li class="nav-item">
+                                    <button class="nav-link active filter-btn" data-filter="all">
+                                        <i data-lucide="list" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_all') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="user">
+                                        <i data-lucide="user" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_user') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="popular">
+                                        <i data-lucide="trending-up" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_popular') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="editorial">
+                                        <i data-lucide="star" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_editorial') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="category">
+                                        <i data-lucide="folder" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_categories') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="public">
+                                        <i data-lucide="globe" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_public') }}
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
                         <div id="spotify-secondary-playlists" class="playlist-container">
                             {% if playlists.secondary.spotify %}
                                 {% for playlist in playlists.secondary.spotify %}
-                                <div class="playlist-card" data-user="secondary" data-service="spotify" data-id="{{ playlist.playlist_id }}">
+                                <div class="playlist-card" data-user="secondary" data-service="spotify" data-id="{{ playlist.playlist_id }}" data-type="{{ playlist.playlist_type }}">
                                     <div class="d-flex align-items-center">
                                         <input type="checkbox" class="playlist-checkbox me-3" 
                                                {% if playlist.is_selected %}checked{% endif %}>
@@ -407,6 +662,19 @@
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
                                                     {{ _('playlist_management.non_syncable') }}
+                                                </span>
+                                                {% elif playlist.playlist_type == 'popular' %}
+                                                <span class="badge bg-warning">
+                                                    <i data-lucide="trending-up" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.popular_playlists') }}
+                                                </span>
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.track_count or 0 }} {{ _('playlist_management.tracks') }}
+                                                </span>
+                                                <span class="badge bg-success">
+                                                    <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.syncable') }}
                                                 </span>
                                                 {% else %}
                                                 <span class="badge bg-secondary">
@@ -479,10 +747,39 @@
                         </div>
                     </div>
                     <div class="card-body">
+                        <!-- Filtri per tipo di playlist -->
+                        <div class="mb-3">
+                            <ul class="nav nav-pills nav-sm playlist-filters" role="tablist" data-user="secondary" data-service="deezer">
+                                <li class="nav-item">
+                                    <button class="nav-link active filter-btn" data-filter="all">
+                                        <i data-lucide="list" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_all') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="user">
+                                        <i data-lucide="user" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_user') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="charts">
+                                        <i data-lucide="bar-chart" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_charts') }}
+                                    </button>
+                                </li>
+                                <li class="nav-item">
+                                    <button class="nav-link filter-btn" data-filter="editorial">
+                                        <i data-lucide="star" style="width: 14px; height: 14px;" class="me-1"></i>
+                                        {{ _('playlist_management.filter_editorial') }}
+                                    </button>
+                                </li>
+                            </ul>
+                        </div>
                         <div id="deezer-secondary-playlists" class="playlist-container">
                             {% if playlists.secondary.deezer %}
                                 {% for playlist in playlists.secondary.deezer %}
-                                <div class="playlist-card" data-user="secondary" data-service="deezer" data-id="{{ playlist.playlist_id }}">
+                                <div class="playlist-card" data-user="secondary" data-service="deezer" data-id="{{ playlist.playlist_id }}" data-type="{{ playlist.playlist_type }}">
                                     <div class="d-flex align-items-center">
                                         <input type="checkbox" class="playlist-checkbox me-3" 
                                                {% if playlist.is_selected %}checked{% endif %}>
@@ -531,6 +828,19 @@
                                                 <span class="badge bg-secondary">
                                                     <i data-lucide="x-circle" style="width: 12px; height: 12px;" class="me-1"></i>
                                                     {{ _('playlist_management.non_syncable') }}
+                                                </span>
+                                                {% elif playlist.playlist_type == 'popular' %}
+                                                <span class="badge bg-warning">
+                                                    <i data-lucide="trending-up" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.popular_playlists') }}
+                                                </span>
+                                                <span class="badge bg-secondary">
+                                                    <i data-lucide="music" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ playlist.track_count or 0 }} {{ _('playlist_management.tracks') }}
+                                                </span>
+                                                <span class="badge bg-success">
+                                                    <i data-lucide="check-circle" style="width: 12px; height: 12px;" class="me-1"></i>
+                                                    {{ _('playlist_management.syncable') }}
                                                 </span>
                                                 {% else %}
                                                 <span class="badge bg-secondary">
@@ -614,6 +924,49 @@
                         Incolla l'URL completo della playlist Spotify o solo l'ID (es. 57EG9lWmdn7HHofXuQVsow)
                     </div>
                 </div>
+                
+                <!-- Playlist popolari suggerite -->
+                <div class="mb-3">
+                    <label class="form-label">
+                        <i data-lucide="trending-up" class="me-1" style="width: 16px; height: 16px;"></i>
+                        Playlist Popolari Suggerite
+                    </label>
+                    <div class="row g-2">
+                        <div class="col-12">
+                            <button type="button" class="btn btn-outline-success btn-sm w-100 text-start suggested-playlist" 
+                                    data-url="https://open.spotify.com/playlist/6LyxrNMgOeHUDKoMGa2Goe">
+                                <strong>✅ Playlist di Esempio</strong> - Playlist verificata che funziona perfettamente
+                            </button>
+                        </div>
+                        <div class="col-12">
+                            <div class="alert alert-info py-2 mb-2">
+                                <i data-lucide="search" style="width: 14px; height: 14px;" class="me-1"></i>
+                                <small><strong>Suggerimento:</strong> Usa il pulsante "Scopri" sopra per trovare automaticamente 
+                                playlist pubbliche popolari, oppure incolla manualmente l'URL di qualsiasi playlist pubblica qui sopra.</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="form-text mt-2">
+                        <i data-lucide="mouse-pointer-click" style="width: 12px; height: 12px;" class="me-1"></i>
+                        Clicca su una playlist per inserire automaticamente il suo URL
+                    </div>
+                </div>
+                
+                <!-- Opzione Web Scraping -->
+                <div class="mb-3">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="enableWebscraping">
+                        <label class="form-check-label" for="enableWebscraping">
+                            <strong>🌐 Abilita Web Scraping Avanzato</strong>
+                        </label>
+                    </div>
+                    <div class="form-text">
+                        <i data-lucide="alert-triangle" style="width: 12px; height: 12px;" class="me-1"></i>
+                        <small>Il web scraping trova automaticamente playlist popolari dalla ricerca Spotify, 
+                        ma richiede più tempo e potrebbe violare i ToS di Spotify. Usa solo per scopi educativi.</small>
+                    </div>
+                </div>
+                
                 <div class="alert alert-info">
                     <i data-lucide="info" class="me-2" style="width: 16px; height: 16px;"></i>
                     La playlist deve essere <strong>pubblica</strong> per poter essere aggiunta.
@@ -710,6 +1063,255 @@ function discoverPlaylists(userType, service) {
         hideStatus();
         console.error('Error:', error);
         alert(`❌ ${t('error_during_discovery_generic')}`);
+    });
+}
+
+// Web Scraping Discovery Function
+function discoverPlaylistsWebScraping(userType, service) {
+    // Mostra avviso sui ToS
+    if (!confirm('⚠️ ATTENZIONE: Il Web Scraping potrebbe violare i Terms of Service di Spotify.\n\n' +
+                'Questa funzione è destinata SOLO per scopi educativi e di ricerca personale.\n' +
+                'Continuando, accetti la responsabilità per l\'uso di questa funzionalità.\n\n' +
+                'Vuoi continuare?')) {
+        return;
+    }
+    
+    showStatus(`🌐 Web scraping in corso per ${service} (${userType})... Questo potrebbe richiedere alcuni minuti.`);
+    
+    fetch(`/api/discover_playlists_webscraping/${userType}/${service}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        hideStatus();
+        if (data.success) {
+            const details = data.details ? 
+                `\n🎵 Playlist utente: ${data.details.user_playlists}\n🔥 Playlist popolari: ${data.details.popular_playlists}\n✨ Playlist curate: ${data.details.featured_playlists}` 
+                : '';
+            alert(`✅ Web scraping completato con successo!\n📊 Totale playlist trovate: ${data.total_discovered}${details}`);
+            location.reload(); // Ricarica per mostrare le nuove playlist
+        } else {
+            alert(`❌ Errore durante web scraping: ${data.error}`);
+        }
+    })
+    .catch(error => {
+        hideStatus();
+        console.error('Error:', error);
+        alert(`❌ Errore durante web scraping: ${error.message || 'Errore di connessione'}`);
+    });
+}
+
+// Playlist Filtering Functions
+function filterPlaylistsByType(userType, service, playlistType) {
+    const container = document.querySelector(`#${service}-${userType}-playlists`);
+    if (!container) return;
+    
+    const playlistCards = container.querySelectorAll('.playlist-card');
+    
+    playlistCards.forEach(card => {
+        const cardType = card.dataset.type;
+        const shouldShow = playlistType === 'all' || cardType === playlistType;
+        
+        if (shouldShow) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+function filterPlaylistsByMacroCategory(macroCategory) {
+    // Applica filtro a tutte le sezioni
+    document.querySelectorAll('.playlist-card').forEach(card => {
+        const cardMacroCategory = card.dataset.macroCategory;
+        const shouldShow = macroCategory === 'all' || cardMacroCategory === macroCategory;
+        
+        if (shouldShow) {
+            card.style.display = 'block';
+        } else {
+            card.style.display = 'none';
+        }
+    });
+}
+
+function loadMacroCategoryStats() {
+    fetch('/api/macro_category_stats')
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showMacroCategoryStatsModal(data.stats);
+            } else {
+                console.error('Errore caricamento statistiche:', data.error);
+                alert('Errore caricamento statistiche');
+            }
+        })
+        .catch(error => {
+            console.error('Errore:', error);
+            alert('Errore di connessione');
+        });
+}
+
+function showMacroCategoryStatsModal(stats) {
+    let modalContent = `
+        <div class="modal fade" id="macroStatsModal" tabindex="-1">
+            <div class="modal-dialog modal-lg">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h5 class="modal-title">
+                            <i data-lucide="bar-chart-3" class="me-2"></i>
+                            Statistiche Categorie Playlist
+                        </h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="row">
+    `;
+    
+    Object.entries(stats).forEach(([category, data]) => {
+        const categoryName = {
+            'PERSONAL': 'Personali',
+            'POPULAR': 'Popolari & Tendenze', 
+            'EDITORIAL': 'Editoriali & Curate',
+            'THEMATIC': 'Tematiche & Mood',
+            'GENRE_BASED': 'Basate su Generi',
+            'CHARTS': 'Classifiche & Ranking',
+            'DISCOVERY': 'Scoperta & Novità',
+            'UNKNOWN': 'Non Categorizzate'
+        }[category] || category;
+        
+        const badgeColor = {
+            'PERSONAL': 'secondary',
+            'POPULAR': 'warning',
+            'EDITORIAL': 'info', 
+            'THEMATIC': 'success',
+            'GENRE_BASED': 'purple',
+            'CHARTS': 'danger',
+            'DISCOVERY': 'dark',
+            'UNKNOWN': 'light'
+        }[category] || 'light';
+        
+        modalContent += `
+            <div class="col-md-6 col-lg-4 mb-3">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <span class="badge bg-${badgeColor} mb-2">${categoryName}</span>
+                        <h4>${data.total_playlists}</h4>
+                        <p class="text-muted mb-1">playlist totali</p>
+                        <p class="text-success mb-1"><strong>${data.selected_playlists}</strong> selezionate</p>
+                        <p class="text-info mb-0">${data.total_tracks.toLocaleString()} tracce</p>
+                        <div class="progress mt-2">
+                            <div class="progress-bar" style="width: ${data.selection_rate}%"></div>
+                        </div>
+                        <small class="text-muted">${data.selection_rate.toFixed(1)}% selezionate</small>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    modalContent += `
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Rimuovi modal esistente se presente
+    const existingModal = document.getElementById('macroStatsModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    
+    // Aggiungi nuovo modal
+    document.body.insertAdjacentHTML('beforeend', modalContent);
+    
+    // Mostra modal
+    const modal = new bootstrap.Modal(document.getElementById('macroStatsModal'));
+    modal.show();
+    
+    // Inizializza icone Lucide
+    lucide.createIcons();
+}
+
+function updateMacroCategories() {
+    if (!confirm('Vuoi ricalcolare le macrocategorie per tutte le playlist? Questa operazione potrebbe richiedere qualche secondo.')) {
+        return;
+    }
+    
+    const button = event.target.closest('button');
+    const originalText = button.innerHTML;
+    
+    // Mostra loading
+    button.innerHTML = '<i data-lucide="loader-2" style="width: 14px; height: 14px;" class="me-1 animate-spin"></i>Ricalcolando...';
+    button.disabled = true;
+    
+    fetch('/api/update_macro_categories', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            alert(`✅ ${data.message}`);
+            // Ricarica la pagina per vedere i cambiamenti
+            location.reload();
+        } else {
+            console.error('Errore aggiornamento macrocategorie:', data.error);
+            alert('❌ Errore durante l\'aggiornamento delle macrocategorie');
+        }
+    })
+    .catch(error => {
+        console.error('Errore:', error);
+        alert('❌ Errore di connessione');
+    })
+    .finally(() => {
+        // Ripristina il bottone
+        button.innerHTML = originalText;
+        button.disabled = false;
+        lucide.createIcons();
+    });
+}
+
+function setupFilterButtons() {
+    document.querySelectorAll('.playlist-filters').forEach(filterContainer => {
+        const userType = filterContainer.dataset.user;
+        const service = filterContainer.dataset.service;
+        
+        filterContainer.querySelectorAll('.filter-btn').forEach(btn => {
+            btn.addEventListener('click', function() {
+                const filterType = this.dataset.filter;
+                
+                // Aggiorna pulsante attivo
+                filterContainer.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+                this.classList.add('active');
+                
+                // Applica filtro
+                filterPlaylistsByType(userType, service, filterType);
+            });
+        });
+    });
+    
+    // Setup filtri macrocategorie
+    document.querySelectorAll('#macro-category-filters button').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const macroFilter = this.dataset.macroFilter;
+            
+            // Aggiorna pulsante attivo
+            document.querySelectorAll('#macro-category-filters button').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Applica filtro macrocategoria
+            filterPlaylistsByMacroCategory(macroFilter);
+        });
     });
 }
 
@@ -1027,7 +1629,28 @@ function showAddPublicPlaylistModal(userType) {
     currentUserType = userType;
     const modal = new bootstrap.Modal(document.getElementById('addPublicPlaylistModal'));
     document.getElementById('playlistUrl').value = '';
+    
+    // Configura i gestori eventi per le playlist suggerite
+    setupSuggestedPlaylistHandlers();
+    
     modal.show();
+}
+
+function setupSuggestedPlaylistHandlers() {
+    document.querySelectorAll('.suggested-playlist').forEach(button => {
+        button.addEventListener('click', function() {
+            const url = this.dataset.url;
+            document.getElementById('playlistUrl').value = url;
+            
+            // Evidenzia visivamente la selezione
+            document.querySelectorAll('.suggested-playlist').forEach(btn => {
+                btn.classList.remove('btn-success');
+                btn.classList.add('btn-outline-success');
+            });
+            this.classList.remove('btn-outline-success');
+            this.classList.add('btn-success');
+        });
+    });
 }
 
 function addPublicPlaylist() {
@@ -1088,6 +1711,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Inizializza le statistiche
     initializeStats();
+    
+    // Inizializza i filtri delle playlist
+    setupFilterButtons();
     
     // Add checkbox change listeners
     document.querySelectorAll('.playlist-checkbox').forEach(checkbox => {

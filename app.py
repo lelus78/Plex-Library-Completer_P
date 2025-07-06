@@ -1505,6 +1505,10 @@ def api_discover_playlists(user_type, service):
             if spotify_content['featured']:
                 save_discovered_playlists(user_type, service, spotify_content['featured'], 'curated')
             
+            # Salva playlist popolari
+            if spotify_content['popular']:
+                save_discovered_playlists(user_type, service, spotify_content['popular'], 'popular')
+            
             # Salva playlist per categoria
             for category, playlists in spotify_content['categories'].items():
                 if playlists:
@@ -1558,6 +1562,7 @@ def api_discover_playlists(user_type, service):
         if service == 'spotify':
             total_discovered = (len(discovered_content.get('user_playlists', [])) + 
                               len(discovered_content.get('featured', [])) + 
+                              len(discovered_content.get('popular', [])) + 
                               sum(len(cat) for cat in discovered_content.get('categories', {}).values()))
         elif service == 'deezer':
             total_discovered = (len(discovered_content.get('user_playlists', [])) + 
@@ -1803,6 +1808,52 @@ def api_selected_playlists_count():
         log.error(f"Errore nel recupero conteggio playlist: {e}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/api/macro_category_stats')
+def api_macro_category_stats():
+    """
+    API endpoint per ottenere statistiche per macrocategoria.
+    
+    Query parameters:
+    - user_type: 'main' o 'secondary' (opzionale)
+    - service: 'spotify' o 'deezer' (opzionale)
+    """
+    try:
+        from plex_playlist_sync.utils.database import get_macro_category_stats
+        
+        user_type = request.args.get('user_type')
+        service = request.args.get('service')
+        
+        stats = get_macro_category_stats(user_type, service)
+        
+        return jsonify({
+            "success": True,
+            "stats": stats,
+            "user_type": user_type,
+            "service": service
+        })
+    except Exception as e:
+        log.error(f"Errore nel recupero statistiche macrocategorie: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/update_macro_categories', methods=['POST'])
+def api_update_macro_categories():
+    """
+    API endpoint per aggiornare le macrocategorie delle playlist esistenti.
+    """
+    try:
+        from plex_playlist_sync.utils.database import update_existing_playlists_macro_categories
+        
+        updated_count = update_existing_playlists_macro_categories()
+        
+        return jsonify({
+            "success": True,
+            "updated_count": updated_count,
+            "message": f"Aggiornate {updated_count} playlist con nuove macrocategorie"
+        })
+    except Exception as e:
+        log.error(f"Errore aggiornando macrocategorie: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
 @app.route('/api/share_playlist', methods=['POST'])
 def api_share_playlist():
     """
@@ -1873,6 +1924,89 @@ def api_get_shared_playlists(user_type):
         
     except Exception as e:
         log.error(f"Errore recuperando playlist condivise per {user_type}: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/discover_playlists_webscraping/<user_type>/<service>', methods=['POST'])
+def api_discover_playlists_webscraping(user_type, service):
+    """
+    API endpoint per scoprire playlist popolari usando web scraping.
+    
+    ATTENZIONE: Questa funzione usa web scraping che potrebbe violare i ToS di Spotify.
+    Usare solo per scopi educativi e di ricerca personale.
+    
+    Args:
+        user_type: 'main' o 'secondary'
+        service: 'spotify' o 'deezer' (solo spotify supportato per ora)
+    """
+    try:
+        if user_type not in ['main', 'secondary']:
+            return jsonify({"success": False, "error": "Invalid user type"}), 400
+        
+        if service not in ['spotify']:
+            return jsonify({"success": False, "error": "Web scraping only supported for Spotify"}), 400
+        
+        log.info(f"🌐 Inizio discovery web scraping per {user_type}/{service}")
+        
+        # Abilita temporaneamente il web scraping
+        os.environ['SPOTIFY_ENABLE_WEBSCRAPING'] = 'true'
+        
+        try:
+            if service == 'spotify':
+                from plex_playlist_sync.utils.spotify import discover_all_spotify_content, get_spotify_credentials
+                
+                # Ottieni credenziali Spotify
+                sp = get_spotify_credentials()
+                if not sp:
+                    return jsonify({"success": False, "error": "Spotify credentials not configured"}), 400
+                
+                # Ottieni user ID per Spotify
+                user_id = os.getenv('SPOTIFY_USER_ID', '')
+                
+                # Scopri contenuto con web scraping abilitato
+                spotify_content = discover_all_spotify_content(sp, user_id)
+                
+                # Salva nel database
+                from plex_playlist_sync.utils.database import save_discovered_playlists
+                
+                total_saved = 0
+                
+                # Salva playlist utente se presenti
+                if spotify_content.get('user_playlists'):
+                    save_discovered_playlists(user_type, 'spotify', spotify_content['user_playlists'], 'user')
+                    total_saved += len(spotify_content['user_playlists'])
+                
+                # Salva playlist popolari
+                if spotify_content.get('popular'):
+                    save_discovered_playlists(user_type, 'spotify', spotify_content['popular'], 'popular')
+                    total_saved += len(spotify_content['popular'])
+                
+                # Salva playlist curate se presenti
+                if spotify_content.get('featured'):
+                    save_discovered_playlists(user_type, 'spotify', spotify_content['featured'], 'editorial')
+                    total_saved += len(spotify_content['featured'])
+                
+                log.info(f"✅ Discovery web scraping completato: {total_saved} playlist salvate")
+                
+                return jsonify({
+                    "success": True,
+                    "total_discovered": total_saved,
+                    "message": f"Discovery web scraping completato con successo: {total_saved} playlist trovate",
+                    "details": {
+                        "user_playlists": len(spotify_content.get('user_playlists', [])),
+                        "popular_playlists": len(spotify_content.get('popular', [])),
+                        "featured_playlists": len(spotify_content.get('featured', []))
+                    }
+                })
+                
+        finally:
+            # Disabilita il web scraping dopo l'uso
+            os.environ['SPOTIFY_ENABLE_WEBSCRAPING'] = 'false'
+            
+    except Exception as e:
+        # Assicura che il web scraping sia disabilitato anche in caso di errore
+        os.environ['SPOTIFY_ENABLE_WEBSCRAPING'] = 'false'
+        
+        log.error(f"Errore durante discovery web scraping: {e}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
