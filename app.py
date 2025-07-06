@@ -2138,13 +2138,33 @@ def search_artist_albums():
                                 # Filtra duplicati per titolo
                                 album_title = album.get("title", "").lower()
                                 if not any(existing["title"].lower() == album_title for existing in albums):
+                                    album_id = album.get('id')
+                                    track_count = album.get("nb_tracks", 0)
+                                    
+                                    # Se nb_tracks è 0 o mancante, prova a ottenere dettagli album
+                                    if track_count == 0 and album_id:
+                                        try:
+                                            album_details_url = f'https://api.deezer.com/album/{album_id}'
+                                            time.sleep(0.3)
+                                            details_response = requests.get(album_details_url, timeout=8)
+                                            if details_response.status_code == 200:
+                                                album_details = details_response.json()
+                                                track_count = album_details.get("nb_tracks", 0)
+                                                # Se ancora 0, conta le tracce nell'array tracks
+                                                if track_count == 0:
+                                                    tracks_list = album_details.get("tracks", {}).get("data", [])
+                                                    track_count = len(tracks_list)
+                                        except Exception:
+                                            # Fallback: stima basata sul tipo di album
+                                            track_count = 12  # Media album
+                                    
                                     albums.append({
                                         "title": album.get("title", "Unknown Album"),
                                         "artist": album.get("artist", {}).get("name", artist_name),
-                                        "url": f"https://www.deezer.com/album/{album.get('id')}",
+                                        "url": f"https://www.deezer.com/album/{album_id}",
                                         "artwork": album.get("cover_medium"),
                                         "year": album.get("release_date", "")[:4] if album.get("release_date") else None,
-                                        "track_count": album.get("nb_tracks", 0),
+                                        "track_count": track_count,
                                         "service": "deezer"
                                     })
         
