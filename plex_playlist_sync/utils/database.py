@@ -243,6 +243,36 @@ def initialize_db():
                 cur.execute("ALTER TABLE missing_tracks ADD COLUMN source_playlist_id INTEGER;")
             except sqlite3.OperationalError:
                 pass # La colonna esiste già
+                
+            # Aggiungi colonne per il download diretto
+            try:
+                cur.execute("ALTER TABLE missing_tracks ADD COLUMN direct_download_id TEXT;")
+            except sqlite3.OperationalError:
+                pass # La colonna esiste già
+                
+            try:
+                cur.execute("ALTER TABLE missing_tracks ADD COLUMN direct_download_original_url TEXT;")
+            except sqlite3.OperationalError:
+                pass # La colonna esiste già
+                
+            # Aggiungi colonne per servizi e link deezer se non esistono
+            try:
+                cur.execute("ALTER TABLE missing_tracks ADD COLUMN source_service TEXT;")
+            except sqlite3.OperationalError:
+                pass # La colonna esiste già
+                
+            try:
+                cur.execute("ALTER TABLE missing_tracks ADD COLUMN deezer_link TEXT;")
+            except sqlite3.OperationalError:
+                pass # La colonna esiste già
+                
+            # Rinomina source_playlist_title a source_playlist per compatibilità
+            try:
+                cur.execute("ALTER TABLE missing_tracks ADD COLUMN source_playlist TEXT;")
+                # Copia i dati dalla vecchia colonna se esistono
+                cur.execute("UPDATE missing_tracks SET source_playlist = source_playlist_title WHERE source_playlist IS NULL")
+            except sqlite3.OperationalError:
+                pass # La colonna esiste già
             
             # Tabella per l'indice della libreria Plex
             cur.execute("""

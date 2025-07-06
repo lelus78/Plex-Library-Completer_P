@@ -20,6 +20,6 @@ services:
       - ./app.py:/app/app.py
       - ./.env:/app/.env
       - ./config.toml:/root/.config/streamrip/config.toml
-      # - m:/Organizzata:/music  # Libreria principale (commentato per testing)
-      - ./downloads:/downloads  # Downloads separati
+      - /mnt/m/organizzata:/downloads  # Downloads diretti alla libreria principale
+      # - ./downloads:/downloads  # Downloads separati (commentato)
     restart: on-failure

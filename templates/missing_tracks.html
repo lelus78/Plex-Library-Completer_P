@@ -87,6 +87,15 @@
     margin-bottom: 1.5rem;
 }
 
+.animate-spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
 .search-input {
     background: var(--bg-tertiary);
     border: 1px solid rgba(255,255,255,0.1);
@@ -164,6 +173,62 @@
                     <div class="fs-5 fw-bold" id="pending-count">{{ tracks|length }}</div>
                     <small class="text-secondary">{{ _('missing_tracks.filters.pending') }}</small>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Direct Download Section -->
+<div class="filter-section animate-slide-up" style="animation-delay: 0.15s;">
+    <div class="row">
+        <div class="col-12">
+            <h5 class="mb-3 d-flex align-items-center">
+                <i data-lucide="plus-circle" class="me-2" style="width: 20px; height: 20px; color: var(--spotify-green);"></i>
+                {{ _('missing_tracks.direct_download.title') }}
+            </h5>
+            
+            <!-- Campo Unificato Smart -->
+            <div class="row mb-3">
+                <div class="col-12">
+                    <div class="position-relative">
+                        <i data-lucide="search" class="position-absolute" style="left: 1rem; top: 50%; transform: translateY(-50%); width: 18px; height: 18px; color: var(--text-secondary);"></i>
+                        <input type="text" 
+                               class="search-input" 
+                               id="smartSearchInput" 
+                               placeholder="Inserisci un link (Spotify/Deezer/YouTube) per download diretto, oppure nome artista per cercare album..."
+                               style="padding-left: 3rem; padding-right: 8rem;">
+                        <div class="position-absolute" style="right: 0.5rem; top: 50%; transform: translateY(-50%);">
+                            <button class="btn btn-sm btn-success me-1" id="smartDownloadBtn" title="Download Diretto">
+                                <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                                Download
+                            </button>
+                            <button class="btn btn-sm btn-primary" id="smartSearchBtn" title="Cerca Album">
+                                <i data-lucide="search" style="width: 14px; height: 14px;"></i>
+                                Search
+                            </button>
+                        </div>
+                    </div>
+                    <small class="text-muted mt-1 d-block">
+                        💡 <strong>Download:</strong> Incolla link Spotify/Deezer/YouTube per download automatico | 
+                        <strong>Search:</strong> Scrivi nome artista per trovare album
+                    </small>
+                </div>
+            </div>
+            
+            <!-- Album Search Results -->
+            <div id="albumSearchResults" class="mt-4" style="display: none;">
+                <h6 class="mb-3 d-flex align-items-center">
+                    <i data-lucide="disc" class="me-2" style="width: 18px; height: 18px; color: var(--spotify-green);"></i>
+                    Album trovati
+                </h6>
+                <div id="albumResultsList" class="row">
+                    <!-- Album cards will be populated by JavaScript -->
+                </div>
+            </div>
+            
+            <!-- Status messages e feedback -->
+            <div id="directDownloadStatus" class="mt-3" style="display: none;">
+                <!-- Status messages will be shown here -->
             </div>
         </div>
     </div>
@@ -461,6 +526,85 @@
 .search-result-item:last-child {
   margin-bottom: 0;
 }
+
+.album-card {
+  background: var(--bg-tertiary);
+  border: 1px solid rgba(255,255,255,0.1);
+  border-radius: var(--radius-md);
+  transition: all var(--transition-fast);
+  overflow: hidden;
+  height: 100%;
+}
+
+.album-card:hover {
+  background: var(--bg-hover);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(0,0,0,0.3);
+}
+
+.album-artwork {
+  width: 100%;
+  height: 160px;
+  background: var(--gradient-card);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  overflow: hidden;
+}
+
+.album-artwork img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.album-artwork .placeholder-icon {
+  width: 48px;
+  height: 48px;
+  color: var(--text-secondary);
+}
+
+.album-info {
+  padding: 1rem;
+}
+
+.album-title {
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 0.5rem;
+  color: var(--text-primary);
+  line-height: 1.3;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.album-artist {
+  color: var(--text-secondary);
+  font-size: 0.8rem;
+  margin-bottom: 0.5rem;
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.album-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.75rem;
+  color: var(--text-secondary);
+  margin-bottom: 1rem;
+}
+
+.download-album-btn {
+  width: 100%;
+  font-size: 0.85rem;
+  padding: 0.5rem;
+}
 </style>
 
 {% endblock %}
@@ -558,6 +702,257 @@ $(document).ready(function() {
             
             autoDownloadTrack(trackId, trackTitle, trackArtist, $(this));
         });
+
+        // Smart download functionality
+        setupSmartDownload();
+    }
+
+    function setupSmartDownload() {
+        let albumResults = [];
+        let selectedResult = null;
+
+        // Download button - per link diretti
+        $('#smartDownloadBtn').on('click', function() {
+            const query = $('#smartSearchInput').val().trim();
+            
+            if (!query) {
+                showDirectDownloadMessage('Inserisci un link per il download diretto', 'warning');
+                return;
+            }
+
+            if (isValidStreamingUrl(query)) {
+                // Determina servizio e tipo dal URL
+                let service = 'unknown';
+                let contentType = 'track';
+                
+                if (query.includes('deezer.com')) {
+                    service = 'deezer';
+                    if (query.includes('/album/')) contentType = 'album';
+                    else if (query.includes('/artist/')) contentType = 'artist';
+                    else if (query.includes('/track/')) contentType = 'track';
+                } else if (query.includes('spotify.com')) {
+                    service = 'spotify';
+                    if (query.includes('/album/')) contentType = 'album';
+                    else if (query.includes('/artist/')) contentType = 'artist';
+                    else if (query.includes('/track/')) contentType = 'track';
+                } else if (query.includes('youtube.com') || query.includes('youtu.be')) {
+                    service = 'youtube';
+                    contentType = 'track';
+                }
+                
+                // Estrai ID dal URL
+                let urlId = 'unknown';
+                const urlMatch = query.match(/\/(track|album|artist)\/([^\/\?]+)/);
+                if (urlMatch) {
+                    urlId = urlMatch[2];
+                }
+                
+                // Download immediato
+                const downloadData = { 
+                    url: query, 
+                    type: contentType,
+                    service: service,
+                    title: `${service.charAt(0).toUpperCase() + service.slice(1)} ${contentType} ${urlId}`,
+                    artist: 'Direct Download'
+                };
+                
+                initiateDirectDownload(downloadData);
+            } else {
+                showDirectDownloadMessage('Link non valido. Supportati: Spotify, Deezer, YouTube', 'danger');
+            }
+        });
+
+        // Search button - per ricerca album di artisti
+        $('#smartSearchBtn').on('click', function() {
+            const query = $('#smartSearchInput').val().trim();
+            
+            if (!query) {
+                showDirectDownloadMessage('Inserisci il nome di un artista per cercare i suoi album', 'warning');
+                return;
+            }
+
+            if (!isValidStreamingUrl(query)) {
+                // È un nome artista, cerca album
+                searchArtistAlbums(query);
+            } else {
+                showDirectDownloadMessage('Per la ricerca album, inserisci il nome dell\'artista (non un link)', 'info');
+            }
+        });
+
+        // Clear search
+        $('#smartSearchInput').on('input', function() {
+            const query = $(this).val().trim();
+            if (!query) {
+                $('#albumSearchResults').hide();
+                $('#directDownloadStatus').hide();
+            }
+        });
+    }
+    
+    // Funzione per cercare album di un artista
+    function searchArtistAlbums(artistName) {
+        const btn = $('#smartSearchBtn');
+        const originalHtml = btn.html();
+        
+        btn.html('<i data-lucide="loader" class="me-2 animate-spin" style="width: 14px; height: 14px;"></i>Cercando...');
+        btn.prop('disabled', true);
+
+        $.ajax({
+            url: '/api/search_artist_albums',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                artist: artistName
+            }),
+            success: function(response) {
+                if (response.success && response.albums.length > 0) {
+                    displayAlbumResults(response.albums);
+                    showDirectDownloadMessage(`Trovati ${response.albums.length} album per "${artistName}"`, 'success');
+                } else {
+                    showDirectDownloadMessage(`Nessun album trovato per "${artistName}"`, 'warning');
+                    $('#albumSearchResults').hide();
+                }
+            },
+            error: function() {
+                showDirectDownloadMessage('Errore durante la ricerca album', 'danger');
+            },
+            complete: function() {
+                btn.html(originalHtml);
+                btn.prop('disabled', false);
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        });
+    }
+    
+    // Funzione per mostrare i risultati album
+    function displayAlbumResults(albums) {
+        const container = $('#albumResultsList');
+        container.empty();
+
+        albums.forEach((album, index) => {
+            const albumHtml = `
+                <div class="col-md-6 col-lg-4 col-xl-3 mb-4">
+                    <div class="album-card">
+                        <div class="album-artwork">
+                            ${album.artwork ? 
+                                `<img src="${album.artwork}" alt="${album.title}" loading="lazy">` : 
+                                `<i data-lucide="disc" class="placeholder-icon"></i>`
+                            }
+                        </div>
+                        <div class="album-info">
+                            <div class="album-title">${album.title}</div>
+                            <div class="album-artist">${album.artist}</div>
+                            <div class="album-meta">
+                                <span>${album.year || 'N/A'}</span>
+                                <span>${album.track_count || 0} tracce</span>
+                            </div>
+                            <button class="btn btn-success download-album-btn" 
+                                    data-album-url="${album.url}" 
+                                    data-album-title="${album.title}"
+                                    data-album-artist="${album.artist}">
+                                <i data-lucide="download" class="me-2" style="width: 16px; height: 16px;"></i>
+                                Scarica Album
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            container.append(albumHtml);
+        });
+
+        // Aggiungi event listener per i bottoni download
+        $('.download-album-btn').on('click', function() {
+            const albumUrl = $(this).data('album-url');
+            const albumTitle = $(this).data('album-title');
+            const albumArtist = $(this).data('album-artist');
+            
+            const downloadData = {
+                url: albumUrl,
+                type: 'album',
+                service: albumUrl.includes('deezer.com') ? 'deezer' : 'spotify',
+                title: albumTitle,
+                artist: albumArtist
+            };
+            
+            initiateDirectDownload(downloadData);
+        });
+
+        $('#albumSearchResults').show();
+        
+        // Aggiorna le icone
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+
+    function isValidStreamingUrl(url) {
+        const patterns = [
+            /^https?:\/\/(open\.)?spotify\.com\/(track|album|artist|playlist)\//,
+            /https?:\/\/(www\.)?deezer\.com\/([a-z]{2}\/)?(track|album|artist|playlist)/,
+            /^https?:\/\/(www\.)?youtube\.com\/watch\?v=/,
+            /^https?:\/\/youtu\.be\//,
+            /^https?:\/\/(www\.)?soundcloud\.com\//
+        ];
+        return patterns.some(pattern => pattern.test(url));
+    }
+
+    function initiateDirectDownload(result) {
+        const btn = $('#directDownloadBtn');
+        const originalHtml = btn.html();
+        
+        btn.html('<i data-lucide="loader" class="me-2 animate-spin" style="width: 16px; height: 16px;"></i>{{ _('common.downloading') }}...');
+        btn.prop('disabled', true);
+
+        $.ajax({
+            url: '/api/direct_download',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify(result),
+            success: function(response) {
+                if (response.success) {
+                    showDirectDownloadMessage(`{{ _('missing_tracks.direct_download.download_started') }}: ${result.title || result.url}`, 'success');
+                    
+                    // Clear the search after successful download
+                    setTimeout(() => {
+                        $('#clearSearchBtn').click();
+                    }, 2000);
+                } else {
+                    showDirectDownloadMessage(`{{ _('missing_tracks.direct_download.download_error') }}: ${response.error}`, 'danger');
+                }
+            },
+            error: function() {
+                showDirectDownloadMessage('{{ _('missing_tracks.direct_download.download_error_generic') }}', 'danger');
+            },
+            complete: function() {
+                btn.html(originalHtml);
+                btn.prop('disabled', false);
+                if (typeof lucide !== 'undefined') {
+                    lucide.createIcons();
+                }
+            }
+        });
+    }
+
+    function showDirectDownloadMessage(message, type) {
+        const statusDiv = $('#directDownloadStatus');
+        const alertClass = `alert-${type}`;
+        
+        statusDiv.html(`
+            <div class="alert ${alertClass} alert-dismissible fade show" role="alert">
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            </div>
+        `).show();
+        
+        // Auto-hide success messages
+        if (type === 'success' || type === 'info') {
+            setTimeout(() => {
+                statusDiv.find('.alert').alert('close');
+            }, 5000);
+        }
     }
 
     function filterTracks(searchTerm) {

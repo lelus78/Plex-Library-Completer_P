@@ -283,7 +283,7 @@ def find_tracks_free_search(search_query: str) -> List[Dict]:
 def _create_streamrip_config(config_path: str, deezer_arl: str):
     """Crea un file di configurazione base per streamrip con ARL di Deezer"""
     config_content = f"""[downloads]
-folder = "/music"
+folder = "/downloads"
 source_subdirectories = true
 
 [downloads.artwork]
@@ -320,6 +320,8 @@ def download_single_track_with_streamrip(link: str):
     """
     Lancia streamrip per scaricare un singolo URL.
     """
+    logging.info(f"🔧 DEBUG: Inizio download_single_track_with_streamrip per: {link}")
+    
     if not link:
         logging.info("Nessun link da scaricare fornito.")
         return
@@ -329,7 +331,11 @@ def download_single_track_with_streamrip(link: str):
     if not cleaned_link:
         logging.error("URL vuoto dopo la pulizia, download annullato.")
         return
+    
+    logging.info(f"🔧 DEBUG: URL pulito: {cleaned_link}")
 
+    logging.info(f"🔧 DEBUG: Verifico directory temp...")
+    
     # Assicura che la directory temp esista
     temp_dir = "/app/state_data"
     if not os.path.exists(temp_dir):
@@ -342,29 +348,36 @@ def download_single_track_with_streamrip(link: str):
             temp_dir = "."
     
     temp_links_file = f"{temp_dir}/temp_download_{int(time.time())}.txt"
+    logging.info(f"🔧 DEBUG: File temporaneo: {temp_links_file}")
     try:
         with open(temp_links_file, "w", encoding="utf-8") as f:
             f.write(f"{cleaned_link}\n")
         
         logging.info(f"Avvio del download con streamrip per il link: {cleaned_link}")
+        logging.info(f"🔧 DEBUG: Configuro path streamrip...")
         
         # Configura il path per streamrip usando directory con permessi corretti
         config_dir = "/app/state_data/.config/streamrip"
         config_path = os.path.join(config_dir, "config.toml")
+        logging.info(f"🔧 DEBUG: Config dir: {config_dir}")
         
         # Crea la directory di config se non esiste
         os.makedirs(config_dir, exist_ok=True)
         
         # Crea la directory Downloads se non esiste
-        downloads_dir = os.getenv("MUSIC_DOWNLOAD_PATH", "/music")  # Usa /music che è mappato a M:\Organizzata
+        downloads_dir = os.getenv("MUSIC_DOWNLOAD_PATH", "/downloads")  # Usa /downloads mappato via docker-compose
         os.makedirs(downloads_dir, exist_ok=True)
         
         # Controlla se esiste già un config.toml (backward compatibility)
-        # Prima controlla la copia con i permessi corretti
+        # Prima controlla la configurazione Docker-mounted
+        docker_config_path = "/root/.config/streamrip/config.toml"
         writable_config_path = "/app/state_data/config.toml"
         legacy_config_path = "/app/config.toml"
         
-        if os.path.exists(writable_config_path):
+        if os.path.exists(docker_config_path):
+            logging.info(f"✅ Utilizzando configurazione streamrip Docker-mounted: {docker_config_path}")
+            config_path = docker_config_path
+        elif os.path.exists(writable_config_path):
             logging.info(f"✅ Utilizzando configurazione streamrip esistente: {writable_config_path}")
             config_path = writable_config_path
         elif os.path.exists(legacy_config_path):
@@ -435,12 +448,26 @@ def download_single_track_with_streamrip(link: str):
         
         command = ["rip", "--config-path", config_path, "file", temp_links_file]
         
+        # Debug: log del comando e della configurazione
+        logging.info(f"🔧 DEBUG: Comando streamrip: {' '.join(command)}")
+        logging.info(f"🔧 DEBUG: Config path utilizzato: {config_path}")
+        try:
+            with open(config_path, 'r') as f:
+                config_content = f.read()
+                if '/music' in config_content:
+                    logging.error(f"🔧 DEBUG: TROVATO /music nel config file!")
+                if '/downloads' in config_content:
+                    logging.info(f"🔧 DEBUG: Config contiene /downloads (corretto)")
+        except Exception as e:
+            logging.error(f"🔧 DEBUG: Errore leggendo config: {e}")
+        
         # Retry logic per errori intermittenti (es. permission denied)
         max_retries = 2
         retry_count = 0
         
         while retry_count <= max_retries:
             try:
+                logging.info(f"🔧 DEBUG: Esecuzione comando streamrip (tentativo {retry_count + 1})...")
                 # Aggiungiamo un timeout per evitare che il processo si blocchi all'infinito
                 process = subprocess.run(command, capture_output=True, text=True, check=True, encoding='utf-8', timeout=1800, env=env)
                 logging.info(f"Download di {cleaned_link} completato con successo.")
@@ -472,8 +499,218 @@ def download_single_track_with_streamrip(link: str):
         if e.stdout: logging.error(f"Output Standard (stdout):\n{e.stdout}")
         if e.stderr: logging.error(f"Output di Errore (stderr):\n{e.stderr}")
     except Exception as e:
+        logging.error(f"🔧 DEBUG: Exception catturata nel download_single_track_with_streamrip")
+        logging.error(f"🔧 DEBUG: Tipo eccezione: {type(e).__name__}")
+        logging.error(f"🔧 DEBUG: Messaggio: {str(e)}")
         logging.error(f"Un errore imprevisto è occorso durante l'avvio di streamrip per {cleaned_link}: {e}")
+        import traceback
+        logging.error(f"🔧 DEBUG: Traceback completo:\n{traceback.format_exc()}")
     finally:
         if os.path.exists(temp_links_file):
             os.remove(temp_links_file)
             logging.info(f"File temporaneo di download rimosso: {temp_links_file}")
+
+def add_direct_download_to_queue(url: str, title: str, artist: str, service: str, content_type: str) -> str:
+    """
+    Aggiunge un download diretto alla coda utilizzando il sistema di missing tracks.
+    
+    Args:
+        url: URL del contenuto da scaricare
+        title: Titolo del contenuto
+        artist: Artista del contenuto
+        service: Servizio di origine (spotify, deezer, etc.)
+        content_type: Tipo di contenuto (track, album, artist)
+        
+    Returns:
+        ID del download creato
+    """
+    try:
+        from .database import get_db_connection
+        import uuid
+        
+        # Genera un ID unico per il download
+        download_id = str(uuid.uuid4())
+        
+        # Converte l'URL in un formato supportato da streamrip se necessario
+        download_url = convert_url_for_streamrip(url, service)
+        
+        if not download_url:
+            raise ValueError(f"URL non supportato o non convertibile: {url}")
+            
+        # Aggiungi alla tabella missing_tracks come un download diretto
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            # Controlla se esiste già un record simile
+            playlist_title = f"Direct {content_type.title()} Download"
+            cur.execute("""
+                SELECT id, status FROM missing_tracks 
+                WHERE title = ? AND artist = ? AND source_playlist_title = ?
+            """, (title, artist, playlist_title))
+            
+            existing = cur.fetchone()
+            
+            if existing:
+                track_id = existing[0]
+                existing_status = existing[1]
+                
+                if existing_status == 'downloaded':
+                    logging.info(f"Download già completato per: {title} - {artist} (ID: {track_id})")
+                    return download_id
+                elif existing_status == 'pending':
+                    logging.info(f"Download già in coda per: {title} - {artist} (ID: {track_id})")
+                    # Aggiorna solo l'URL se necessario
+                    cur.execute("""
+                        UPDATE missing_tracks 
+                        SET deezer_link = ?, direct_download_original_url = ?, direct_download_id = ?
+                        WHERE id = ?
+                    """, (download_url, url, download_id, track_id))
+                else:
+                    # Status è failed o missing, riprova
+                    logging.info(f"Riprovando download per: {title} - {artist} (ID: {track_id})")
+                    cur.execute("""
+                        UPDATE missing_tracks 
+                        SET deezer_link = ?, direct_download_original_url = ?, direct_download_id = ?, status = 'pending'
+                        WHERE id = ?
+                    """, (download_url, url, download_id, track_id))
+            else:
+                # Inserisci nuovo record
+                cur.execute("""
+                    INSERT INTO missing_tracks 
+                    (title, artist, album, source_playlist_title, source_playlist, source_service, deezer_link, status, direct_download_id, direct_download_original_url)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    title,
+                    artist,
+                    f"Direct Download ({content_type})" if content_type != 'track' else 'Direct Download',
+                    playlist_title,
+                    playlist_title,
+                    service,
+                    download_url,
+                    'pending',
+                    download_id,
+                    url
+                ))
+                
+                track_id = cur.lastrowid
+            
+        logging.info(f"Download diretto aggiunto alla coda: {title} - {artist} (ID: {download_id}, Track ID: {track_id})")
+        
+        # Aggiungi immediatamente alla coda di download per processamento
+        try:
+            # Avvia il download immediatamente
+            logging.info(f"Avvio download immediato per: {download_url}")
+            download_single_track_with_streamrip(download_url)
+            
+            # Aggiorna lo status a downloaded
+            from .database import update_track_status
+            update_track_status(track_id, 'downloaded')
+            logging.info(f"Download completato per: {title} - {artist}")
+            
+        except Exception as download_error:
+            logging.error(f"Errore durante download immediato: {download_error}")
+            # Lo status rimane 'pending' per retry successivi
+        
+        return download_id
+        
+    except Exception as e:
+        logging.error(f"Errore aggiungendo download diretto alla coda: {e}")
+        raise
+
+def convert_url_for_streamrip(url: str, service: str) -> str:
+    """
+    Converte un URL di streaming in un formato utilizzabile da streamrip.
+    
+    Args:
+        url: URL originale
+        service: Servizio di origine
+        
+    Returns:
+        URL convertito o None se non supportato
+    """
+    try:
+        # Deezer - le URL dirette sono già supportate
+        if 'deezer.com' in url:
+            return url
+            
+        # Spotify - streamrip non supporta Spotify direttamente
+        # Dovremmo cercare l'equivalente su Deezer
+        if 'spotify.com' in url:
+            logging.info(f"URL Spotify rilevato: {url} - tentando conversione a Deezer")
+            return search_equivalent_on_deezer(url)
+            
+        # YouTube - supportato da streamrip
+        if 'youtube.com' in url or 'youtu.be' in url:
+            return url
+            
+        # SoundCloud - supportato da streamrip  
+        if 'soundcloud.com' in url:
+            return url
+            
+        # Altri servizi non supportati
+        logging.warning(f"Servizio non supportato per URL: {url}")
+        return None
+        
+    except Exception as e:
+        logging.error(f"Errore convertendo URL {url}: {e}")
+        return None
+
+def search_equivalent_on_deezer(spotify_url: str) -> str:
+    """
+    Cerca l'equivalente di un contenuto Spotify su Deezer.
+    
+    Args:
+        spotify_url: URL Spotify da convertire
+        
+    Returns:
+        URL Deezer equivalente o None se non trovato
+    """
+    try:
+        from .spotify import get_spotify_credentials
+        from .deezer import search_deezer_content
+        import re
+        
+        # Estrai ID Spotify dall'URL
+        spotify_id_match = re.search(r'/(track|album|artist)/([a-zA-Z0-9]+)', spotify_url)
+        if not spotify_id_match:
+            return None
+            
+        content_type = spotify_id_match.group(1)
+        spotify_id = spotify_id_match.group(2)
+        
+        # Ottieni informazioni da Spotify
+        sp = get_spotify_credentials()
+        if not sp:
+            return None
+            
+        spotify_data = None
+        search_query = ""
+        
+        if content_type == 'track':
+            spotify_data = sp.track(spotify_id)
+            search_query = f"{spotify_data['name']} {spotify_data['artists'][0]['name']}"
+        elif content_type == 'album':
+            spotify_data = sp.album(spotify_id)
+            search_query = f"{spotify_data['name']} {spotify_data['artists'][0]['name']}"
+        elif content_type == 'artist':
+            spotify_data = sp.artist(spotify_id)
+            search_query = spotify_data['name']
+            
+        if not search_query:
+            return None
+            
+        # Cerca su Deezer
+        deezer_results = search_deezer_content(search_query, content_type)
+        
+        # Restituisci il primo risultato con alta rilevanza
+        for result in deezer_results:
+            if result.get('relevance', 0) > 50:  # Soglia di rilevanza
+                logging.info(f"Trovato equivalente Deezer per {spotify_url}: {result['url']}")
+                return result['url']
+                
+        logging.warning(f"Nessun equivalente Deezer trovato per {spotify_url}")
+        return None
+        
+    except Exception as e:
+        logging.error(f"Errore cercando equivalente Deezer per {spotify_url}: {e}")
+        return None

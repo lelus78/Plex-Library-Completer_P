@@ -2009,6 +2009,290 @@ def api_discover_playlists_webscraping(user_type, service):
         log.error(f"Errore durante discovery web scraping: {e}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
+@app.route('/api/direct_search', methods=['POST'])
+def direct_search():
+    """API endpoint per la ricerca diretta di brani/album/artisti."""
+    try:
+        data = request.get_json()
+        query = data.get('query', '').strip()
+        search_type = data.get('type', 'track')
+        
+        if not query:
+            return jsonify({"success": False, "error": "Query vuota"}), 400
+            
+        results = []
+        
+        # Importa le utility di ricerca
+        from plex_playlist_sync.utils.spotify import get_spotify_credentials
+        from plex_playlist_sync.utils.deezer import search_deezer_content
+        
+        # Ricerca su Spotify
+        try:
+            sp = get_spotify_credentials()
+            if sp:
+                spotify_results = search_spotify_content(sp, query, search_type)
+                results.extend(spotify_results)
+        except Exception as e:
+            log.warning(f"Errore ricerca Spotify: {e}")
+            
+        # Ricerca su Deezer
+        try:
+            deezer_results = search_deezer_content(query, search_type)
+            results.extend(deezer_results)
+        except Exception as e:
+            log.warning(f"Errore ricerca Deezer: {e}")
+            
+        # Ordina per rilevanza (priorità a tracce esatte)
+        if search_type == 'track':
+            results.sort(key=lambda x: x.get('relevance', 0), reverse=True)
+            
+        return jsonify({
+            "success": True,
+            "results": results[:20],  # Limita a 20 risultati
+            "total": len(results)
+        })
+        
+    except Exception as e:
+        log.error(f"Errore durante ricerca diretta: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/direct_download', methods=['POST'])
+def direct_download():
+    """API endpoint per avviare il download diretto di un contenuto."""
+    try:
+        data = request.get_json()
+        
+        # Estrai informazioni dal risultato
+        url = data.get('url')
+        title = data.get('title', 'Unknown')
+        artist = data.get('artist', 'Unknown')
+        service = data.get('service', 'unknown')
+        content_type = data.get('type', 'track')
+        
+        if not url:
+            return jsonify({"success": False, "error": "URL mancante"}), 400
+            
+        # Aggiungi alla coda di download
+        from plex_playlist_sync.utils.downloader import add_direct_download_to_queue
+        
+        download_id = add_direct_download_to_queue(
+            url=url,
+            title=title,
+            artist=artist,
+            service=service,
+            content_type=content_type
+        )
+        
+        log.info(f"Download diretto avviato: {title} - {artist} ({service}) - ID: {download_id}")
+        
+        return jsonify({
+            "success": True,
+            "download_id": download_id,
+            "message": f"Download avviato per: {title} - {artist}"
+        })
+        
+    except Exception as e:
+        log.error(f"Errore durante download diretto: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/search_artist_albums', methods=['POST'])
+def search_artist_albums():
+    """API endpoint per cercare album di un artista su Deezer e Spotify."""
+    try:
+        data = request.get_json()
+        artist_name = data.get('artist', '').strip()
+        
+        if not artist_name:
+            return jsonify({"success": False, "error": "Nome artista mancante"}), 400
+        
+        albums = []
+        
+        # Cerca su Deezer prima (supporta download diretto)
+        try:
+            import requests
+            import time
+            
+            # Cerca artista su Deezer
+            search_url = f'https://api.deezer.com/search/artist?q={artist_name}&limit=5'
+            time.sleep(0.5)
+            response = requests.get(search_url, timeout=10)
+            
+            if response.status_code == 200:
+                deezer_data = response.json()
+                
+                if deezer_data.get("data"):
+                    # Prendi il primo artista che corrisponde
+                    artist = deezer_data["data"][0]
+                    artist_id = artist.get("id")
+                    
+                    if artist_id:
+                        # Cerca album dell'artista
+                        albums_url = f'https://api.deezer.com/artist/{artist_id}/albums?limit=20'
+                        time.sleep(0.5)
+                        albums_response = requests.get(albums_url, timeout=10)
+                        
+                        if albums_response.status_code == 200:
+                            albums_data = albums_response.json()
+                            
+                            for album in albums_data.get("data", []):
+                                # Filtra duplicati per titolo
+                                album_title = album.get("title", "").lower()
+                                if not any(existing["title"].lower() == album_title for existing in albums):
+                                    albums.append({
+                                        "title": album.get("title", "Unknown Album"),
+                                        "artist": album.get("artist", {}).get("name", artist_name),
+                                        "url": f"https://www.deezer.com/album/{album.get('id')}",
+                                        "artwork": album.get("cover_medium"),
+                                        "year": album.get("release_date", "")[:4] if album.get("release_date") else None,
+                                        "track_count": album.get("nb_tracks", 0),
+                                        "service": "deezer"
+                                    })
+        
+        except Exception as e:
+            log.warning(f"Errore ricerca Deezer per artista '{artist_name}': {e}")
+        
+        # Se abbiamo meno di 10 album, prova anche Spotify
+        if len(albums) < 10:
+            try:
+                from plex_playlist_sync.utils.spotify import get_spotify_credentials
+                sp = get_spotify_credentials()
+                
+                if sp:
+                    spotify_results = sp.search(q=f'artist:{artist_name}', type='album', limit=20)
+                    
+                    for album in spotify_results.get('albums', {}).get('items', []):
+                        album_title = album.get("name", "").lower()
+                        # Evita duplicati e album già trovati su Deezer
+                        if not any(existing["title"].lower() == album_title for existing in albums):
+                            albums.append({
+                                "title": album.get("name", "Unknown Album"),
+                                "artist": album.get("artists", [{}])[0].get("name", artist_name),
+                                "url": album.get("external_urls", {}).get("spotify", f"https://open.spotify.com/album/{album.get('id')}"),
+                                "artwork": album.get("images", [{}])[0].get("url") if album.get("images") else None,
+                                "year": album.get("release_date", "")[:4] if album.get("release_date") else None,
+                                "track_count": album.get("total_tracks", 0),
+                                "service": "spotify"
+                            })
+                            
+            except Exception as e:
+                log.warning(f"Errore ricerca Spotify per artista '{artist_name}': {e}")
+        
+        # Ordina per anno (più recenti prima) e rimuovi duplicati
+        albums.sort(key=lambda x: int(x["year"]) if x["year"] and x["year"].isdigit() else 0, reverse=True)
+        
+        log.info(f"Trovati {len(albums)} album per artista '{artist_name}'")
+        
+        return jsonify({
+            "success": True,
+            "albums": albums[:15],  # Limita a 15 risultati
+            "artist": artist_name
+        })
+        
+    except Exception as e:
+        log.error(f"Errore durante ricerca album artista: {e}", exc_info=True)
+        return jsonify({"success": False, "error": str(e)}), 500
+
+def search_spotify_content(sp, query, search_type):
+    """Cerca contenuti su Spotify."""
+    results = []
+    
+    try:
+        # Mappa i tipi di ricerca
+        spotify_types = {
+            'track': 'track',
+            'album': 'album', 
+            'artist': 'artist'
+        }
+        
+        spotify_type = spotify_types.get(search_type, 'track')
+        
+        # Esegui la ricerca
+        search_results = sp.search(q=query, type=spotify_type, limit=10)
+        
+        # Processa i risultati
+        items = search_results.get(f'{spotify_type}s', {}).get('items', [])
+        
+        for item in items:
+            if search_type == 'track':
+                result = {
+                    'service': 'spotify',
+                    'type': 'track',
+                    'url': item['external_urls']['spotify'],
+                    'title': item['name'],
+                    'artist': ', '.join([artist['name'] for artist in item['artists']]),
+                    'album': item['album']['name'] if item.get('album') else '',
+                    'artwork': item['album']['images'][0]['url'] if item.get('album', {}).get('images') else None,
+                    'relevance': calculate_relevance(query, item['name'], item['artists'][0]['name'])
+                }
+            elif search_type == 'album':
+                result = {
+                    'service': 'spotify',
+                    'type': 'album',
+                    'url': item['external_urls']['spotify'],
+                    'title': item['name'],
+                    'artist': ', '.join([artist['name'] for artist in item['artists']]),
+                    'album': item['name'],
+                    'artwork': item['images'][0]['url'] if item.get('images') else None,
+                    'relevance': calculate_relevance(query, item['name'], item['artists'][0]['name'])
+                }
+            elif search_type == 'artist':
+                result = {
+                    'service': 'spotify',
+                    'type': 'artist',
+                    'url': item['external_urls']['spotify'],
+                    'title': item['name'],
+                    'artist': item['name'],
+                    'album': '',
+                    'artwork': item['images'][0]['url'] if item.get('images') else None,
+                    'relevance': calculate_relevance(query, item['name'], '')
+                }
+                
+            results.append(result)
+            
+    except Exception as e:
+        log.warning(f"Errore ricerca Spotify: {e}")
+        
+    return results
+
+def calculate_relevance(query, title, artist):
+    """Calcola la rilevanza di un risultato rispetto alla query."""
+    query_lower = query.lower()
+    title_lower = title.lower()
+    artist_lower = artist.lower()
+    
+    # Punteggio base
+    score = 0
+    
+    # Match esatto del titolo
+    if query_lower == title_lower:
+        score += 100
+    elif query_lower in title_lower:
+        score += 50
+    elif any(word in title_lower for word in query_lower.split()):
+        score += 25
+        
+    # Match dell'artista
+    if query_lower == artist_lower:
+        score += 80
+    elif query_lower in artist_lower:
+        score += 40
+    elif any(word in artist_lower for word in query_lower.split()):
+        score += 20
+        
+    # Match di parole multiple nella query
+    query_words = query_lower.split()
+    if len(query_words) > 1:
+        title_words = title_lower.split()
+        artist_words = artist_lower.split()
+        
+        for word in query_words:
+            if word in title_words:
+                score += 10
+            if word in artist_words:
+                score += 8
+                
+    return score
+
 if __name__ == '__main__':
     log.info("Avvio dell'applicazione Flask...")
     scheduler_thread = threading.Thread(target=background_scheduler, daemon=True)

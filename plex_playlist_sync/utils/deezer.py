@@ -488,3 +488,125 @@ def discover_all_deezer_curated_content(country: str = 'IT') -> dict:
     except Exception as e:
         logging.error(f"❌ Errore durante discovery contenuto curato Deezer: {e}")
         return curated_content
+
+def search_deezer_content(query: str, search_type: str = 'track') -> List[dict]:
+    """
+    Cerca contenuti su Deezer usando l'API pubblica.
+    
+    Args:
+        query: Termine di ricerca
+        search_type: Tipo di contenuto ('track', 'album', 'artist')
+        
+    Returns:
+        Lista di risultati formattati
+    """
+    results = []
+    
+    try:
+        # Mappa i tipi di ricerca
+        deezer_endpoints = {
+            'track': '/search/track',
+            'album': '/search/album',
+            'artist': '/search/artist'
+        }
+        
+        endpoint = deezer_endpoints.get(search_type, '/search/track')
+        url = f"{DEEZER_API_URL}{endpoint}"
+        
+        # Parametri di ricerca
+        params = {
+            'q': query,
+            'limit': 10
+        }
+        
+        response = requests.get(url, params=params)
+        response.raise_for_status()
+        data = response.json()
+        
+        if 'error' in data:
+            logging.warning(f"Deezer API error: {data['error']['message']}")
+            return results
+            
+        # Processa i risultati
+        items = data.get('data', [])
+        
+        for item in items:
+            if search_type == 'track':
+                result = {
+                    'service': 'deezer',
+                    'type': 'track',
+                    'url': item['link'],
+                    'title': item['title'],
+                    'artist': item['artist']['name'],
+                    'album': item['album']['title'] if item.get('album') else '',
+                    'artwork': item['album']['cover_medium'] if item.get('album') else None,
+                    'relevance': calculate_deezer_relevance(query, item['title'], item['artist']['name'])
+                }
+            elif search_type == 'album':
+                result = {
+                    'service': 'deezer',
+                    'type': 'album',
+                    'url': item['link'],
+                    'title': item['title'],
+                    'artist': item['artist']['name'],
+                    'album': item['title'],
+                    'artwork': item['cover_medium'] if item.get('cover_medium') else None,
+                    'relevance': calculate_deezer_relevance(query, item['title'], item['artist']['name'])
+                }
+            elif search_type == 'artist':
+                result = {
+                    'service': 'deezer',
+                    'type': 'artist',
+                    'url': item['link'],
+                    'title': item['name'],
+                    'artist': item['name'],
+                    'album': '',
+                    'artwork': item['picture_medium'] if item.get('picture_medium') else None,
+                    'relevance': calculate_deezer_relevance(query, item['name'], '')
+                }
+                
+            results.append(result)
+            
+    except Exception as e:
+        logging.warning(f"Errore ricerca Deezer: {e}")
+        
+    return results
+
+def calculate_deezer_relevance(query: str, title: str, artist: str) -> int:
+    """Calcola la rilevanza di un risultato Deezer rispetto alla query."""
+    query_lower = query.lower()
+    title_lower = title.lower()
+    artist_lower = artist.lower()
+    
+    # Punteggio base
+    score = 0
+    
+    # Match esatto del titolo
+    if query_lower == title_lower:
+        score += 100
+    elif query_lower in title_lower:
+        score += 50
+    elif any(word in title_lower for word in query_lower.split()):
+        score += 25
+        
+    # Match dell'artista
+    if query_lower == artist_lower:
+        score += 80
+    elif query_lower in artist_lower:
+        score += 40
+    elif any(word in artist_lower for word in query_lower.split()):
+        score += 20
+        
+    # Match di parole multiple nella query
+    query_words = query_lower.split()
+    if len(query_words) > 1:
+        title_words = title_lower.split()
+        artist_words = artist_lower.split()
+        
+        for word in query_words:
+            if word in title_words:
+                score += 10
+            if word in artist_words:
+                score += 8
+                
+    return score
