@@ -8,15 +8,7 @@ from spotipy.exceptions import SpotifyException
 from spotipy.oauth2 import SpotifyClientCredentials
 from plexapi.server import PlexServer
 
-# Web scraping imports
-from selenium import webdriver
-from selenium.webdriver.chrome.options import Options
-from selenium.webdriver.common.by import By
-from selenium.webdriver.support.ui import WebDriverWait
-from selenium.webdriver.support import expected_conditions as EC
-from webdriver_manager.chrome import ChromeDriverManager
-from selenium.webdriver.chrome.service import Service
-from bs4 import BeautifulSoup
+# Web scraping imports (only regex needed for URL parsing)
 import re
 
 from .helperClasses import Playlist, Track, UserInputs

@@ -11,17 +11,24 @@ from dotenv import load_dotenv
 from spotipy.oauth2 import SpotifyClientCredentials
 import spotipy
 
+# Logger specifico per il modulo di sincronizzazione
 logger = logging.getLogger(__name__)
 
 def check_stop_flag():
-    """Check if operation should be stopped (for Flask integration)"""
+    """
+    Verifica se l'operazione corrente deve essere interrotta dall'utente.
+    Supporta sia contesto Flask che esecuzione standalone.
+    
+    Returns:
+        bool: True se l'operazione deve essere fermata, False altrimenti
+    """
     try:
-        # Import here to avoid circular imports
+        # Prova a ottenere lo stato dall'app Flask corrente
         from flask import current_app
         if hasattr(current_app, 'app_state'):
             return current_app.app_state.get("stop_requested", False)
     except:
-        # If not in Flask context, check global variable (for background tasks)
+        # Se non siamo in contesto Flask, controlla la variabile globale
         try:
             import sys
             if hasattr(sys.modules.get('app'), 'app_state'):
@@ -30,16 +37,22 @@ def check_stop_flag():
             pass
     return False
 
-# Global variable to store app_state reference for background tasks
+# Variabile globale per memorizzare riferimento allo stato app per task in background
 _app_state_ref = None
 
 def set_app_state_ref(app_state):
-    """Set global app_state reference for background tasks"""
+    """
+    Imposta il riferimento globale allo stato dell'app per task in background.
+    Necessario per permettere l'interruzione delle operazioni lunghe.
+    """
     global _app_state_ref
     _app_state_ref = app_state
 
 def check_stop_flag_direct():
-    """Direct check for stop flag using global reference"""
+    """
+    Controllo diretto del flag di stop usando il riferimento globale.
+    Più veloce di check_stop_flag() per operazioni intensive.
+    """
     global _app_state_ref
     if _app_state_ref:
         return _app_state_ref.get("stop_requested", False)

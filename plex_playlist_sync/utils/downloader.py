@@ -615,6 +615,11 @@ def add_direct_download_to_queue(url: str, title: str, artist: str, service: str
     try:
         from .database import get_db_connection
         import uuid
+        import re
+        
+        # Pulisci l'URL da caratteri Unicode invisibili
+        url = url.strip()
+        url = re.sub(r'[\u200B-\u200D\uFEFF\u2060]', '', url)  # Rimuovi caratteri Unicode invisibili
         
         # Genera un ID unico per il download
         download_id = str(uuid.uuid4())
@@ -728,7 +733,20 @@ def convert_url_for_streamrip(url: str, service: str) -> str:
         # Dovremmo cercare l'equivalente su Deezer
         if 'spotify.com' in url:
             logging.info(f"URL Spotify rilevato: {url} - tentando conversione a Deezer")
-            return search_equivalent_on_deezer(url)
+            deezer_url = search_equivalent_on_deezer(url)
+            if deezer_url:
+                return deezer_url
+            else:
+                # Fallback: prova a convertire track ID in un URL Deezer generico
+                import re
+                spotify_id_match = re.search(r'/(track|album|artist)/([a-zA-Z0-9]+)', url)
+                if spotify_id_match:
+                    content_type = spotify_id_match.group(1)
+                    spotify_id = spotify_id_match.group(2)
+                    logging.warning(f"Conversione fallita, creando URL generico per {content_type} {spotify_id}")
+                    # Restituisce l'URL originale - streamrip potrebbe gestirlo in futuro
+                    return url
+                return None
             
         # YouTube - supportato da streamrip
         if 'youtube.com' in url or 'youtu.be' in url:
@@ -761,17 +779,22 @@ def search_equivalent_on_deezer(spotify_url: str) -> str:
         from .deezer import search_deezer_content
         import re
         
+        logging.info(f"Tentando conversione Spotify->Deezer per: {spotify_url}")
+        
         # Estrai ID Spotify dall'URL
         spotify_id_match = re.search(r'/(track|album|artist)/([a-zA-Z0-9]+)', spotify_url)
         if not spotify_id_match:
+            logging.warning(f"Impossibile estrarre ID Spotify da URL: {spotify_url}")
             return None
             
         content_type = spotify_id_match.group(1)
         spotify_id = spotify_id_match.group(2)
+        logging.info(f"Estratto: tipo={content_type}, id={spotify_id}")
         
         # Ottieni informazioni da Spotify
         sp = get_spotify_credentials()
         if not sp:
+            logging.error("Impossibile ottenere credenziali Spotify")
             return None
             
         spotify_data = None
@@ -788,20 +811,28 @@ def search_equivalent_on_deezer(spotify_url: str) -> str:
             search_query = spotify_data['name']
             
         if not search_query:
+            logging.warning(f"Impossibile creare query di ricerca per {content_type} {spotify_id}")
             return None
             
+        logging.info(f"Query di ricerca Deezer: {search_query}")
+        
         # Cerca su Deezer
         deezer_results = search_deezer_content(search_query, content_type)
+        logging.info(f"Trovati {len(deezer_results)} risultati Deezer")
         
         # Restituisci il primo risultato con alta rilevanza
         for result in deezer_results:
-            if result.get('relevance', 0) > 50:  # Soglia di rilevanza
+            relevance = result.get('relevance', 0)
+            logging.info(f"Risultato: {result['title']} - {result['artist']} (rilevanza: {relevance})")
+            if relevance > 50:  # Soglia di rilevanza
                 logging.info(f"Trovato equivalente Deezer per {spotify_url}: {result['url']}")
                 return result['url']
                 
-        logging.warning(f"Nessun equivalente Deezer trovato per {spotify_url}")
+        logging.warning(f"Nessun equivalente Deezer trovato per {spotify_url} (rilevanza insufficiente)")
         return None
         
     except Exception as e:
         logging.error(f"Errore cercando equivalente Deezer per {spotify_url}: {e}")
+        import traceback
+        logging.error(traceback.format_exc())
         return None

@@ -13,10 +13,12 @@ from plexapi.server import PlexServer
 from plexapi.exceptions import NotFound
 from plexapi.audio import Track
 
-# Carica le variabili dal file .env montato via Docker
+# Carica le variabili di ambiente dal file .env montato via Docker
+# Questo file contiene credenziali API, configurazioni Plex e feature flags
 load_dotenv('/app/.env')
 
 # --- Configurazione del Logging Centralizzato ---
+# Log sia su file che console per debugging e monitoraggio
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(name)s -[%(levelname)s] - %(message)s",
@@ -42,24 +44,26 @@ from plex_playlist_sync.utils.helperClasses import UserInputs
 from plex_playlist_sync.utils.database import (
     initialize_db, get_missing_tracks, update_track_status, get_missing_track_by_id, 
     add_managed_ai_playlist, get_managed_ai_playlists_for_user, delete_managed_ai_playlist, get_managed_playlist_details,
-    delete_all_missing_tracks, delete_missing_track, check_track_in_index, comprehensive_track_verification, get_library_index_stats,
+    delete_all_missing_tracks, delete_missing_track, check_track_in_index_smart, comprehensive_track_verification, get_library_index_stats,
     clean_tv_content_from_missing_tracks, clean_resolved_missing_tracks, add_missing_track_if_not_exists,
     get_total_selected_playlists_count, share_playlist_with_user, get_shared_playlists, get_user_playlist_selections_with_sharing,
-    check_album_in_index
+    check_album_in_library
 )
 from plex_playlist_sync.utils.downloader import DeezerLinkFinder, download_single_track_with_streamrip, find_potential_tracks, find_tracks_free_search
 from plex_playlist_sync.utils.i18n import init_i18n_for_app, translate_status
 from plex_playlist_sync.utils.file_watcher import watcher_manager
 
+# Inizializza il database SQLite con le tabelle necessarie
 initialize_db()
 
+# Inizializza l'applicazione Flask
 app = Flask(__name__, template_folder='templates')
 app.secret_key = os.getenv("FLASK_SECRET_KEY", "una-chiave-segreta-casuale-e-robusta")
 
-# Initialize i18n service
+# Inizializza il sistema di internazionalizzazione (i18n) per supporto multilingua
 init_i18n_for_app(app)
 
-# Initialize music library watcher
+# Inizializza il file system watcher per monitoraggio automatico della libreria musicale
 def initialize_music_watcher():
     """Inizializza il file system watcher per la libreria musicale"""
     try:
@@ -86,16 +90,26 @@ def initialize_music_watcher():
     except Exception as e:
         log.error(f"❌ Errore inizializzazione Music Watcher: {e}")
 
-# Inizializza il watcher in modo sincrono
+# Inizializza il watcher in modo sincrono all'avvio dell'applicazione
 initialize_music_watcher()
 
-app_state = { "status": "In attesa", "last_sync": "Mai eseguito", "is_running": False, "stop_requested": False }
+# Stato globale dell'applicazione per coordinamento tra thread
+app_state = { 
+    "status": "In attesa", 
+    "last_sync": "Mai eseguito", 
+    "is_running": False, 
+    "stop_requested": False 
+}
 
-# Coda per i download e ThreadPoolExecutor per l'esecuzione parallela
+# Sistema di download asincrono: coda thread-safe + pool di worker
 download_queue = queue.Queue()
-download_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2) # Ridotto a 2 per evitare sovraccarico
+download_executor = concurrent.futures.ThreadPoolExecutor(max_workers=2) # Limitato per evitare sovraccarico sistema
 
 def download_worker():
+    """
+    Worker thread per l'elaborazione asincrona dei download musicali.
+    Processa elementi dalla coda download_queue fino a ricevere sentinella None.
+    """
     while True:
         track_info = download_queue.get()
         if track_info is None: # Sentinella per terminare il worker
@@ -112,7 +126,11 @@ def download_worker():
             download_queue.task_done()
 
 def background_scheduler():
-    wait_seconds = int(os.getenv("SECONDS_TO_WAIT", 86400))
+    """
+    Scheduler di background per l'esecuzione automatica della sincronizzazione.
+    Rispetta il flag AUTO_SYNC_ENABLED e l'intervallo SECONDS_TO_WAIT configurato.
+    """
+    wait_seconds = int(os.getenv("SECONDS_TO_WAIT", 86400))  # Default: 24 ore
     auto_sync_enabled = os.getenv("AUTO_SYNC_ENABLED", "0") == "1"
     
     if not auto_sync_enabled:
@@ -137,8 +155,19 @@ def background_scheduler():
         time.sleep(wait_seconds)
 
 def run_task_in_background(trigger_type, target_function, *args):
+    """
+    Esegue una funzione di sincronizzazione in background thread.
+    Gestisce lo stato dell'applicazione e i segnali di stop dall'utente.
+    
+    Args:
+        trigger_type: Tipo di trigger ('Manuale', 'Automatica', etc.)
+        target_function: Funzione da eseguire (run_full_sync_cycle, build_library_index, etc.)
+        *args: Argomenti aggiuntivi per la funzione target
+    """
     app_state["is_running"] = True
-    app_state["stop_requested"] = False  # Reset stop flag
+    app_state["stop_requested"] = False  # Reset flag di stop
+    
+    # Alcune funzioni richiedono app_state come primo parametro per controllo stop
     task_args = (app_state,) + args if target_function in [build_library_index, run_full_sync_cycle] else args
     app_state["status"] = f"Operazione ({trigger_type}) in corso..."
     try:
@@ -1213,8 +1242,8 @@ def search_plex_manual():
         plex = PlexServer(plex_url, user_token, timeout=120)
         # Import timeout wrapper for safe search
         from plex_playlist_sync.utils.plex import _search_with_timeout
-        results = _search_with_timeout(plex, query, limit=15, timeout_seconds=45)
-        return jsonify([{'title': r.title, 'artist': r.grandparentTitle, 'album': r.parentTitle, 'ratingKey': r.ratingKey} for r in results if isinstance(r, Track)])
+        results = _search_with_timeout(plex, query, limit=16, timeout_seconds=45)
+        return jsonify([{'title': r.title, 'artist': getattr(r, 'grandparentTitle', 'Unknown Artist'), 'album': getattr(r, 'parentTitle', 'Unknown Album'), 'ratingKey': r.ratingKey} for r in results if hasattr(r, 'title') and hasattr(r, 'TYPE') and r.TYPE == 'track'])
     except Exception as e:
         log.error(f"Errore ricerca manuale Plex: {e}")
         return jsonify({"error": "Errore server durante la ricerca."}), 500
@@ -1274,6 +1303,245 @@ def search_deezer_free():
     query = request.args.get('query')
     if not query: return jsonify({"error": "Query di ricerca richiesta"}), 400
     return jsonify(find_tracks_free_search(query))
+
+@app.route('/api/search_universal', methods=['POST'])
+def search_universal():
+    """
+    API endpoint per ricerca universale: supporta tracce, album e artisti.
+    Cerca su Plex, Deezer e Spotify in base al tipo di query.
+    """
+    try:
+        data = request.get_json()
+        query = data.get('query', '').strip()
+        search_type = data.get('type', 'auto')  # auto, track, album, artist
+        
+        if not query:
+            return jsonify({"success": False, "error": "Query di ricerca mancante"}), 400
+        
+        results = {
+            "tracks": [],
+            "albums": [],
+            "artists": []
+        }
+        
+        # Rimozione ricerca Plex - non necessaria per trovare nuovi contenuti
+        
+        # Import funzioni database per verifica presenza
+        from plex_playlist_sync.utils.database import check_track_in_index_smart, check_album_in_library
+        
+        # Ricerca su Spotify PRIMA (per debug)
+        try:
+            from plex_playlist_sync.utils.spotify import get_spotify_credentials
+            sp = get_spotify_credentials()
+            log.info(f"🔍 Spotify credentials obtained: {sp is not None}")
+            
+            if sp:
+                log.info(f"🎵 Spotify search starting for query: '{query}', type: '{search_type}'")
+                
+                # Ricerca tracce Spotify
+                if search_type in ['auto', 'track']:
+                    log.info(f"🎵 Searching Spotify tracks...")
+                    try:
+                        spotify_results = sp.search(q=query, type='track', limit=25)
+                        log.info(f"🎵 Spotify tracks found: {len(spotify_results.get('tracks', {}).get('items', []))}")
+                        
+                        for track in spotify_results.get('tracks', {}).get('items', []):
+                            title = track.get("name", "Unknown Track")
+                            artist = track.get("artists", [{}])[0].get("name", "Unknown Artist")
+                            album = track.get("album", {}).get("name", "Unknown Album")
+                            
+                            # Check if track is in library (same logic as Deezer)
+                            in_library = False
+                            try:
+                                in_library = check_track_in_index_smart(title, artist, album)
+                            except Exception as e:
+                                log.debug(f"Library check failed for Spotify track {title}: {e}")
+                            
+                            results["tracks"].append({
+                                "title": title,
+                                "artist": artist,
+                                "album": album,
+                                "url": track.get("external_urls", {}).get("spotify", ""),
+                                "artwork": track.get("album", {}).get("images", [{}])[0].get("url") if track.get("album", {}).get("images") else None,
+                                "duration": track.get("duration_ms", 0) // 1000,
+                                "popularity": track.get("popularity", 0),
+                                "service": "spotify",
+                                "in_library": in_library
+                            })
+                    except Exception as e:
+                        log.error(f"❌ Errore Spotify tracks: {e}")
+                
+                # Ricerca album Spotify  
+                if search_type in ['auto', 'album']:
+                    log.info(f"💿 Searching Spotify albums...")
+                    try:
+                        spotify_results = sp.search(q=query, type='album', limit=25)
+                        log.info(f"💿 Spotify albums found: {len(spotify_results.get('albums', {}).get('items', []))}")
+                        
+                        for album in spotify_results.get('albums', {}).get('items', []):
+                            album_title = album.get("name", "Unknown Album")
+                            artist_name = album.get("artists", [{}])[0].get("name", "Unknown Artist")
+                            
+                            # Check if album is in library (same logic as Deezer)
+                            in_library = False
+                            try:
+                                in_library = check_album_in_library(album_title, artist_name, auto_sync=True)
+                            except Exception as e:
+                                log.debug(f"Library check failed for Spotify album {album_title}: {e}")
+                            
+                            results["albums"].append({
+                                "title": album_title,
+                                "artist": artist_name,
+                                "url": album.get("external_urls", {}).get("spotify", ""),
+                                "artwork": album.get("images", [{}])[0].get("url") if album.get("images") else None,
+                                "year": album.get("release_date", "")[:4] if album.get("release_date") else None,
+                                "track_count": album.get("total_tracks", 0),
+                                "popularity": album.get("popularity", 0),
+                                "service": "spotify",
+                                "in_library": in_library
+                            })
+                    except Exception as e:
+                        log.error(f"❌ Errore Spotify albums: {e}")
+                
+                # Ricerca artisti Spotify
+                if search_type in ['auto', 'artist']:
+                    log.info(f"👤 Searching Spotify artists...")
+                    try:
+                        spotify_results = sp.search(q=query, type='artist', limit=25)
+                        log.info(f"👤 Spotify artists found: {len(spotify_results.get('artists', {}).get('items', []))}")
+                        
+                        for artist in spotify_results.get('artists', {}).get('items', []):
+                            results["artists"].append({
+                                "name": artist.get("name", "Unknown Artist"),
+                                "url": artist.get("external_urls", {}).get("spotify", ""),
+                                "artwork": artist.get("images", [{}])[0].get("url") if artist.get("images") else None,
+                                "followers": artist.get("followers", {}).get("total", 0),
+                                "genres": artist.get("genres", []),
+                                "service": "spotify"
+                            })
+                    except Exception as e:
+                        log.error(f"❌ Errore Spotify artists: {e}")
+                
+                log.info(f"🎵 Spotify search completed successfully")
+            else:
+                log.warning(f"❌ Spotify credentials not available")
+                        
+        except Exception as e:
+            log.error(f"❌ Errore ricerca Spotify per '{query}': {e}")
+            import traceback
+            log.error(f"❌ Spotify error traceback: {traceback.format_exc()}")
+        
+        # Ricerca su Deezer
+        try:
+            import requests
+            import time
+            
+            # Ricerca tracce
+            if search_type in ['auto', 'track']:
+                search_url = f'https://api.deezer.com/search/track?q={query}&limit=25'
+                time.sleep(0.3)
+                response = requests.get(search_url, timeout=10)
+                
+                if response.status_code == 200:
+                    deezer_data = response.json()
+                    for track in deezer_data.get("data", []):
+                        # Verifica presenza nel database
+                        title = track.get("title", "Unknown Track")
+                        artist = track.get("artist", {}).get("name", "Unknown Artist")
+                        album = track.get("album", {}).get("title", "Unknown Album")
+                        
+                        in_library = False
+                        try:
+                            in_library = check_track_in_index_smart(title, artist)
+                        except Exception:
+                            pass
+                        
+                        results["tracks"].append({
+                            "title": title,
+                            "artist": artist,
+                            "album": album,
+                            "url": f"https://www.deezer.com/track/{track.get('id')}",
+                            "artwork": track.get("album", {}).get("cover_medium"),
+                            "duration": track.get("duration", 0),
+                            "rank": track.get("rank", 0),
+                            "service": "deezer",
+                            "in_library": in_library
+                        })
+            
+            # Ricerca album
+            if search_type in ['auto', 'album']:
+                search_url = f'https://api.deezer.com/search/album?q={query}&limit=25'
+                time.sleep(0.3)
+                response = requests.get(search_url, timeout=10)
+                
+                if response.status_code == 200:
+                    deezer_data = response.json()
+                    for album in deezer_data.get("data", []):
+                        # Verifica presenza album nel database
+                        album_title = album.get("title", "Unknown Album")
+                        artist_name = album.get("artist", {}).get("name", "Unknown Artist")
+                        
+                        in_library = False
+                        try:
+                            in_library = check_album_in_library(album_title, artist_name, auto_sync=True)
+                        except Exception:
+                            pass
+                        
+                        results["albums"].append({
+                            "title": album_title,
+                            "artist": artist_name,
+                            "url": f"https://www.deezer.com/album/{album.get('id')}",
+                            "artwork": album.get("cover_medium"),
+                            "year": album.get("release_date", "")[:4] if album.get("release_date") else None,
+                            "track_count": album.get("nb_tracks", 0),
+                            "fans": album.get("fans", 0),
+                            "service": "deezer",
+                            "in_library": in_library
+                        })
+            
+            # Ricerca artisti
+            if search_type in ['auto', 'artist']:
+                search_url = f'https://api.deezer.com/search/artist?q={query}&limit=25'
+                time.sleep(0.3)
+                response = requests.get(search_url, timeout=10)
+                
+                if response.status_code == 200:
+                    deezer_data = response.json()
+                    for artist in deezer_data.get("data", []):
+                        results["artists"].append({
+                            "name": artist.get("name", "Unknown Artist"),
+                            "url": f"https://www.deezer.com/artist/{artist.get('id')}",
+                            "artwork": artist.get("picture_medium"),
+                            "albums_count": artist.get("nb_album", 0),
+                            "fans": artist.get("nb_fan", 0),
+                            "service": "deezer"
+                        })
+                        
+        except Exception as e:
+            log.warning(f"Errore ricerca Deezer per '{query}': {e}")
+        
+        # Sezione Spotify già processata sopra
+        
+        # Calcola statistiche (senza Plex)
+        total_results = (len(results["tracks"]) + len(results["albums"]) + 
+                        len(results["artists"]))
+        
+        return jsonify({
+            "success": True,
+            "query": query,
+            "type": search_type,
+            "results": results,
+            "stats": {
+                "total": total_results,
+                "tracks": len(results["tracks"]),
+                "albums": len(results["albums"]),
+                "artists": len(results["artists"])
+            }
+        })
+        
+    except Exception as e:
+        log.error(f"Errore ricerca universale: {e}")
+        return jsonify({"success": False, "error": "Errore server durante la ricerca."}), 500
 
 
 @app.route('/api/check_albums_exist', methods=['POST'])

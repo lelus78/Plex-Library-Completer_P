@@ -2514,51 +2514,26 @@ def check_album_in_library(album_title: str, artist_name: str, auto_sync: bool =
                                         logging.info(f"✅ Album trovato con nome artista '{similar_artist}': {count} tracce")
                                         return True
             
-            # Strategia 6: Ricerca specifica per Molly Grace
-            logging.info(f"🔍 DEBUG DETTAGLIATO: Cerco esattamente 'molly grace'...")
-            
-            # Ricerca diretta per "molly grace"
-            cur.execute("""
-                SELECT DISTINCT artist_clean, title_clean, album_clean FROM plex_library_index 
-                WHERE artist_clean LIKE '%molly%' AND artist_clean LIKE '%grace%'
-                LIMIT 10
-            """)
-            
-            molly_grace_tracks = cur.fetchall()
-            if molly_grace_tracks:
-                logging.info(f"🎵 TROVATO! Tracce di Molly Grace nel database:")
-                for artist, title, album in molly_grace_tracks:
-                    logging.info(f"    - Artista: '{artist}' | Titolo: '{title}' | Album: '{album}'")
-                    
-                    # Controlla se corrisponde all'album cercato
-                    if album_clean in album or album in album_clean:
-                        logging.info(f"✅ MATCH! Album '{album_clean}' trovato come '{album}'")
-                        return True
-            
-            # Ricerca per varianti del nome
-            logging.info(f"🔍 DEBUG: Cerco varianti di 'molly grace'...")
-            search_patterns = [
-                "molly grace",
-                "mollygrace", 
-                "grace molly",
-                "gracemolly",
-                "molly%grace",
-                "grace%molly"
-            ]
-            
-            for pattern in search_patterns:
-                cur.execute("""
-                    SELECT DISTINCT artist_clean, album_clean FROM plex_library_index 
-                    WHERE artist_clean LIKE ?
-                    LIMIT 5
-                """, (f"%{pattern}%",))
+            # Strategia 6: Ricerca fuzzy con spezzettamento nome artista
+            # Utile per artisti con nomi composti (es: "John Smith" trovato come "smith john")
+            artist_words = artist_clean.split()
+            if len(artist_words) >= 2:
+                logging.debug(f"🔍 Ricerca fuzzy per artista multi-parola: {artist_words}")
                 
-                results = cur.fetchall()
-                if results:
-                    logging.info(f"🔍 Trovato con pattern '{pattern}': {results}")
-                    for artist, album in results:
-                        if album_clean in album or album in album_clean:
-                            logging.info(f"✅ MATCH con pattern '{pattern}'! Album '{album_clean}' trovato come '{album}'")
+                # Prova tutte le combinazioni di parole dell'artista
+                for i in range(len(artist_words)):
+                    for j in range(i + 1, len(artist_words) + 1):
+                        word_combo = " ".join(artist_words[i:j])
+                        
+                        cur.execute("""
+                            SELECT DISTINCT artist_clean, album_clean FROM plex_library_index 
+                            WHERE artist_clean LIKE ? AND album_clean LIKE ?
+                            LIMIT 3
+                        """, (f"%{word_combo}%", f"%{album_clean}%"))
+                        
+                        results = cur.fetchall()
+                        if results:
+                            logging.info(f"✅ Album trovato con combinazione parole '{word_combo}': {results[0]}")
                             return True
             
             # Debug: verifica stato indice database

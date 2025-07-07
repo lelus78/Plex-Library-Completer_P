@@ -195,27 +195,88 @@
                         <input type="text" 
                                class="search-input" 
                                id="smartSearchInput" 
-                               placeholder="Inserisci un link (Spotify/Deezer/YouTube) per download diretto, oppure nome artista per cercare album..."
+                               placeholder="Cerca tracce, album o artisti su Plex/Spotify/Deezer, oppure incolla link per download diretto..."
                                style="padding-left: 3rem; padding-right: 8rem;">
                         <div class="position-absolute" style="right: 0.5rem; top: 50%; transform: translateY(-50%);">
                             <button class="btn btn-sm btn-success me-1" id="smartDownloadBtn" title="Download Diretto">
                                 <i data-lucide="download" style="width: 14px; height: 14px;"></i>
                                 Download
                             </button>
-                            <button class="btn btn-sm btn-primary" id="smartSearchBtn" title="Cerca Album">
+                            <button class="btn btn-sm btn-primary" id="smartSearchBtn" title="Ricerca Universale">
                                 <i data-lucide="search" style="width: 14px; height: 14px;"></i>
-                                Search
+                                Cerca
                             </button>
                         </div>
                     </div>
                     <small class="text-muted mt-1 d-block">
                         💡 <strong>Download:</strong> Incolla link Spotify/Deezer/YouTube per download automatico | 
-                        <strong>Search:</strong> Scrivi nome artista per trovare album
+                        <strong>Cerca:</strong> Trova tracce, album o artisti su tutti i servizi
                     </small>
                 </div>
             </div>
             
-            <!-- Album Search Results -->
+            <!-- Universal Search Results -->
+            <div id="universalSearchResults" class="mt-4" style="display: none;">
+                <h5 class="mb-3">
+                    <i data-lucide="search" class="me-2" style="width: 20px; height: 20px;"></i>
+                    Risultati Ricerca
+                </h5>
+                
+                <!-- Search Stats -->
+                <div id="searchStats" class="row mb-3">
+                    <div class="col-4">
+                        <div class="stat-card text-center p-2 rounded">
+                            <div class="stat-value" id="tracksCount">0</div>
+                            <div class="stat-label small text-muted">Tracce</div>
+                            <div class="stat-extra small text-success" id="tracksInLibrary">0 in libreria</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-card text-center p-2 rounded">
+                            <div class="stat-value" id="albumsCount">0</div>
+                            <div class="stat-label small text-muted">Album</div>
+                            <div class="stat-extra small text-success" id="albumsInLibrary">0 in libreria</div>
+                        </div>
+                    </div>
+                    <div class="col-4">
+                        <div class="stat-card text-center p-2 rounded">
+                            <div class="stat-value" id="artistsCount">0</div>
+                            <div class="stat-label small text-muted">Artisti</div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Search Results Tabs -->
+                <ul class="nav nav-tabs mb-3" id="searchResultsTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="tracks-tab" data-bs-toggle="tab" data-bs-target="#tracks-results" type="button" role="tab">
+                            <i data-lucide="music" style="width: 16px; height: 16px;" class="me-1"></i>
+                            Tracce (<span id="tracksTabCount">0</span>)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="albums-tab" data-bs-toggle="tab" data-bs-target="#albums-results" type="button" role="tab">
+                            <i data-lucide="disc" style="width: 16px; height: 16px;" class="me-1"></i>
+                            Album (<span id="albumsTabCount">0</span>)
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="artists-tab" data-bs-toggle="tab" data-bs-target="#artists-results" type="button" role="tab">
+                            <i data-lucide="user" style="width: 16px; height: 16px;" class="me-1"></i>
+                            Artisti (<span id="artistsTabCount">0</span>)
+                        </button>
+                    </li>
+                </ul>
+                
+                <!-- Tab Content -->
+                <div class="tab-content" id="searchResultsTabContent">
+                    <div class="tab-pane fade show active" id="tracks-results" role="tabpanel"></div>
+                    <div class="tab-pane fade" id="albums-results" role="tabpanel"></div>
+                    <div class="tab-pane fade" id="artists-results" role="tabpanel"></div>
+                </div>
+            </div>
+
+            <!-- Album Search Results (legacy, kept for compatibility) -->
             <div id="albumSearchResults" class="mt-4" style="display: none;">
                 <h6 class="mb-3 d-flex align-items-center">
                     <i data-lucide="disc" class="me-2" style="width: 18px; height: 18px; color: var(--spotify-green);"></i>
@@ -527,6 +588,35 @@
   margin-bottom: 0;
 }
 
+.stat-card {
+    background: var(--bg-secondary);
+    border: 1px solid rgba(255,255,255,0.05);
+    transition: var(--transition-fast);
+}
+
+.stat-card:hover {
+    border-color: rgba(255,255,255,0.1);
+    background: var(--bg-hover);
+}
+
+.stat-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.stat-label {
+    font-size: 0.75rem;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.stat-extra {
+    font-size: 0.65rem;
+    margin-top: 2px;
+}
+
 .album-card {
   background: var(--bg-tertiary);
   border: 1px solid rgba(255,255,255,0.1);
@@ -713,7 +803,10 @@ $(document).ready(function() {
 
         // Download button - per link diretti
         $('#smartDownloadBtn').on('click', function() {
-            const query = $('#smartSearchInput').val().trim();
+            let query = $('#smartSearchInput').val().trim();
+            
+            // Pulisci l'URL da caratteri Unicode invisibili
+            query = query.replace(/[\u200B-\u200D\uFEFF\u2060]/g, '');
             
             if (!query) {
                 showDirectDownloadMessage('Inserisci un link per il download diretto', 'warning');
@@ -762,20 +855,23 @@ $(document).ready(function() {
             }
         });
 
-        // Search button - per ricerca album di artisti
+        // Search button - ricerca universale
         $('#smartSearchBtn').on('click', function() {
-            const query = $('#smartSearchInput').val().trim();
+            let query = $('#smartSearchInput').val().trim();
+            
+            // Pulisci l'URL da caratteri Unicode invisibili
+            query = query.replace(/[\u200B-\u200D\uFEFF\u2060]/g, '');
             
             if (!query) {
-                showDirectDownloadMessage('Inserisci il nome di un artista per cercare i suoi album', 'warning');
+                showDirectDownloadMessage('Inserisci una query per cercare tracce, album o artisti', 'warning');
                 return;
             }
 
             if (!isValidStreamingUrl(query)) {
-                // È un nome artista, cerca album
-                searchArtistAlbums(query);
+                // È una query di ricerca, esegui ricerca universale
+                performUniversalSearch(query);
             } else {
-                showDirectDownloadMessage('Per la ricerca album, inserisci il nome dell\'artista (non un link)', 'info');
+                showDirectDownloadMessage('Per la ricerca, inserisci il nome (non un link)', 'info');
             }
         });
 
@@ -783,8 +879,28 @@ $(document).ready(function() {
         $('#smartSearchInput').on('input', function() {
             const query = $(this).val().trim();
             if (!query) {
+                $('#universalSearchResults').hide();
                 $('#albumSearchResults').hide();
                 $('#directDownloadStatus').hide();
+            }
+        });
+
+        // Enter key support per ricerca
+        $('#smartSearchInput').on('keypress', function(e) {
+            if (e.which === 13) { // Enter key
+                e.preventDefault();
+                let query = $(this).val().trim();
+                
+                // Pulisci l'URL da caratteri Unicode invisibili
+                query = query.replace(/[\u200B-\u200D\uFEFF\u2060]/g, '');
+                
+                if (query) {
+                    if (isValidStreamingUrl(query)) {
+                        $('#smartDownloadBtn').click();
+                    } else {
+                        $('#smartSearchBtn').click();
+                    }
+                }
             }
         });
     }
@@ -968,6 +1084,292 @@ $(document).ready(function() {
                 statusDiv.find('.alert').alert('close');
             }, 5000);
         }
+    }
+
+    // Funzione per ricerca universale
+    function performUniversalSearch(query) {
+        const btn = $('#smartSearchBtn');
+        const originalHtml = btn.html();
+        
+        btn.html('<i data-lucide="loader" class="me-2 animate-spin" style="width: 14px; height: 14px;"></i>Cercando...');
+        btn.prop('disabled', true);
+
+        $.ajax({
+            url: '/api/search_universal',
+            method: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                query: query,
+                type: 'auto'
+            }),
+            success: function(response) {
+                if (response.success) {
+                    displayUniversalSearchResults(response);
+                    showDirectDownloadMessage(`Trovati ${response.stats.total} risultati per "${query}"`, 'success');
+                } else {
+                    showDirectDownloadMessage(`Nessun risultato trovato per "${query}"`, 'warning');
+                    $('#universalSearchResults').hide();
+                }
+            },
+            error: function() {
+                showDirectDownloadMessage('Errore durante la ricerca. Riprova.', 'danger');
+                $('#universalSearchResults').hide();
+            },
+            complete: function() {
+                btn.html(originalHtml);
+                btn.prop('disabled', false);
+                lucide.createIcons();
+            }
+        });
+    }
+
+    // Funzione per mostrare i risultati della ricerca universale
+    function displayUniversalSearchResults(data) {
+        const results = data.results;
+        const stats = data.stats;
+        
+        // Calcola statistiche presenza in libreria
+        const tracksInLibrary = results.tracks.filter(t => t.in_library).length;
+        const albumsInLibrary = results.albums.filter(a => a.in_library).length;
+        
+        // Aggiorna statistiche
+        $('#tracksCount').text(stats.tracks);
+        $('#albumsCount').text(stats.albums);
+        $('#artistsCount').text(stats.artists);
+        
+        // Aggiorna contatori presenza in libreria
+        $('#tracksInLibrary').text(`${tracksInLibrary} in libreria`);
+        $('#albumsInLibrary').text(`${albumsInLibrary} in libreria`);
+        
+        // Aggiorna contatori nei tab
+        $('#tracksTabCount').text(stats.tracks);
+        $('#albumsTabCount').text(stats.albums);
+        $('#artistsTabCount').text(stats.artists);
+        
+        // Popola risultati tracce (ordinati per popolarità)
+        const sortedTracks = results.tracks.sort((a, b) => {
+            const aPopularity = a.popularity || a.rank || 0;
+            const bPopularity = b.popularity || b.rank || 0;
+            return bPopularity - aPopularity; // Ordine decrescente
+        });
+        populateTracksResults(sortedTracks);
+        
+        // Popola risultati album (ordinati per popolarità)
+        const sortedAlbums = results.albums.sort((a, b) => {
+            const aPopularity = a.popularity || a.fans || 0;
+            const bPopularity = b.popularity || b.fans || 0;
+            return bPopularity - aPopularity; // Ordine decrescente
+        });
+        populateAlbumsResults(sortedAlbums);
+        
+        // Popola risultati artisti (ordinati per popolarità)
+        const sortedArtists = results.artists.sort((a, b) => {
+            const aPopularity = a.followers || a.fans || 0;
+            const bPopularity = b.followers || b.fans || 0;
+            return bPopularity - aPopularity; // Ordine decrescente
+        });
+        populateArtistsResults(sortedArtists);
+        
+        // Mostra i risultati
+        $('#universalSearchResults').show();
+        
+        // Aggiorna le icone
+        lucide.createIcons();
+    }
+
+    // Funzione populatePlexResults rimossa - non necessaria
+
+    function populateTracksResults(tracks) {
+        const container = $('#tracks-results');
+        container.empty();
+        
+        if (tracks.length === 0) {
+            container.html('<div class="text-center p-4 text-muted">Nessuna traccia trovata</div>');
+            return;
+        }
+        
+        tracks.forEach(track => {
+            const serviceColor = track.service === 'deezer' ? 'var(--deezer-orange)' : 'var(--spotify-green)';
+            const serviceBadge = track.service === 'deezer' ? 'bg-warning' : 'bg-success';
+            const duration = track.duration ? `${Math.floor(track.duration / 60)}:${(track.duration % 60).toString().padStart(2, '0')}` : '';
+            
+            const inLibraryBadge = track.in_library ? 
+                '<span class="badge bg-success me-2"><i data-lucide="check" style="width: 12px; height: 12px;" class="me-1"></i>In Libreria</span>' : 
+                '<span class="badge bg-secondary me-2"><i data-lucide="x" style="width: 12px; height: 12px;" class="me-1"></i>Non in Libreria</span>';
+            
+            // Indicatore popolarità
+            const popularityInfo = track.service === 'spotify' && track.popularity ? 
+                `<div class="text-muted small"><i data-lucide="trending-up" style="width: 12px; height: 12px;" class="me-1"></i>Popolarità: ${track.popularity}%</div>` :
+                (track.service === 'deezer' && track.rank ? 
+                    `<div class="text-muted small"><i data-lucide="star" style="width: 12px; height: 12px;" class="me-1"></i>Rank: ${track.rank.toLocaleString()}</div>` : '');
+            
+            const html = `
+                <div class="search-result-item p-3 mb-2 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            ${track.artwork ? 
+                                `<img src="${track.artwork}" style="width: 48px; height: 48px; border-radius: 6px;" alt="artwork">` :
+                                `<div style="width: 48px; height: 48px; background: var(--bg-secondary); border-radius: 6px; display: flex; align-items: center; justify-content: center;"><i data-lucide="music" style="width: 20px; height: 20px;"></i></div>`
+                            }
+                        </div>
+                        <div>
+                            <div class="fw-bold">${track.title}</div>
+                            <div class="text-muted small">${track.artist} • ${track.album}</div>
+                            ${duration ? `<div class="text-muted small">${duration}</div>` : ''}
+                            ${popularityInfo}
+                            <div class="mt-1">${inLibraryBadge}</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="badge ${serviceBadge} me-2">${track.service.charAt(0).toUpperCase() + track.service.slice(1)}</span>
+                        ${!track.in_library ? 
+                            `<button class="btn btn-sm btn-success download-track-btn" data-track-url="${track.url}" data-track-title="${track.title}" data-track-artist="${track.artist}">
+                                <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                            </button>` :
+                            `<button class="btn btn-sm btn-outline-success" disabled title="Già presente in libreria">
+                                <i data-lucide="check" style="width: 14px; height: 14px;"></i>
+                            </button>`
+                        }
+                    </div>
+                </div>
+            `;
+            container.append(html);
+        });
+        
+        // Aggiungi event listener per download tracce
+        $('.download-track-btn').on('click', function() {
+            const url = $(this).data('track-url');
+            const title = $(this).data('track-title');
+            const artist = $(this).data('track-artist');
+            
+            const downloadData = {
+                url: url,
+                type: 'track',
+                service: url.includes('deezer.com') ? 'deezer' : 'spotify',
+                title: title,
+                artist: artist
+            };
+            initiateDirectDownload(downloadData);
+        });
+    }
+
+    function populateAlbumsResults(albums) {
+        const container = $('#albums-results');
+        container.empty();
+        
+        if (albums.length === 0) {
+            container.html('<div class="text-center p-4 text-muted">Nessun album trovato</div>');
+            return;
+        }
+        
+        albums.forEach(album => {
+            const serviceBadge = album.service === 'deezer' ? 'bg-warning' : 'bg-success';
+            const inLibraryBadge = album.in_library ? 
+                '<span class="badge bg-success me-2"><i data-lucide="check" style="width: 12px; height: 12px;" class="me-1"></i>In Libreria</span>' : 
+                '<span class="badge bg-secondary me-2"><i data-lucide="x" style="width: 12px; height: 12px;" class="me-1"></i>Non in Libreria</span>';
+            
+            // Indicatore popolarità per album
+            const popularityInfo = album.service === 'spotify' && album.popularity ? 
+                `<div class="text-muted small"><i data-lucide="trending-up" style="width: 12px; height: 12px;" class="me-1"></i>Popolarità: ${album.popularity}%</div>` :
+                (album.service === 'deezer' && album.fans ? 
+                    `<div class="text-muted small"><i data-lucide="heart" style="width: 12px; height: 12px;" class="me-1"></i>Fan: ${album.fans.toLocaleString()}</div>` : '');
+            
+            const html = `
+                <div class="search-result-item p-3 mb-2 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            ${album.artwork ? 
+                                `<img src="${album.artwork}" style="width: 48px; height: 48px; border-radius: 6px;" alt="artwork">` :
+                                `<div style="width: 48px; height: 48px; background: var(--bg-secondary); border-radius: 6px; display: flex; align-items: center; justify-content: center;"><i data-lucide="disc" style="width: 20px; height: 20px;"></i></div>`
+                            }
+                        </div>
+                        <div>
+                            <div class="fw-bold">${album.title}</div>
+                            <div class="text-muted small">${album.artist}</div>
+                            <div class="text-muted small">${album.year || 'N/A'} • ${album.track_count || 0} tracce</div>
+                            ${popularityInfo}
+                            <div class="mt-1">${inLibraryBadge}</div>
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="badge ${serviceBadge} me-2">${album.service.charAt(0).toUpperCase() + album.service.slice(1)}</span>
+                        ${!album.in_library ? 
+                            `<button class="btn btn-sm btn-success download-album-btn" data-album-url="${album.url}" data-album-title="${album.title}" data-album-artist="${album.artist}">
+                                <i data-lucide="download" style="width: 14px; height: 14px;"></i>
+                            </button>` :
+                            `<button class="btn btn-sm btn-outline-success" disabled title="Già presente in libreria">
+                                <i data-lucide="check" style="width: 14px; height: 14px;"></i>
+                            </button>`
+                        }
+                    </div>
+                </div>
+            `;
+            container.append(html);
+        });
+        
+        // Aggiungi event listener per download album
+        $('.download-album-btn').on('click', function() {
+            const url = $(this).data('album-url');
+            const title = $(this).data('album-title');
+            const artist = $(this).data('album-artist');
+            
+            const downloadData = {
+                url: url,
+                type: 'album',
+                service: url.includes('deezer.com') ? 'deezer' : 'spotify',
+                title: title,
+                artist: artist
+            };
+            initiateDirectDownload(downloadData);
+        });
+    }
+
+    function populateArtistsResults(artists) {
+        const container = $('#artists-results');
+        container.empty();
+        
+        if (artists.length === 0) {
+            container.html('<div class="text-center p-4 text-muted">Nessun artista trovato</div>');
+            return;
+        }
+        
+        artists.forEach(artist => {
+            const serviceBadge = artist.service === 'deezer' ? 'bg-warning' : 'bg-success';
+            const followersText = artist.followers ? `<i data-lucide="users" style="width: 12px; height: 12px;" class="me-1"></i>${artist.followers.toLocaleString()} follower` : 
+                                 (artist.fans ? `<i data-lucide="heart" style="width: 12px; height: 12px;" class="me-1"></i>${artist.fans.toLocaleString()} fan` : '');
+            
+            const html = `
+                <div class="search-result-item p-3 mb-2 d-flex justify-content-between align-items-center">
+                    <div class="d-flex align-items-center">
+                        <div class="me-3">
+                            ${artist.artwork ? 
+                                `<img src="${artist.artwork}" style="width: 48px; height: 48px; border-radius: 50%;" alt="artwork">` :
+                                `<div style="width: 48px; height: 48px; background: var(--bg-secondary); border-radius: 50%; display: flex; align-items: center; justify-content: center;"><i data-lucide="user" style="width: 20px; height: 20px;"></i></div>`
+                            }
+                        </div>
+                        <div>
+                            <div class="fw-bold">${artist.name}</div>
+                            ${followersText ? `<div class="text-muted small">${followersText}</div>` : ''}
+                            ${artist.genres && artist.genres.length > 0 ? `<div class="text-muted small">${artist.genres.slice(0, 2).join(', ')}</div>` : ''}
+                        </div>
+                    </div>
+                    <div class="d-flex align-items-center">
+                        <span class="badge ${serviceBadge} me-2">${artist.service.charAt(0).toUpperCase() + artist.service.slice(1)}</span>
+                        <button class="btn btn-sm btn-primary search-artist-btn" data-artist-name="${artist.name}">
+                            <i data-lucide="search" style="width: 14px; height: 14px;"></i>
+                        </button>
+                    </div>
+                </div>
+            `;
+            container.append(html);
+        });
+        
+        // Aggiungi event listener per ricerca album artista
+        $('.search-artist-btn').on('click', function() {
+            const artistName = $(this).data('artist-name');
+            $('#smartSearchInput').val(artistName);
+            performUniversalSearch(artistName);
+        });
     }
 
     function filterTracks(searchTerm) {
