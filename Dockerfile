@@ -14,12 +14,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # ---- System packages ----
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg libmagic1 gosu wget curl unzip gnupg \
-    && wget -qO- https://dl.google.com/linux/linux_signing_key.pub | apt-key add - \
-    && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" \
-       > /etc/apt/sources.list.d/google-chrome.list \
-    && apt-get update \
-    && apt-get install -y google-chrome-stable \
     && rm -rf /var/lib/apt/lists/*
+
+# ---- Install Google Chrome (AMD64 only) ----
+RUN ARCH=$(dpkg --print-architecture) \
+    && if [ "$ARCH" = "amd64" ]; then \
+        echo "Installing Google Chrome for AMD64..." \
+        && wget -qO- https://dl.google.com/linux/linux_signing_key.pub | gpg --dearmor > /etc/apt/trusted.gpg.d/google-chrome.gpg \
+        && echo "deb [arch=amd64] http://dl.google.com/linux/chrome/deb/ stable main" > /etc/apt/sources.list.d/google-chrome.list \
+        && apt-get update \
+        && apt-get install -y google-chrome-stable \
+        && rm -rf /var/lib/apt/lists/*; \
+    else \
+        echo "Skipping Google Chrome installation for $ARCH architecture (not supported)"; \
+    fi
 
 WORKDIR /app
 
@@ -29,12 +37,19 @@ RUN --mount=type=cache,target=/root/.cache/pip \
     pip install --upgrade pip \
  && pip install -r requirements.txt
 
-# ---- EXTRA: spotifyscraper con supporto selenium ----
-RUN pip install "spotifyscraper[selenium]"
-
-# ---- (facoltativo) verifica che sia installato ----
-RUN echo '📦 spotifyscraper version:' \
- && pip show spotifyscraper || (echo '❌  spotifyscraper STILL missing!' && exit 1)
+# ---- EXTRA: spotifyscraper con supporto selenium (solo su AMD64) ----
+RUN ARCH=$(dpkg --print-architecture) \
+    && if [ "$ARCH" = "amd64" ]; then \
+        echo "Installing SpotifyScraper with selenium support for AMD64..." \
+        && pip install "selenium==4.20.0" "webdriver-manager==4.0.1" "spotifyscraper[selenium]" \
+        && echo '📦 spotifyscraper version:' \
+        && pip show spotifyscraper; \
+    else \
+        echo "Installing SpotifyScraper without selenium for $ARCH architecture..." \
+        && pip install "spotifyscraper" \
+        && echo '📦 spotifyscraper version (no selenium):' \
+        && pip show spotifyscraper; \
+    fi
 
 # ---- Application code ----
 COPY . .

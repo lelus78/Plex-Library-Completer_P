@@ -50,7 +50,8 @@ A comprehensive Python application, executed via Docker, that keeps your Plex mu
 
 ## 🆕 What's New
 
-### ⚡ Latest Improvements (June 2025)
+### ⚡ Latest Improvements (July 2025)
+- **🎵 UNIFIED MUSIC DIRECTORY SETUP**: Revolutionary simplified configuration - only change TWO things to set up music downloads for any OS (Windows/Linux/macOS/NAS)
 - **🔧 Direct Download Fixes**: Fixed JavaScript errors in download functionality and URL handling
 - **🧹 Unicode Character Cleaning**: Automatically removes invisible Unicode characters from URLs (frontend + backend)
 - **📚 Consistent Library Checking**: Spotify and Deezer search results now show accurate "In Libreria" status
@@ -218,10 +219,50 @@ The main setting to configure in `config.toml`:
 arl = "your_deezer_arl_cookie_here"
 ```
 
-### Step 3: Configure Docker Compose
+### Step 3: 🎵 Configure Music Directory (Simple 2-Step Setup)
 
-Edit `docker-compose.yml` and update the music path:
+**🎯 You only need to change TWO things to configure where your music downloads are saved:**
 
+#### Step 3.1: Set Download Path in `.env`
+```bash
+# Add this line to your .env file
+MUSIC_DOWNLOAD_PATH="/music"
+```
+> **Note**: Keep this as `/music` - this is the path inside the Docker container
+
+#### Step 3.2: Map Your Music Library in `docker-compose.yml`
+
+Edit the volume mount to point to YOUR music library:
+
+**🪟 Windows Users:**
+```yaml
+volumes:
+  - M:/organizzata:/music           # Replace with your music folder path
+  - ./state_data:/app/state_data
+```
+
+**🐧 Linux Users:**
+```yaml
+volumes:
+  - /home/username/Music:/music     # Replace with your music folder path
+  - ./state_data:/app/state_data
+```
+
+**🍎 macOS Users:**
+```yaml
+volumes:
+  - /Users/username/Music:/music    # Replace with your music folder path
+  - ./state_data:/app/state_data
+```
+
+**🏠 NAS Users (Synology/QNAP):**
+```yaml
+volumes:
+  - /volume1/music:/music           # Replace with your NAS music folder
+  - ./state_data:/app/state_data
+```
+
+#### ✅ Complete Example for Windows:
 ```yaml
 services:
   completer:
@@ -232,7 +273,7 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - /path/to/your/music:/music  # 👈 UPDATE THIS PATH
+      - D:/My Music Library:/music  # 👈 Your actual music folder
       - ./state_data:/app/state_data
       - ./config.toml:/root/.config/streamrip/config.toml
       - ./.env:/app/.env
@@ -242,11 +283,7 @@ services:
     restart: unless-stopped
 ```
 
-**Path Examples by Operating System:**
-- **Linux**: `/home/username/Music:/music`
-- **Windows**: `C:\Users\YourName\Music:/music`
-- **macOS**: `/Users/yourname/Music:/music`
-- **NAS**: `/mnt/nas/Music:/music`
+> **🔧 That's it!** The system automatically configures streamrip and all other components based on these two settings. No need to edit multiple config files!
 
 ### Step 4: Launch the Application
 

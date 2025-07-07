@@ -8,7 +8,4 @@ streamrip==2.1.0
 Flask==3.1.1
 pandas==2.3.0
 plotly==6.2.0
-selenium==4.20.0
 beautifulsoup4==4.12.3
-webdriver-manager==4.0.1
-spotifyscraper[selenium]

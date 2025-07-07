@@ -282,8 +282,9 @@ def find_tracks_free_search(search_query: str) -> List[Dict]:
 
 def _create_streamrip_config(config_path: str, deezer_arl: str):
     """Crea un file di configurazione base per streamrip con ARL di Deezer"""
+    downloads_dir = os.getenv("MUSIC_DOWNLOAD_PATH", "/downloads")
     config_content = f"""[downloads]
-folder = "/downloads"
+folder = "{downloads_dir}"
 source_subdirectories = true
 
 [downloads.artwork]
@@ -366,7 +367,31 @@ def download_single_track_with_streamrip(link: str):
         
         # Crea la directory Downloads se non esiste
         downloads_dir = os.getenv("MUSIC_DOWNLOAD_PATH", "/downloads")  # Usa /downloads mappato via docker-compose
-        os.makedirs(downloads_dir, exist_ok=True)
+        logging.info(f"🔧 DEBUG: Downloads directory: {downloads_dir}")
+        
+        # Check if downloads directory exists and is writable
+        if not os.path.exists(downloads_dir):
+            logging.info(f"🔧 DEBUG: Downloads directory non esiste, creando: {downloads_dir}")
+            try:
+                os.makedirs(downloads_dir, exist_ok=True)
+                logging.info(f"✅ Downloads directory creato: {downloads_dir}")
+            except Exception as e:
+                logging.error(f"❌ Errore creando downloads directory: {e}")
+        else:
+            logging.info(f"✅ Downloads directory esiste: {downloads_dir}")
+            
+        # Check if directory is writable
+        if os.access(downloads_dir, os.W_OK):
+            logging.info(f"✅ Downloads directory è scrivibile: {downloads_dir}")
+        else:
+            logging.error(f"❌ Downloads directory NON è scrivibile: {downloads_dir}")
+            
+        # Check directory permissions
+        try:
+            stat_info = os.stat(downloads_dir)
+            logging.info(f"🔧 DEBUG: Downloads directory permissions: {oct(stat_info.st_mode)[-3:]} (owner: {stat_info.st_uid}, group: {stat_info.st_gid})")
+        except Exception as e:
+            logging.error(f"❌ Errore ottenendo permissions: {e}")
         
         # Controlla se esiste già un config.toml (backward compatibility)
         # Prima controlla la configurazione Docker-mounted
@@ -374,17 +399,24 @@ def download_single_track_with_streamrip(link: str):
         writable_config_path = "/app/state_data/config.toml"
         legacy_config_path = "/app/config.toml"
         
-        if os.path.exists(docker_config_path):
-            logging.info(f"✅ Utilizzando configurazione streamrip Docker-mounted: {docker_config_path}")
-            config_path = docker_config_path
-        elif os.path.exists(writable_config_path):
-            logging.info(f"✅ Utilizzando configurazione streamrip esistente: {writable_config_path}")
+        logging.info(f"🔧 DEBUG: Verificando config files:")
+        logging.info(f"  - Docker config: {docker_config_path} (exists: {os.path.exists(docker_config_path)})")
+        logging.info(f"  - Writable config: {writable_config_path} (exists: {os.path.exists(writable_config_path)})")
+        logging.info(f"  - Legacy config: {legacy_config_path} (exists: {os.path.exists(legacy_config_path)})")
+        logging.info(f"  - Default config: {config_path} (exists: {os.path.exists(config_path)})")
+        
+        # Priorità: writable (generato dall'entrypoint) > legacy > docker config
+        if os.path.exists(writable_config_path):
+            logging.info(f"✅ Utilizzando configurazione streamrip con variabili sostituite: {writable_config_path}")
             config_path = writable_config_path
         elif os.path.exists(legacy_config_path):
-            logging.info(f"✅ Utilizzando configurazione streamrip esistente: {legacy_config_path}")
+            logging.info(f"✅ Utilizzando configurazione streamrip legacy: {legacy_config_path}")
             config_path = legacy_config_path
+        elif os.path.exists(docker_config_path):
+            logging.info(f"✅ Utilizzando configurazione streamrip Docker-mounted: {docker_config_path}")
+            config_path = docker_config_path
         elif os.path.exists(config_path):
-            logging.info(f"✅ Utilizzando configurazione streamrip esistente: {config_path}")
+            logging.info(f"✅ Utilizzando configurazione streamrip default: {config_path}")
         else:
             # Nessun config esistente, controlla se abbiamo l'ARL nella variabile d'ambiente
             deezer_arl = os.getenv("DEEZER_ARL", "").strip()
@@ -451,9 +483,21 @@ def download_single_track_with_streamrip(link: str):
         # Debug: log del comando e della configurazione
         logging.info(f"🔧 DEBUG: Comando streamrip: {' '.join(command)}")
         logging.info(f"🔧 DEBUG: Config path utilizzato: {config_path}")
+        logging.info(f"🔧 DEBUG: MUSIC_DOWNLOAD_PATH env var: {os.getenv('MUSIC_DOWNLOAD_PATH', 'NOT SET')}")
         try:
             with open(config_path, 'r') as f:
                 config_content = f.read()
+                # Extract the downloads folder from config
+                import re
+                folder_match = re.search(r'folder\s*=\s*["\']([^"\']+)["\']', config_content)
+                if folder_match:
+                    folder_path = folder_match.group(1)
+                    logging.info(f"🔧 DEBUG: Config folder impostato a: {folder_path}")
+                    if folder_path != "/downloads":
+                        logging.warning(f"🔧 DEBUG: ATTENZIONE! Config folder non è /downloads ma {folder_path}")
+                else:
+                    logging.error(f"🔧 DEBUG: Non riesco a trovare la configurazione folder nel config")
+                    
                 if '/music' in config_content:
                     logging.error(f"🔧 DEBUG: TROVATO /music nel config file!")
                 if '/downloads' in config_content:

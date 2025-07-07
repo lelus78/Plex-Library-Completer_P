@@ -26,10 +26,14 @@ mkdir -p /app/state_data /app/logs
 mkdir -p /app/state_data/.local/share/streamrip
 mkdir -p /app/state_data/.cache/streamrip
 
-# Copy config.toml to writable directory if it exists
+# Copy config.toml to writable directory and substitute environment variables
 if [ -f "/app/config.toml" ]; then
-    cp /app/config.toml /app/state_data/config.toml
-    echo "Copied config.toml to /app/state_data/"
+    # Get the download path from environment variable, default to /downloads
+    DOWNLOAD_PATH="${MUSIC_DOWNLOAD_PATH:-/downloads}"
+    
+    # Copy and substitute the placeholder with actual path
+    sed "s#{MUSIC_DOWNLOAD_PATH}#${DOWNLOAD_PATH}#g" /app/config.toml > /app/state_data/config.toml
+    echo "Copied config.toml to /app/state_data/ with MUSIC_DOWNLOAD_PATH=${DOWNLOAD_PATH}"
 fi
 
 chown -R "$USER_ID":"$GROUP_ID" /app/state_data /app/logs
@@ -37,10 +41,20 @@ chown -R "$USER_ID":"$GROUP_ID" /app/state_data /app/logs
 # Fix downloads directory permissions if it exists
 if [ -d "/downloads" ]; then
     echo "🔧 Fixing /downloads directory permissions..."
-    # Only fix ownership of the root directory and make it writable
-    chown "$USER_ID":"$GROUP_ID" /downloads
-    chmod 755 /downloads
-    echo "✅ Downloads directory permissions fixed (root level only)"
+    
+    # Check if this is Windows host (Docker Desktop on Windows)
+    if [ "$DOCKER_HOST_OS" = "windows" ]; then
+        echo "🪟 Windows host detected - using Windows-compatible permissions"
+        # On Windows, just ensure directory is writable without changing ownership
+        chmod 777 /downloads
+        echo "✅ Downloads directory made world-writable for Windows compatibility"
+    else
+        echo "🐧 Linux host detected - using standard permissions"
+        # Only fix ownership of the root directory and make it writable
+        chown "$USER_ID":"$GROUP_ID" /downloads
+        chmod 755 /downloads
+        echo "✅ Downloads directory permissions fixed (root level only)"
+    fi
 fi
 
 exec gosu "$USER_ID":"$GROUP_ID" python app.py

@@ -9,6 +9,8 @@ services:
     environment:
       - PUID=1000
       - PGID=1000
+      # Force Windows compatibility for volume mounts
+      - DOCKER_HOST_OS=windows
     ports:
       - "5000:5000"
     volumes:
@@ -20,6 +22,12 @@ services:
       - ./app.py:/app/app.py
       - ./.env:/app/.env
       - ./config.toml:/root/.config/streamrip/config.toml
-      - /mnt/m/organizzata:/downloads  # Downloads diretti alla libreria principale
-      # - ./downloads:/downloads  # Downloads separati (commentato)
+      # IMPORTANT: Map your music library to the path set in MUSIC_DOWNLOAD_PATH
+      # Examples:
+      # Windows: - M:/organizzata:/music
+      # Linux:   - /home/user/music:/music  
+      # macOS:   - /Users/username/Music:/music
+      # NAS:     - /volume1/music:/music
+      - /mnt/m/organizzata:/music  # Replace with your music library path
+      - ./downloads:/downloads     # Local fallback directory
     restart: on-failure
