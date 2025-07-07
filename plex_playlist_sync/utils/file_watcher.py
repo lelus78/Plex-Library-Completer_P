@@ -37,9 +37,10 @@ class MusicLibraryWatcher:
         # Configurazione
         self.check_interval = int(os.getenv("MUSIC_WATCHER_INTERVAL", "60"))  # Check ogni 60 secondi
         self.max_batch_size = int(os.getenv("MUSIC_WATCHER_BATCH_SIZE", "50"))  # Max 50 file per batch
+        self.indexing_window = int(os.getenv("MUSIC_WATCHER_INDEXING_WINDOW", "30"))  # Finestra temporale per rilevare tracce aggiunte (minuti)
         
         logger.info(f"🎵 Music Watcher inizializzato: {music_path}")
-        logger.info(f"⏱️ Intervallo check: {self.check_interval}s, Debounce: {self.debounce_time}s")
+        logger.info(f"⏱️ Intervallo check: {self.check_interval}s, Debounce: {self.debounce_time}s, Window: {self.indexing_window}min")
     
     def start(self):
         """Avvia il monitoraggio in background"""
@@ -153,8 +154,8 @@ class MusicLibraryWatcher:
             # Connetti alla libreria Plex
             music_library = self.plex_server.library.section(self.library_name)
             
-            # Cerca tracce aggiunte di recente (ultimi 5 minuti)
-            five_minutes_ago = datetime.now() - timedelta(minutes=5)
+            # Cerca tracce aggiunte di recente (configurable window per account Plex indexing delays)
+            indexing_window_ago = datetime.now() - timedelta(minutes=self.indexing_window)
             recent_tracks = music_library.search(
                 sort="addedAt:desc",
                 limit=self.max_batch_size
@@ -164,7 +165,7 @@ class MusicLibraryWatcher:
             
             for track in recent_tracks:
                 # Controlla se la traccia è stata aggiunta di recente
-                if track.addedAt and track.addedAt >= five_minutes_ago:
+                if track.addedAt and track.addedAt >= indexing_window_ago:
                     # Aggiungi al nostro database se non esiste già
                     try:
                         success = add_track_to_index(track)
