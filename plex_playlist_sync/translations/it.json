@@ -28,6 +28,7 @@
       "test_database": "Test Database",
       "emergency_cleanup": "Pulizia Emergenza",
       "stop_operation": "Ferma Operazione",
+      "realign_database": "Riallinea Database con Plex",
       "confirm_stop": "Sei sicuro di voler fermare l'operazione corrente?",
       "stopping": "Fermando..."
     },
@@ -43,6 +44,7 @@
       "only_if_needed": "esegui solo se necessario"
     },
     "index_description": "Crea o aggiorna l'indice locale della tua libreria Plex.",
+    "realign_description": "Risolve incongruenze del database riallineandolo con la libreria Plex e pulendo tracce risolte.",
     "stats": {
       "tracks_synced": "Tracce Sincronizzate",
       "missing_tracks": "Tracce Mancanti",
@@ -219,6 +221,7 @@
   },
   "common": {
     "loading": "Caricamento...",
+    "processing": "Elaborazione",
     "error": "Errore",
     "success": "Successo",
     "confirm": "Conferma",
@@ -252,13 +255,17 @@
     "file_not_found": "File non trovato",
     "permission_denied": "Permesso negato",
     "stop_failed": "Impossibile fermare l'operazione",
-    "stop_error": "Errore nel fermare l'operazione"
+    "stop_error": "Errore nel fermare l'operazione",
+    "realign_failed": "Riallineamento database fallito",
+    "realign_error": "Errore nell'avvio del riallineamento database"
   },
   "messages": {
     "operation_completed": "Operazione completata con successo",
     "changes_saved": "Modifiche salvate",
     "confirm_delete": "Sei sicuro di voler eliminare questo elemento?",
     "confirm_cleanup": "Vuoi fermare tutte le operazioni e pulire il database delle tracce mancanti?",
+    "confirm_realign": "Sei sicuro di voler riallineare il database con Plex? Questo risolverà le incongruenze e potrebbe richiedere diversi minuti.",
+    "realign_started": "Riallineamento database avviato con successo. Monitora lo stato nella dashboard.",
     "no_data_available": "Nessun dato disponibile",
     "processing": "Elaborazione in corso..."
   },
@@ -410,6 +417,7 @@
       "test_database": "Test Database",
       "emergency_cleanup": "Pulizia Emergenza",
       "stop_operation": "Ferma Operazione",
+      "realign_database": "Riallinea Database con Plex",
       "confirm_stop": "Sei sicuro di voler fermare l'operazione corrente?",
       "stopping": "Fermando..."
     },
@@ -425,6 +433,7 @@
       "only_if_needed": "esegui solo se necessario"
     },
     "index_description": "Crea o aggiorna l'indice locale della tua libreria Plex.",
+    "realign_description": "Risolve incongruenze del database riallineandolo con la libreria Plex e pulendo tracce risolte.",
     "stats": {
       "tracks_synced": "Tracce Sincronizzate",
       "missing_tracks": "Tracce Mancanti",
@@ -448,6 +457,8 @@
     "permission_denied": "Permesso negato",
     "stop_failed": "Impossibile fermare l'operazione",
     "stop_error": "Errore nel fermare l'operazione",
+    "realign_failed": "Riallineamento database fallito",
+    "realign_error": "Errore nell'avvio del riallineamento database",
     "no_service_selected": "Seleziona almeno un servizio da sincronizzare",
     "sync_failed": "Sincronizzazione fallita",
     "sync_error": "Errore durante la sincronizzazione",
@@ -495,6 +506,7 @@
     "category": "Categoria",
     "operation_in_progress": "Operazione in Corso",
     "loading": "Caricamento...",
+    "processing": "Elaborazione",
     "confirm_discover_all": "Vuoi scoprire tutte le playlist per tutti i servizi? Questa operazione potrebbe richiedere alcuni minuti.",
     "confirm_migrate": "Vuoi migrare le playlist dal file .env al database? Questa operazione sovrascriverà le selezioni esistenti.",
     "discovery_completed": "Discovery completato: {count} playlist trovate",

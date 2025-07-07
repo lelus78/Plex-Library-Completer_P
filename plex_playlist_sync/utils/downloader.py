@@ -324,13 +324,13 @@ def download_single_track_with_streamrip(link: str):
     
     if not link:
         logging.info("Nessun link da scaricare fornito.")
-        return
+        return False
 
     # Pulisci l'URL da caratteri invisibili prima del download
     cleaned_link = clean_url(link)
     if not cleaned_link:
         logging.error("URL vuoto dopo la pulizia, download annullato.")
-        return
+        return False
     
     logging.info(f"🔧 DEBUG: URL pulito: {cleaned_link}")
 
@@ -395,7 +395,7 @@ def download_single_track_with_streamrip(link: str):
                 logging.info("   1. Aggiungi DEEZER_ARL=your_arl_cookie nel file .env, oppure")
                 logging.info("   2. Usa il file config.toml nella directory principale")
                 logging.info("📖 Istruzioni ARL: https://github.com/nathom/streamrip/wiki/Finding-your-Deezer-ARL-Cookie")
-                return
+                return False
             
             # Crea file di configurazione streamrip con l'ARL dal .env
             _create_streamrip_config(config_path, deezer_arl)
@@ -470,12 +470,87 @@ def download_single_track_with_streamrip(link: str):
                 logging.info(f"🔧 DEBUG: Esecuzione comando streamrip (tentativo {retry_count + 1})...")
                 # Aggiungiamo un timeout per evitare che il processo si blocchi all'infinito
                 process = subprocess.run(command, capture_output=True, text=True, check=True, encoding='utf-8', timeout=1800, env=env)
-                logging.info(f"Download di {cleaned_link} completato con successo.")
+                
+                # Verifica se il download ha effettivamente scaricato qualcosa
+                download_successful = False
                 if process.stdout:
-                     logging.debug(f"Output di streamrip per {cleaned_link}:\n{process.stdout}")
+                    stdout_lower = process.stdout.lower()
+                    logging.debug(f"Output di streamrip per {cleaned_link}:\n{process.stdout}")
+                    
+                    # Cerca indicatori di successo nel output
+                    success_indicators = [
+                        "downloaded",
+                        "completed",
+                        "success",
+                        "100%",
+                        "track downloaded",
+                        "marked as downloaded",  # Streamrip considera già scaricato
+                        "skipping track",        # Traccia già presente
+                        "detected list of urls", # Processamento iniziato
+                        "loading"                # Caricamento contenuto
+                    ]
+                    
+                    # Cerca indicatori di fallimento
+                    failure_indicators = [
+                        "not found", 
+                        "404",
+                        "error",
+                        "failed",
+                        "unable to",
+                        "nothing to download",
+                        "no results"
+                    ]
+                    
+                    # Controlla se ci sono indicatori di successo
+                    if any(indicator in stdout_lower for indicator in success_indicators):
+                        download_successful = True
+                        
+                        # Caso speciale: se streamrip dice che le tracce sono già scaricate
+                        if "skipping track" in stdout_lower and "marked as downloaded" in stdout_lower:
+                            logging.info(f"Streamrip indica che il contenuto per {cleaned_link} è già stato scaricato in precedenza")
+                            download_successful = True
+                    
+                    # Se ci sono indicatori di fallimento, considera fallito SOLO se non ci sono successi
+                    if any(indicator in stdout_lower for indicator in failure_indicators) and not download_successful:
+                        download_successful = False
+                        logging.warning(f"Download fallito per {cleaned_link}: indicatori di errore trovati nell'output")
+                
                 if process.stderr:
                      logging.warning(f"Output di warning da streamrip per {cleaned_link}:\n{process.stderr}")
-                break  # Success, exit retry loop
+                
+                # Pulisci il file temporaneo prima del return
+                if os.path.exists(temp_links_file):
+                    os.remove(temp_links_file)
+                    logging.info(f"File temporaneo di download rimosso: {temp_links_file}")
+                
+                # Se non siamo sicuri dal solo output, facciamo una verifica fisica dei file
+                if not download_successful:
+                    # Verifica fallback: controlla se sono stati aggiunti file recenti
+                    download_path = os.getenv('MUSIC_DOWNLOAD_PATH', '/downloads')
+                    if os.path.exists(download_path):
+                        from datetime import datetime, timedelta
+                        
+                        # Cerca file musicali aggiunti negli ultimi 2 minuti
+                        two_minutes_ago = time.time() - 120
+                        recent_files = []
+                        
+                        for root, dirs, files in os.walk(download_path):
+                            for file in files:
+                                if file.lower().endswith(('.mp3', '.flac', '.m4a', '.ogg', '.wav', '.aac')):
+                                    file_path = os.path.join(root, file)
+                                    if os.path.getmtime(file_path) > two_minutes_ago:
+                                        recent_files.append(file_path)
+                        
+                        if recent_files:
+                            logging.info(f"Trovati {len(recent_files)} file musicali recenti, considerando download riuscito")
+                            download_successful = True
+                
+                if download_successful:
+                    logging.info(f"Download di {cleaned_link} completato con successo.")
+                    return True
+                else:
+                    logging.warning(f"Download di {cleaned_link} completato ma nessun file scaricato.")
+                    return False
                 
             except subprocess.CalledProcessError as e:
                 retry_count += 1
@@ -492,12 +567,19 @@ def download_single_track_with_streamrip(link: str):
                     logging.error(f"❌ Errore durante l'esecuzione di streamrip per {cleaned_link} (tentativo finale {retry_count}/{max_retries + 1}).")
                     if e.stdout: logging.error(f"Output Standard (stdout):\n{e.stdout}")
                     if e.stderr: logging.error(f"Output di Errore (stderr):\n{e.stderr}")
-                    break
+                    if os.path.exists(temp_links_file):
+                        os.remove(temp_links_file)
+                        logging.info(f"File temporaneo di download rimosso: {temp_links_file}")
+                    return False  # Failure
 
     except subprocess.CalledProcessError as e:
         logging.error(f"Errore durante l'esecuzione di streamrip per {cleaned_link}.")
         if e.stdout: logging.error(f"Output Standard (stdout):\n{e.stdout}")
         if e.stderr: logging.error(f"Output di Errore (stderr):\n{e.stderr}")
+        if os.path.exists(temp_links_file):
+            os.remove(temp_links_file)
+            logging.info(f"File temporaneo di download rimosso: {temp_links_file}")
+        return False
     except Exception as e:
         logging.error(f"🔧 DEBUG: Exception catturata nel download_single_track_with_streamrip")
         logging.error(f"🔧 DEBUG: Tipo eccezione: {type(e).__name__}")
@@ -505,10 +587,16 @@ def download_single_track_with_streamrip(link: str):
         logging.error(f"Un errore imprevisto è occorso durante l'avvio di streamrip per {cleaned_link}: {e}")
         import traceback
         logging.error(f"🔧 DEBUG: Traceback completo:\n{traceback.format_exc()}")
-    finally:
         if os.path.exists(temp_links_file):
             os.remove(temp_links_file)
             logging.info(f"File temporaneo di download rimosso: {temp_links_file}")
+        return False
+    
+    # Se arriviamo qui senza return, significa che il retry loop è terminato senza successo
+    if os.path.exists(temp_links_file):
+        os.remove(temp_links_file)
+        logging.info(f"File temporaneo di download rimosso: {temp_links_file}")
+    return False
 
 def add_direct_download_to_queue(url: str, title: str, artist: str, service: str, content_type: str) -> str:
     """
@@ -600,12 +688,15 @@ def add_direct_download_to_queue(url: str, title: str, artist: str, service: str
         try:
             # Avvia il download immediatamente
             logging.info(f"Avvio download immediato per: {download_url}")
-            download_single_track_with_streamrip(download_url)
+            success = download_single_track_with_streamrip(download_url)
             
-            # Aggiorna lo status a downloaded
+            # Aggiorna lo status solo se il download è andato a buon fine
             from .database import update_track_status
-            update_track_status(track_id, 'downloaded')
-            logging.info(f"Download completato per: {title} - {artist}")
+            if success:
+                update_track_status(track_id, 'downloaded')
+                logging.info(f"Download completato per: {title} - {artist}")
+            else:
+                logging.warning(f"Download fallito per: {title} - {artist}, status rimane 'pending'")
             
         except Exception as download_error:
             logging.error(f"Errore durante download immediato: {download_error}")

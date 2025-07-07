@@ -28,6 +28,7 @@
       "test_database": "Test Database",
       "emergency_cleanup": "Emergency Cleanup",
       "stop_operation": "Stop Operation",
+      "realign_database": "Realign Database with Plex",
       "confirm_stop": "Are you sure you want to stop the current operation?",
       "stopping": "Stopping..."
     },
@@ -43,6 +44,7 @@
       "only_if_needed": "run only if necessary"
     },
     "index_description": "Create or update the local index of your Plex library.",
+    "realign_description": "Fixes database inconsistencies by realigning with Plex library and cleaning resolved tracks.",
     "stats": {
       "tracks_synced": "Synced Tracks",
       "missing_tracks": "Missing Tracks",
@@ -219,6 +221,7 @@
   },
   "common": {
     "loading": "Loading...",
+    "processing": "Processing",
     "error": "Error",
     "success": "Success",
     "confirm": "Confirm",
@@ -252,13 +255,17 @@
     "file_not_found": "File not found",
     "permission_denied": "Permission denied",
     "stop_failed": "Failed to stop operation",
-    "stop_error": "Error stopping operation"
+    "stop_error": "Error stopping operation",
+    "realign_failed": "Database realignment failed",
+    "realign_error": "Error starting database realignment"
   },
   "messages": {
     "operation_completed": "Operation completed successfully",
     "changes_saved": "Changes saved",
     "confirm_delete": "Are you sure you want to delete this item?",
     "confirm_cleanup": "Do you want to stop all operations and clean the missing tracks database?",
+    "confirm_realign": "Are you sure you want to realign the database with Plex? This will fix inconsistencies and may take several minutes.",
+    "realign_started": "Database realignment started successfully. Monitor the status in the dashboard.",
     "no_data_available": "No data available",
     "processing": "Processing..."
   },
@@ -427,6 +434,7 @@
     "category": "Category",
     "operation_in_progress": "Operation in Progress",
     "loading": "Loading...",
+    "processing": "Processing",
     "confirm_discover_all": "Do you want to discover all playlists for all services? This operation may take a few minutes.",
     "confirm_migrate": "Do you want to migrate playlists from the .env file to the database? This operation will overwrite existing selections.",
     "discovery_completed": "Discovery completed: {count} playlists found",

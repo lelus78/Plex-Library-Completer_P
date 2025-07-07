@@ -610,3 +610,55 @@ def calculate_deezer_relevance(query: str, title: str, artist: str) -> int:
                 score += 8
                 
     return score
+
+def search_albums_by_artist(artist_name: str, limit: int = 20) -> List[dict]:
+    """
+    Cerca tutti gli album di un artista su Deezer.
+    
+    Args:
+        artist_name: Nome dell'artista
+        limit: Numero massimo di album da restituire
+        
+    Returns:
+        Lista di dict con metadati degli album
+    """
+    try:
+        # 1. Cerca l'ID dell'artista
+        search_url = f"{DEEZER_API_URL}/search/artist"
+        params = {'q': artist_name, 'limit': 1}
+        response = requests.get(search_url, params=params)
+        response.raise_for_status()
+        search_data = response.json()
+        
+        if not search_data.get('data'):
+            logging.warning(f"Nessun artista trovato per '{artist_name}'")
+            return []
+            
+        artist_id = search_data['data'][0]['id']
+        
+        # 2. Recupera gli album dell'artista usando l'ID
+        albums_url = f"{DEEZER_API_URL}/artist/{artist_id}/albums"
+        params = {'limit': limit}
+        response = requests.get(albums_url, params=params)
+        response.raise_for_status()
+        albums_data = response.json()
+        
+        albums = []
+        if 'data' in albums_data:
+            for album in albums_data['data']:
+                albums.append({
+                    'id': album['id'],
+                    'title': album['title'],
+                    'url': album['link'],
+                    'artwork': album.get('cover_medium', ''),
+                    'year': album.get('release_date', '').split('-')[0] if album.get('release_date') else None,
+                    'artist': artist_name, # Usiamo il nome originale per consistenza
+                    'track_count': 0 # Deezer non fornisce questo dato qui
+                })
+        
+        logging.info(f"Trovati {len(albums)} album per l'artista '{artist_name}'")
+        return albums
+        
+    except Exception as e:
+        logging.error(f"Errore durante la ricerca album per '{artist_name}': {e}")
+        return []

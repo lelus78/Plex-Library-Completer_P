@@ -821,6 +821,20 @@ def get_library_index_stats() -> Dict[str, int]:
     except Exception:
         return {"total_tracks_indexed": 0}
 
+def check_album_in_index(artist: str, album: str) -> bool:
+    """Controlla se un album di un artista esiste nell'indice locale."""
+    try:
+        with sqlite3.connect(DB_PATH) as con:
+            cur = con.cursor()
+            res = cur.execute(
+                "SELECT id FROM plex_library_index WHERE artist_clean = ? AND album_clean = ?",
+                (_clean_string(artist), _clean_string(album))
+            )
+            return res.fetchone() is not None
+    except Exception as e:
+        logging.error(f"Errore nel controllare l'album nell'indice: {e}")
+        return False
+
 def check_track_in_index(title: str, artist: str) -> bool:
     """Controlla se una traccia esiste nell'indice locale usando stringhe pulite."""
     try:
@@ -2413,3 +2427,206 @@ def save_user_playlists(user_type: str, service: str, playlists: list, playlist_
     except Exception as e:
         logging.error(f"❌ Errore salvando playlist {user_type}/{service}: {e}")
         return 0
+
+def check_album_in_library(album_title: str, artist_name: str) -> bool:
+    """Verifica se un album è presente nella libreria Plex."""
+    try:
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            # Pulizia stringhe per il confronto
+            album_clean = _clean_string(album_title)
+            artist_clean = _clean_string(artist_name)
+            
+            logging.info(f"🔍 Verifico album: '{album_title}' -> '{album_clean}' | artista: '{artist_name}' -> '{artist_clean}'")
+            
+            # Strategia 1: Match esatto
+            cur.execute("""
+                SELECT COUNT(*) FROM plex_library_index 
+                WHERE album_clean = ? AND artist_clean = ?
+            """, (album_clean, artist_clean))
+            
+            track_count = cur.fetchone()[0]
+            if track_count > 0:
+                logging.info(f"✅ Album trovato (match esatto): {track_count} tracce")
+                return True
+            
+            # Strategia 2: Match parziale album con artista esatto
+            cur.execute("""
+                SELECT COUNT(*) FROM plex_library_index 
+                WHERE album_clean LIKE ? AND artist_clean = ?
+            """, (f"%{album_clean}%", artist_clean))
+            
+            track_count = cur.fetchone()[0]
+            if track_count > 0:
+                logging.info(f"✅ Album trovato (match parziale album): {track_count} tracce")
+                return True
+            
+            # Strategia 3: Match esatto album con artista parziale
+            cur.execute("""
+                SELECT COUNT(*) FROM plex_library_index 
+                WHERE album_clean = ? AND artist_clean LIKE ?
+            """, (album_clean, f"%{artist_clean}%"))
+            
+            track_count = cur.fetchone()[0]
+            if track_count > 0:
+                logging.info(f"✅ Album trovato (match parziale artista): {track_count} tracce")
+                return True
+            
+            # Strategia 4: Match parziale su entrambi
+            cur.execute("""
+                SELECT COUNT(*) FROM plex_library_index 
+                WHERE album_clean LIKE ? AND artist_clean LIKE ?
+            """, (f"%{album_clean}%", f"%{artist_clean}%"))
+            
+            track_count = cur.fetchone()[0]
+            if track_count > 0:
+                logging.info(f"✅ Album trovato (match parziale): {track_count} tracce")
+                return True
+            
+            # Strategia 5: Cerca artisti simili per debug  
+            words = artist_clean.split()
+            if len(words) >= 2:
+                # Prova combinazioni di parole (es: "molly grace" da "soprano molly grace")
+                for i in range(len(words)):
+                    for j in range(i+1, len(words)+1):
+                        word_combo = " ".join(words[i:j])
+                        if len(word_combo) > 3:
+                            cur.execute("""
+                                SELECT DISTINCT artist_clean FROM plex_library_index 
+                                WHERE artist_clean LIKE ? OR artist_clean = ?
+                                LIMIT 10
+                            """, (f"%{word_combo}%", word_combo))
+                            
+                            similar_artists = [r[0] for r in cur.fetchall()]
+                            if similar_artists:
+                                logging.info(f"🔍 Artisti simili con combinazione '{word_combo}': {similar_artists}")
+                                
+                                # Se troviamo match parziali, verifica album
+                                for similar_artist in similar_artists:
+                                    cur.execute("""
+                                        SELECT COUNT(*) FROM plex_library_index 
+                                        WHERE artist_clean = ? AND album_clean LIKE ?
+                                    """, (similar_artist, f"%{album_clean}%"))
+                                    
+                                    count = cur.fetchone()[0]
+                                    if count > 0:
+                                        logging.info(f"✅ Album trovato con nome artista '{similar_artist}': {count} tracce")
+                                        return True
+            
+            # Strategia 6: Ricerca specifica per Molly Grace
+            logging.info(f"🔍 DEBUG DETTAGLIATO: Cerco esattamente 'molly grace'...")
+            
+            # Ricerca diretta per "molly grace"
+            cur.execute("""
+                SELECT DISTINCT artist_clean, title_clean, album_clean FROM plex_library_index 
+                WHERE artist_clean LIKE '%molly%' AND artist_clean LIKE '%grace%'
+                LIMIT 10
+            """)
+            
+            molly_grace_tracks = cur.fetchall()
+            if molly_grace_tracks:
+                logging.info(f"🎵 TROVATO! Tracce di Molly Grace nel database:")
+                for artist, title, album in molly_grace_tracks:
+                    logging.info(f"    - Artista: '{artist}' | Titolo: '{title}' | Album: '{album}'")
+                    
+                    # Controlla se corrisponde all'album cercato
+                    if album_clean in album or album in album_clean:
+                        logging.info(f"✅ MATCH! Album '{album_clean}' trovato come '{album}'")
+                        return True
+            
+            # Ricerca per varianti del nome
+            logging.info(f"🔍 DEBUG: Cerco varianti di 'molly grace'...")
+            search_patterns = [
+                "molly grace",
+                "mollygrace", 
+                "grace molly",
+                "gracemolly",
+                "molly%grace",
+                "grace%molly"
+            ]
+            
+            for pattern in search_patterns:
+                cur.execute("""
+                    SELECT DISTINCT artist_clean, album_clean FROM plex_library_index 
+                    WHERE artist_clean LIKE ?
+                    LIMIT 5
+                """, (f"%{pattern}%",))
+                
+                results = cur.fetchall()
+                if results:
+                    logging.info(f"🔍 Trovato con pattern '{pattern}': {results}")
+                    for artist, album in results:
+                        if album_clean in album or album in album_clean:
+                            logging.info(f"✅ MATCH con pattern '{pattern}'! Album '{album_clean}' trovato come '{album}'")
+                            return True
+            
+            # Debug: verifica stato indice database
+            cur.execute("SELECT COUNT(*) FROM plex_library_index")
+            total_tracks = cur.fetchone()[0]
+            logging.info(f"🔍 DEBUG: Totale tracce nell'indice: {total_tracks}")
+            
+            if total_tracks == 0:
+                logging.warning(f"❌ PROBLEMA: L'indice del database è vuoto! Esegui l'indicizzazione della libreria.")
+                return False
+            
+            # Debug finale: mostra alcuni artisti casuali per capire il formato
+            cur.execute("SELECT DISTINCT artist_clean FROM plex_library_index WHERE artist_clean != '' ORDER BY RANDOM() LIMIT 20")
+            sample_artists = [r[0] for r in cur.fetchall()]
+            logging.info(f"🔍 DEBUG: Esempi artisti nel database: {sample_artists[:10]}")
+            
+            # Strategia 7: Singole parole (fallback)
+            for word in words:
+                if len(word) > 3:
+                    cur.execute("""
+                        SELECT DISTINCT artist_clean FROM plex_library_index 
+                        WHERE artist_clean LIKE ?
+                        LIMIT 5
+                    """, (f"%{word}%",))
+                    
+                    similar_artists = [r[0] for r in cur.fetchall()]
+                    if similar_artists:
+                        logging.info(f"🔍 Artisti con parola singola '{word}': {similar_artists}")
+                        break
+            
+            logging.info(f"❌ Nessun album trovato per artista '{artist_clean}'")
+            
+            return False
+            
+    except Exception as e:
+        logging.error(f"Errore verifica album in libreria: {e}")
+        return False
+
+def get_album_completion_percentage(album_title: str, artist_name: str) -> int:
+    """Calcola la percentuale di completezza di un album nella libreria."""
+    try:
+        with get_db_connection() as con:
+            cur = con.cursor()
+            
+            # Pulizia stringhe per il confronto
+            album_clean = _clean_string(album_title)
+            artist_clean = _clean_string(artist_name)
+            
+            # Conta tracce presenti
+            cur.execute("""
+                SELECT COUNT(*) FROM plex_library_index 
+                WHERE album_clean LIKE ? AND artist_clean LIKE ?
+            """, (f"%{album_clean}%", f"%{artist_clean}%"))
+            
+            found_tracks = cur.fetchone()[0]
+            
+            if found_tracks == 0:
+                return 0
+            elif found_tracks >= 8:  # Album probabilmente completo
+                return 100
+            else:
+                # Stima percentuale basata su numero medio tracce per album (12)
+                return min(int((found_tracks / 12) * 100), 95)
+                
+    except Exception as e:
+        logging.error(f"Errore calcolo completezza album: {e}")
+        return 0
+
+def check_album_in_index(artist: str, album_title: str) -> bool:
+    """Funzione di compatibilità per il controllo album nell'indice."""
+    return check_album_in_library(album_title, artist)

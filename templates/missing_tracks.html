@@ -848,12 +848,27 @@ $(document).ready(function() {
                                 <span>${album.year || 'N/A'}</span>
                                 <span>${album.track_count || 0} tracce</span>
                             </div>
-                            <button class="btn btn-success download-album-btn" 
+                            <!-- Indicatore presenza in libreria -->
+                            ${album.in_library ? 
+                                `<div class="mb-2">
+                                    <span class="badge bg-success d-flex align-items-center justify-content-center" style="font-size: 0.75rem;">
+                                        <i data-lucide="check-circle" class="me-1" style="width: 12px; height: 12px;"></i>
+                                        In Libreria ${album.completion_percentage < 100 ? `(${album.completion_percentage}%)` : ''}
+                                    </span>
+                                </div>` : 
+                                `<div class="mb-2">
+                                    <span class="badge bg-secondary d-flex align-items-center justify-content-center" style="font-size: 0.75rem;">
+                                        <i data-lucide="download-cloud" class="me-1" style="width: 12px; height: 12px;"></i>
+                                        Non in Libreria
+                                    </span>
+                                </div>`
+                            }
+                            <button class="btn ${album.in_library ? 'btn-outline-primary' : 'btn-success'} download-album-btn" 
                                     data-album-url="${album.url}" 
                                     data-album-title="${album.title}"
                                     data-album-artist="${album.artist}">
                                 <i data-lucide="download" class="me-2" style="width: 16px; height: 16px;"></i>
-                                Scarica Album
+                                ${album.in_library ? 'Riscarica Album' : 'Scarica Album'}
                             </button>
                         </div>
                     </div>
@@ -1192,53 +1207,92 @@ $(document).ready(function() {
     $('#deezerSearchBtn').on('click', function() {
         const button = $(this);
         const originalHtml = button.html();
-        button.html('<i data-lucide="loader" class="me-2" style="width: 16px; height: 16px;"></i>Ricerca...').prop('disabled', true);
+        button.html('<i data-lucide="loader" class="me-2 animate-spin" style="width: 16px; height: 16px;"></i>Ricerca...').prop('disabled', true);
         
-        $('#deezerResults').html('<div class="text-center p-3"><i data-lucide="loader" class="me-2" style="width: 20px; height: 20px;"></i>Ricerca album su Deezer...</div>');
+        $('#deezerResults').html('<div class="text-center p-3"><i data-lucide="loader" class="me-2 animate-spin" style="width: 20px; height: 20px;"></i>Ricerca album su Deezer...</div>');
+        if (typeof lucide !== 'undefined') { lucide.createIcons(); }
         
         const deezerSearchUrl = "{{ url_for('search_deezer_manual') }}";
         $.get(`${deezerSearchUrl}?title=${encodeURIComponent(trackTitle)}&artist=${encodeURIComponent(trackArtist)}`)
             .done(function(data) {
-                $('#deezerResults').empty();
-                if (data.length > 0) {
-                    data.forEach(function(result) {
-                        const albumUrl = `https://www.deezer.com/album/${result.album.id}`;
-                        const item = $(`
-                            <div class="search-result-item d-flex justify-content-between align-items-center">
-                                <div class="d-flex align-items-center">
-                                    <img src="${result.album.cover_medium}" width="50" height="50" class="me-3 rounded" style="border-radius: var(--radius-sm);">
-                                    <div>
-                                        <div class="fw-medium">${result.title}</div>
-                                        <small class="text-secondary">${result.artist.name} - ${result.album.title}</small>
-                                    </div>
-                                </div>
-                                <button class="btn btn-sm btn-primary download-btn" data-album-url="${albumUrl}">
-                                    <i data-lucide="download" class="me-1" style="width: 14px; height: 14px;"></i>
-                                    Scarica Album
-                                </button>
-                            </div>
-                        `);
-                        $('#deezerResults').append(item);
-                    });
-                } else {
+                if (data.length === 0) {
                     $('#deezerResults').html('<div class="text-center p-3 text-secondary"><i data-lucide="search-x" class="me-2" style="width: 20px; height: 20px;"></i>Nessun album trovato su Deezer</div>');
+                    if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+                    return;
                 }
+
+                // --- NUOVA LOGICA PER CONTROLLO ALBUM ---
+                const albumsToCheck = [...new Set(data.map(result => JSON.stringify({artist: result.artist.name, album_title: result.album.title})))].map(item => JSON.parse(item));
                 
-                if (typeof lucide !== 'undefined') {
-                    lucide.createIcons();
-                }
+                $.ajax({
+                    url: '{{ url_for("check_albums_exist") }}',
+                    type: 'POST',
+                    contentType: 'application/json',
+                    data: JSON.stringify({ albums: albumsToCheck }),
+                    success: function(response) {
+                        const albumPresenceMap = new Map(Object.entries(response.results || {}));
+                        
+                        $('#deezerResults').empty();
+                        data.forEach(function(result) {
+                            const albumUrl = `https://www.deezer.com/album/${result.album.id}`;
+                            const albumKey = `${result.artist.name}::${result.album.title}`;
+                            const isInLibrary = albumPresenceMap.get(albumKey) || false;
+                            
+                            const libraryBadge = isInLibrary ? '<span class="badge bg-success ms-2">In Libreria</span>' : '';
+
+                            const item = $(`
+                                <div class="search-result-item d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center" style="min-width: 0;">
+                                        <img src="${result.album.cover_medium}" width="50" height="50" class="me-3 rounded" style="border-radius: var(--radius-sm);">
+                                        <div style="min-width: 0;">
+                                            <div class="fw-medium text-truncate">${result.title}</div>
+                                            <small class="text-secondary text-truncate d-block">${result.artist.name} - ${result.album.title}${libraryBadge}</small>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-sm btn-primary download-btn" data-album-url="${albumUrl}">
+                                        <i data-lucide="download" class="me-1" style="width: 14px; height: 14px;"></i>
+                                        Scarica Album
+                                    </button>
+                                </div>
+                            `);
+                            $('#deezerResults').append(item);
+                        });
+                        if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+                    },
+                    error: function() {
+                        // Fallback senza indicatori in caso di errore
+                        $('#deezerResults').empty();
+                        data.forEach(function(result) {
+                            const albumUrl = `https://www.deezer.com/album/${result.album.id}`;
+                            const item = $(`
+                                <div class="search-result-item d-flex justify-content-between align-items-center">
+                                    <div class="d-flex align-items-center">
+                                        <img src="${result.album.cover_medium}" width="50" height="50" class="me-3 rounded" style="border-radius: var(--radius-sm);">
+                                        <div>
+                                            <div class="fw-medium">${result.title}</div>
+                                            <small class="text-secondary">${result.artist.name} - ${result.album.title}</small>
+                                        </div>
+                                    </div>
+                                    <button class="btn btn-sm btn-primary download-btn" data-album-url="${albumUrl}">
+                                        <i data-lucide="download" class="me-1" style="width: 14px; height: 14px;"></i>
+                                        Scarica Album
+                                    </button>
+                                </div>
+                            `);
+                            $('#deezerResults').append(item);
+                        });
+                        if (typeof lucide !== 'undefined') { lucide.createIcons(); }
+                    }
+                });
+                // --- FINE NUOVA LOGICA ---
             })
             .fail(function() {
                 $('#deezerResults').html('<div class="text-center p-3 text-danger"><i data-lucide="alert-circle" class="me-2" style="width: 20px; height: 20px;"></i>Errore durante la ricerca su Deezer</div>');
-                if (typeof lucide !== 'undefined') {
-                    lucide.createIcons();
-                }
+                if (typeof lucide !== 'undefined') { lucide.createIcons(); }
             })
             .always(function() {
                 button.html(originalHtml).prop('disabled', false);
-                if (typeof lucide !== 'undefined') {
-                    lucide.createIcons();
-                }
+                if (typeof lucide !== 'undefined') { lucide.createIcons(); }
             });
     });
 

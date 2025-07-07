@@ -81,6 +81,7 @@ venv.bak
 config.toml
 state_data/
 claude.md
+gemini.md
 
 #test file
 test_categorization_final.py

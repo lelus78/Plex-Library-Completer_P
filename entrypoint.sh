@@ -34,4 +34,13 @@ fi
 
 chown -R "$USER_ID":"$GROUP_ID" /app/state_data /app/logs
 
+# Fix downloads directory permissions if it exists
+if [ -d "/downloads" ]; then
+    echo "🔧 Fixing /downloads directory permissions..."
+    # Only fix ownership of the root directory and make it writable
+    chown "$USER_ID":"$GROUP_ID" /downloads
+    chmod 755 /downloads
+    echo "✅ Downloads directory permissions fixed (root level only)"
+fi
+
 exec gosu "$USER_ID":"$GROUP_ID" python app.py

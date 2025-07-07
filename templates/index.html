@@ -169,6 +169,17 @@
                             </button>
                         </form>
                         
+                        <!-- Database Realignment Button -->
+                        <div class="mt-3">
+                            <p class="text-secondary small mb-2">
+                                {{ _('dashboard.realign_description') }}
+                            </p>
+                            <button id="btn-realign" type="button" onclick="realignDatabase()" class="btn btn-info w-100 d-flex align-items-center justify-content-center">
+                                <i data-lucide="refresh-ccw" class="me-2" style="width: 16px; height: 16px;"></i>
+                                {{ _('dashboard.actions.realign_database') }}
+                            </button>
+                        </div>
+                        
                         {% if index_stats.total_tracks_indexed == 0 %}
                         <form action="{{ url_for('restart_indexing') }}" method="post">
                             <button type="submit" class="btn btn-outline-success btn-sm w-100 d-flex align-items-center justify-content-center">
@@ -706,6 +717,55 @@
             // Re-enable button on error
             syncButton.disabled = false;
             syncButton.innerHTML = '<i data-lucide="refresh-cw" class="me-2" style="width: 18px; height: 18px;"></i>{{ _('dashboard.actions.sync_now') }}';
+        });
+        
+        // Refresh icons after content update
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+    }
+
+    function realignDatabase() {
+        const realignButton = document.getElementById('btn-realign');
+        
+        // Confirm action
+        if (!confirm('{{ _('messages.confirm_realign') }}')) {
+            return;
+        }
+        
+        // Disable button and show loading state
+        realignButton.disabled = true;
+        realignButton.innerHTML = '<i data-lucide="loader" class="me-2 lucide-spin" style="width: 16px; height: 16px;"></i>{{ _('common.processing') }}...';
+        
+        // Call API
+        fetch('/api/database/realign', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                console.log('Database realignment started successfully');
+                // The dashboard will be updated by the periodic status check
+                updateDashboard();
+                
+                // Show success message
+                alert('{{ _('messages.realign_started') }}');
+            } else {
+                alert('{{ _('errors.realign_failed') }}: ' + data.error);
+                // Re-enable button on error
+                realignButton.disabled = false;
+                realignButton.innerHTML = '<i data-lucide="refresh-ccw" class="me-2" style="width: 16px; height: 16px;"></i>{{ _('dashboard.actions.realign_database') }}';
+            }
+        })
+        .catch(error => {
+            console.error('Error starting database realignment:', error);
+            alert('{{ _('errors.realign_error') }}');
+            // Re-enable button on error
+            realignButton.disabled = false;
+            realignButton.innerHTML = '<i data-lucide="refresh-ccw" class="me-2" style="width: 16px; height: 16px;"></i>{{ _('dashboard.actions.realign_database') }}';
         });
         
         // Refresh icons after content update

@@ -6,6 +6,7 @@ import csv
 import sys
 import concurrent.futures
 import queue
+from datetime import datetime
 from flask import Flask, render_template, redirect, url_for, flash, jsonify, request
 from dotenv import load_dotenv
 from plexapi.server import PlexServer
@@ -43,10 +44,12 @@ from plex_playlist_sync.utils.database import (
     add_managed_ai_playlist, get_managed_ai_playlists_for_user, delete_managed_ai_playlist, get_managed_playlist_details,
     delete_all_missing_tracks, delete_missing_track, check_track_in_index, comprehensive_track_verification, get_library_index_stats,
     clean_tv_content_from_missing_tracks, clean_resolved_missing_tracks, add_missing_track_if_not_exists,
-    get_total_selected_playlists_count, share_playlist_with_user, get_shared_playlists, get_user_playlist_selections_with_sharing
+    get_total_selected_playlists_count, share_playlist_with_user, get_shared_playlists, get_user_playlist_selections_with_sharing,
+    check_album_in_index
 )
 from plex_playlist_sync.utils.downloader import DeezerLinkFinder, download_single_track_with_streamrip, find_potential_tracks, find_tracks_free_search
 from plex_playlist_sync.utils.i18n import init_i18n_for_app, translate_status
+from plex_playlist_sync.utils.file_watcher import watcher_manager
 
 initialize_db()
 
@@ -55,6 +58,36 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY", "una-chiave-segreta-casuale-e-rob
 
 # Initialize i18n service
 init_i18n_for_app(app)
+
+# Initialize music library watcher
+def initialize_music_watcher():
+    """Inizializza il file system watcher per la libreria musicale"""
+    try:
+        plex_url = os.getenv('PLEX_URL')
+        plex_token = os.getenv('PLEX_TOKEN')
+        music_download_path = os.getenv('MUSIC_DOWNLOAD_PATH', '/downloads')
+        library_name = os.getenv('LIBRARY_NAME', 'Musica')
+        
+        if plex_url and plex_token:
+            from plexapi.server import PlexServer
+            plex_server = PlexServer(plex_url, plex_token, timeout=120)
+            
+            # Inizializza il watcher
+            watcher = watcher_manager.initialize(music_download_path, plex_server, library_name)
+            
+            # Avvia il monitoring solo se abilitato
+            if os.getenv('MUSIC_WATCHER_ENABLED', 'true').lower() == 'true':
+                watcher_manager.start()
+                log.info(f"🎵 Music Watcher avviato per: {music_download_path}")
+            else:
+                log.info("🎵 Music Watcher inizializzato ma non avviato (MUSIC_WATCHER_ENABLED=false)")
+        else:
+            log.warning("⚠️ PLEX_URL o PLEX_TOKEN non configurati, Music Watcher non inizializzato")
+    except Exception as e:
+        log.error(f"❌ Errore inizializzazione Music Watcher: {e}")
+
+# Inizializza il watcher in modo sincrono
+initialize_music_watcher()
 
 app_state = { "status": "In attesa", "last_sync": "Mai eseguito", "is_running": False, "stop_requested": False }
 
@@ -1242,6 +1275,29 @@ def search_deezer_free():
     if not query: return jsonify({"error": "Query di ricerca richiesta"}), 400
     return jsonify(find_tracks_free_search(query))
 
+
+@app.route('/api/check_albums_exist', methods=['POST'])
+def check_albums_exist():
+    """API endpoint to check if a list of albums exist in the local index."""
+    data = request.json
+    albums_to_check = data.get('albums', [])
+    if not albums_to_check:
+        return jsonify({"success": False, "error": "No albums provided"}), 400
+    
+    results = {}
+    try:
+        for album in albums_to_check:
+            artist = album.get('artist')
+            album_title = album.get('album_title')
+            if artist and album_title:
+                # Create a unique key for the frontend to use
+                key = f"{artist}::{album_title}"
+                results[key] = check_album_in_index(artist, album_title)
+        return jsonify({"success": True, "results": results})
+    except Exception as e:
+        log.error(f"Error checking album existence: {e}", exc_info=True)
+        return jsonify({"success": False, "error": "Server error during album check"}), 500
+
 @app.route('/download_track', methods=['POST'])
 def download_track():
     data = request.json
@@ -1792,6 +1848,52 @@ def api_add_public_playlist():
         log.error(f"Errore aggiungendo playlist pubblica: {e}", exc_info=True)
         return jsonify({"success": False, "error": str(e)}), 500
 
+# --- Music Watcher Endpoints ---
+
+@app.route('/api/watcher/status')
+def watcher_status():
+    """Ottieni lo status del music watcher"""
+    try:
+        watcher = watcher_manager.get_watcher()
+        if watcher:
+            status = watcher.get_status()
+            return jsonify({"success": True, "status": status})
+        else:
+            return jsonify({"success": False, "error": "Watcher non inizializzato"})
+    except Exception as e:
+        log.error(f"Errore ottenendo status watcher: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/watcher/force_refresh', methods=['POST'])
+def force_watcher_refresh():
+    """Forza un refresh del database tramite il watcher"""
+    try:
+        watcher_manager.force_refresh()
+        return jsonify({"success": True, "message": "Refresh del database avviato"})
+    except Exception as e:
+        log.error(f"Errore forzando refresh watcher: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/watcher/start', methods=['POST'])
+def start_watcher():
+    """Avvia il music watcher"""
+    try:
+        watcher_manager.start()
+        return jsonify({"success": True, "message": "Music Watcher avviato"})
+    except Exception as e:
+        log.error(f"Errore avviando watcher: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
+@app.route('/api/watcher/stop', methods=['POST'])
+def stop_watcher():
+    """Ferma il music watcher"""
+    try:
+        watcher_manager.stop()
+        return jsonify({"success": True, "message": "Music Watcher fermato"})
+    except Exception as e:
+        log.error(f"Errore fermando watcher: {e}")
+        return jsonify({"success": False, "error": str(e)})
+
 @app.route('/api/selected_playlists_count')
 def api_selected_playlists_count():
     """
@@ -2197,10 +2299,32 @@ def search_artist_albums():
             except Exception as e:
                 log.warning(f"Errore ricerca Spotify per artista '{artist_name}': {e}")
         
+        # Verifica presenza nella libreria Plex per ogni album
+        from plex_playlist_sync.utils.database import check_album_in_library
+        
+        for album in albums:
+            try:
+                # Verifica se l'album è presente nella libreria
+                is_in_library = check_album_in_library(album["title"], album["artist"])
+                album["in_library"] = is_in_library
+                
+                # Calcola una percentuale di completezza se parzialmente presente
+                if is_in_library:
+                    from plex_playlist_sync.utils.database import get_album_completion_percentage
+                    completion = get_album_completion_percentage(album["title"], album["artist"])
+                    album["completion_percentage"] = completion
+                else:
+                    album["completion_percentage"] = 0
+                    
+            except Exception as e:
+                log.warning(f"Errore verifica album '{album['title']}' nella libreria: {e}")
+                album["in_library"] = False
+                album["completion_percentage"] = 0
+        
         # Ordina per anno (più recenti prima) e rimuovi duplicati
         albums.sort(key=lambda x: int(x["year"]) if x["year"] and x["year"].isdigit() else 0, reverse=True)
         
-        log.info(f"Trovati {len(albums)} album per artista '{artist_name}'")
+        log.info(f"Trovati {len(albums)} album per artista '{artist_name}' (verificata presenza in libreria)")
         
         return jsonify({
             "success": True,
@@ -2312,6 +2436,125 @@ def calculate_relevance(query, title, artist):
                 score += 8
                 
     return score
+
+# ====== Music Watcher API Endpoints ======
+
+@app.route('/api/watcher/status')
+def api_watcher_status():
+    """API endpoint per lo status del Music Watcher"""
+    try:
+        watcher = watcher_manager.get_watcher()
+        if watcher:
+            status = watcher.get_status()
+            return jsonify({
+                'success': True,
+                'watcher': status
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Music Watcher non inizializzato'
+            }), 500
+    except Exception as e:
+        log.error(f"Errore API watcher status: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/watcher/force_refresh', methods=['POST'])
+def api_watcher_force_refresh():
+    """API endpoint per forzare un refresh del database"""
+    try:
+        watcher = watcher_manager.get_watcher()
+        if watcher:
+            watcher.force_refresh()
+            return jsonify({
+                'success': True,
+                'message': 'Refresh forzato avviato'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Music Watcher non inizializzato'
+            }), 500
+    except Exception as e:
+        log.error(f"Errore API watcher force refresh: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+@app.route('/api/database/realign', methods=['POST'])
+def api_database_realign():
+    """API endpoint per riallineare il database con Plex"""
+    try:
+        if app_state["is_running"]:
+            return jsonify({
+                'success': False,
+                'error': 'Un\'operazione è già in corso. Attendere il completamento.'
+            }), 409
+        
+        # Avvia il riallineamento in background
+        def realign_database():
+            try:
+                app_state["is_running"] = True
+                app_state["status"] = "Riallineamento database in corso..."
+                
+                log.info("🔄 Avvio riallineamento database con Plex")
+                
+                # 1. Verifica e corregge inconsistenze nei download (file fisici)
+                from verify_downloads_consistency import verify_downloads_consistency
+                inconsistent, verified = verify_downloads_consistency()
+                log.info(f"📊 Download verificati: {verified}, corretti: {inconsistent}")
+                
+                # 1b. Verifica e corregge inconsistenze nei download (presenza in Plex)
+                from plex_playlist_sync.utils.database import verify_downloaded_tracks_in_plex
+                confirmed, reset = verify_downloaded_tracks_in_plex()
+                log.info(f"📊 Tracce in Plex confermate: {confirmed}, resettate: {reset}")
+                
+                # 2. Forza refresh della libreria dal Music Watcher
+                watcher = watcher_manager.get_watcher()
+                if watcher:
+                    watcher.force_refresh()
+                    log.info("🎵 Refresh automatico libreria musicale completato")
+                
+                # 3. Pulisce tracce risolte
+                from plex_playlist_sync.utils.database import clean_resolved_missing_tracks
+                cleaned = clean_resolved_missing_tracks()
+                log.info(f"🧹 Rimosse {cleaned} tracce risolte dal database")
+                
+                # 4. Re-scan e aggiornamento missing tracks
+                from plex_playlist_sync.sync_logic import rescan_and_update_missing
+                rescan_and_update_missing()
+                log.info("🔍 Re-scan e aggiornamento missing tracks completato")
+                
+                app_state["status"] = "Riallineamento completato con successo"
+                app_state["last_sync"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+                log.info("✅ Riallineamento database completato con successo")
+                
+            except Exception as e:
+                log.error(f"❌ Errore durante riallineamento database: {e}")
+                app_state["status"] = f"Errore durante riallineamento: {str(e)}"
+            finally:
+                app_state["is_running"] = False
+        
+        # Avvia in background
+        import threading
+        thread = threading.Thread(target=realign_database, daemon=True)
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Riallineamento database avviato in background'
+        })
+        
+    except Exception as e:
+        log.error(f"Errore API database realign: {e}")
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 if __name__ == '__main__':
     log.info("Avvio dell'applicazione Flask...")
