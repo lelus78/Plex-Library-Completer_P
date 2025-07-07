@@ -2428,8 +2428,8 @@ def save_user_playlists(user_type: str, service: str, playlists: list, playlist_
         logging.error(f"❌ Errore salvando playlist {user_type}/{service}: {e}")
         return 0
 
-def check_album_in_library(album_title: str, artist_name: str) -> bool:
-    """Verifica se un album è presente nella libreria Plex."""
+def check_album_in_library(album_title: str, artist_name: str, auto_sync: bool = True) -> bool:
+    """Verifica se un album è presente nella libreria Plex. Con auto_sync=True, aggiunge automaticamente se trovato in Plex ma mancante dal DB."""
     try:
         with get_db_connection() as con:
             cur = con.cursor()
@@ -2590,6 +2590,69 @@ def check_album_in_library(album_title: str, artist_name: str) -> bool:
                         break
             
             logging.info(f"❌ Nessun album trovato per artista '{artist_clean}'")
+            
+            # AUTO-SYNC: Se non trovato nel DB, verifica se esiste in Plex e aggiungilo automaticamente
+            if auto_sync:
+                try:
+                    import os
+                    from plexapi.server import PlexServer
+                    
+                    logging.info(f"🔄 AUTO-SYNC: Verifico se album esiste in Plex per aggiunta automatica...")
+                    
+                    plex_url = os.getenv('PLEX_URL')
+                    plex_token = os.getenv('PLEX_TOKEN')
+                    
+                    if plex_url and plex_token:
+                        plex = PlexServer(plex_url, plex_token)
+                        music_section = plex.library.section('Musica')
+                        
+                        # Cerca l'artista in Plex
+                        plex_artists = music_section.search(**{'artist.title': artist_name})
+                        if plex_artists:
+                            plex_artist = plex_artists[0]
+                            
+                            # Cerca l'album specifico
+                            for album in plex_artist.albums():
+                                album_clean_plex = _clean_string(album.title)
+                                if album_clean_plex == album_clean or album_clean in album_clean_plex or album_clean_plex in album_clean:
+                                    logging.info(f"🎯 AUTO-SYNC: Album '{album.title}' trovato in Plex! Aggiunta al database...")
+                                    
+                                    # Aggiungi tutte le tracce dell'album
+                                    added_count = 0
+                                    for track in album.tracks():
+                                        title_clean_track = track.title.lower().strip()
+                                        artist_clean_track = track.grandparentTitle.lower().strip()
+                                        album_clean_track = track.parentTitle.lower().strip()
+                                        
+                                        # Verifica se già esiste
+                                        cur.execute('''
+                                            SELECT COUNT(*) FROM plex_library_index 
+                                            WHERE title_clean = ? AND artist_clean = ? AND album_clean = ?
+                                        ''', (title_clean_track, artist_clean_track, album_clean_track))
+                                        
+                                        if cur.fetchone()[0] == 0:
+                                            cur.execute('''
+                                                INSERT INTO plex_library_index 
+                                                (title_clean, artist_clean, album_clean, year)
+                                                VALUES (?, ?, ?, ?)
+                                            ''', (title_clean_track, artist_clean_track, album_clean_track, album.year))
+                                            added_count += 1
+                                            logging.info(f"  ➕ AUTO-SYNC: Aggiunta traccia '{track.title}'")
+                                    
+                                    if added_count > 0:
+                                        con.commit()
+                                        logging.info(f"✅ AUTO-SYNC: Album aggiunto automaticamente! {added_count} tracce")
+                                        return True
+                                    else:
+                                        logging.info(f"ℹ️ AUTO-SYNC: Album già presente nel database")
+                                        return True
+                        
+                        logging.info(f"❌ AUTO-SYNC: Album non trovato in Plex")
+                    else:
+                        logging.warning(f"⚠️ AUTO-SYNC: Configurazione Plex mancante")
+                        
+                except Exception as sync_error:
+                    logging.error(f"❌ AUTO-SYNC: Errore durante sincronizzazione automatica: {sync_error}")
             
             return False
             
