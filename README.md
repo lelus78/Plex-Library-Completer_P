@@ -34,13 +34,14 @@ A comprehensive Python application, executed via Docker, that keeps your Plex mu
 
 - **🎵 Multi-Platform Synchronization**: Automatically syncs playlists from **Spotify** and **Deezer** to your Plex library
 - **🎛️ Interactive Playlist Management**: NEW! Web-based interface for discovering, selecting, and managing playlists with real-time statistics
-- **🔍 Advanced Auto-Discovery**: Automatically discover user playlists, curated content, charts, genres, and radio stations
+- **🔍 Enhanced Universal Search**: Intelligent search across Spotify and Deezer with consistent library status detection
+- **🧹 Smart URL Processing**: Automatic cleaning of URLs with invisible Unicode character removal
 - **👥 Multi-User Management**: Supports multiple Plex users with individual configurations and playlists
 - **🔗 Playlist Sharing System**: Share playlists between users with independent selection control and physical copy architecture
 - **📎 Manual Playlist Addition**: Add any public Spotify playlist directly via URL or ID through the web interface
 - **🤖 AI Playlist Generation**: Uses **Google Gemini** with **Ollama fallback** to create personalized weekly playlists and refresh existing AI playlists
-- **📊 Smart Missing Track Detection**: Identifies songs missing from your library with advanced matching algorithms
-- **⬇️ Automatic Downloads**: Uses **streamrip** to download missing tracks from Deezer automatically
+- **📊 Smart Missing Track Detection**: Identifies songs missing from your library with advanced matching algorithms and auto-sync capabilities
+- **⬇️ Robust Download System**: Enhanced streamrip integration with comprehensive error handling and Spotify-to-Deezer conversion
 - **🗑️ Automated Cleanup**: Removes old playlists while preserving important ones with protection tags
 - **⏰ Background Processing**: Runs continuously with configurable sync intervals or manual operation
 - **📈 Rich Statistics**: Real-time dashboard with detailed music library analytics
@@ -49,7 +50,16 @@ A comprehensive Python application, executed via Docker, that keeps your Plex mu
 
 ## 🆕 What's New
 
-### 🔄 Real-Time Interface Synchronization (LATEST!)
+### ⚡ Latest Improvements (June 2025)
+- **🔧 Direct Download Fixes**: Fixed JavaScript errors in download functionality and URL handling
+- **🧹 Unicode Character Cleaning**: Automatically removes invisible Unicode characters from URLs (frontend + backend)
+- **📚 Consistent Library Checking**: Spotify and Deezer search results now show accurate "In Libreria" status
+- **🎯 Enhanced URL Conversion**: Improved Spotify-to-Deezer URL conversion with comprehensive error handling
+- **🔍 Smart Search Interface**: Removed unused "Plex" tab from search results for cleaner interface
+- **🛡️ Robust Error Handling**: Enhanced error logging and fallback strategies for failed operations
+- **🚀 Auto-Sync Integration**: Library checking now includes auto-sync functionality for real-time updates
+
+### 🔄 Real-Time Interface Synchronization
 - **Live Badge Updates**: All statistics badges update instantly without page refresh
 - **Database Synchronization**: Interface elements sync directly with database state
 - **Smart Checkbox Management**: Checkbox states automatically reflect actual database selections
@@ -77,6 +87,14 @@ A comprehensive Python application, executed via Docker, that keeps your Plex mu
 - **Smart Regeneration**: Maintains original theme while adding fresh tracks
 - **Dual AI System**: Google Gemini with Ollama local fallback for unlimited AI playlist generation
 - **Weekly Management**: Weekly AI playlists are separately managed with their own persistence system
+
+### 🔧 Technical Improvements
+- **Unified Library Checking**: Both Spotify and Deezer search results now use the same `check_album_in_library()` and `check_track_in_index_smart()` functions
+- **Advanced URL Sanitization**: Frontend JavaScript and backend Python both clean URLs with regex patterns for invisible Unicode characters
+- **Enhanced Error Logging**: Comprehensive debug information for URL conversion, library checking, and download processes
+- **Auto-Sync Database Integration**: Real-time library updates when content is found in Plex but missing from database
+- **Fallback Download Strategies**: Multiple retry mechanisms and conversion strategies when primary methods fail
+- **Streamlined Search Interface**: Removed redundant UI elements and optimized search result display
 
 ## 🚀 Quick Start
 
@@ -965,6 +983,28 @@ docker-compose config
 - **Auto-resolved in latest version**: All badges now update from database in real-time
 - No page refresh needed for accurate counts
 - Global and section badges sync automatically with selections
+
+#### ❌ "handleDirectDownload is not defined" JavaScript error
+**Cause**: JavaScript function reference error in download buttons
+**Solution**: 
+- **Fixed in latest version**: Replaced with proper `initiateDirectDownload` function calls
+- Download buttons now work correctly for both tracks and albums
+- Clear browser cache if you still see the error
+
+#### ❌ Spotify URLs not converting to Deezer for download
+**Cause**: URL conversion failing due to invisible Unicode characters or API errors
+**Solution**:
+- **Enhanced in latest version**: Automatic URL cleaning removes invisible characters
+- Improved error handling with detailed logging
+- Fallback strategies when conversion fails
+- Check logs for specific conversion errors
+
+#### ❌ Spotify albums show "Non in Libreria" while Deezer shows "In Libreria"
+**Cause**: Inconsistent library checking between services
+**Solution**:
+- **Fixed in latest version**: Both Spotify and Deezer now use the same library checking logic
+- Auto-sync functionality works for both services
+- Search results now show accurate library status consistently
 
 ### Configuration Validation
 
