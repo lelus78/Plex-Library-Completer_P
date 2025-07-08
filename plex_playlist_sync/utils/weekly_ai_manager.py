@@ -179,7 +179,7 @@ def create_new_weekly_playlist(
     logger.info(f"🎨 Creating new weekly AI playlist for '{user_key}' - Week {current_week_info['week']}")
     
     # Configura Gemini
-    model = configure_gemini()
+    model, model_name = configure_gemini()
     if not model:
         logger.error("❌ Gemini not configured, cannot create AI playlist")
         return None
@@ -218,7 +218,7 @@ def create_new_weekly_playlist(
     )
     
     # Request to Gemini
-    playlist_data = get_gemini_playlist_data(model, prompt)
+    playlist_data = get_gemini_playlist_data(model, prompt, model_name)
     if not playlist_data:
         logger.error("❌ Gemini did not return valid playlist data")
         return None
