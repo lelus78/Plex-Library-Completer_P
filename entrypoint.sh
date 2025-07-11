@@ -39,20 +39,21 @@ fi
 chown -R "$USER_ID":"$GROUP_ID" /app/state_data /app/logs
 
 # Fix downloads directory permissions if it exists
-if [ -d "/downloads" ]; then
-    echo "🔧 Fixing /downloads directory permissions..."
+DOWNLOAD_PATH="${MUSIC_DOWNLOAD_PATH:-/downloads}"
+if [ -d "$DOWNLOAD_PATH" ]; then
+    echo "🔧 Fixing $DOWNLOAD_PATH directory permissions..."
     
     # Check if this is Windows host (Docker Desktop on Windows)
     if [ "$DOCKER_HOST_OS" = "windows" ]; then
         echo "🪟 Windows host detected - using Windows-compatible permissions"
         # On Windows, just ensure directory is writable without changing ownership
-        chmod 777 /downloads
+        chmod 777 "$DOWNLOAD_PATH"
         echo "✅ Downloads directory made world-writable for Windows compatibility"
     else
         echo "🐧 Linux host detected - using standard permissions"
         # Only fix ownership of the root directory and make it writable
-        chown "$USER_ID":"$GROUP_ID" /downloads
-        chmod 755 /downloads
+        chown "$USER_ID":"$GROUP_ID" "$DOWNLOAD_PATH"
+        chmod 755 "$DOWNLOAD_PATH"
         echo "✅ Downloads directory permissions fixed (root level only)"
     fi
 fi

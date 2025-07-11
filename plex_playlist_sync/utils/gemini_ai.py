@@ -14,6 +14,7 @@ from .helperClasses import Playlist as PlexPlaylist, Track as PlexTrack, UserInp
 from .plex import update_or_create_plex_playlist
 from .database import add_managed_ai_playlist, get_managed_ai_playlists_for_user
 from .music_charts import music_charts_searcher
+from .playlist_cover_generator import generate_playlist_cover_ai, extract_genres_from_playlist_data, is_cover_generation_enabled
 from .i18n import i18n, translate_genre
 
 # Otteniamo il logger che è già stato configurato in app.py
@@ -824,11 +825,29 @@ def generate_on_demand_playlist(
             logger.error("❌ Tutti i servizi AI sono non disponibili (Gemini 2.5 Flash, Gemini 2.0 Flash, Ollama)")
             return False
 
+    # Genera copertina se abilitata
+    cover_path = None
+    if is_cover_generation_enabled():
+        try:
+            logger.info("🎨 Generando copertina per playlist AI...")
+            genres = extract_genres_from_playlist_data(playlist_data)
+            cover_path = generate_playlist_cover_ai(
+                playlist_name=playlist_data["playlist_name"],
+                description=playlist_data.get("description", ""),
+                genres=genres
+            )
+            if cover_path:
+                logger.info(f"✅ Copertina generata: {cover_path}")
+            else:
+                logger.warning("⚠️ Generazione copertina fallita")
+        except Exception as e:
+            logger.warning(f"⚠️ Errore generazione copertina: {e}")
+    
     new_playlist_obj = PlexPlaylist(
         id=None,
         name=playlist_data["playlist_name"],
         description=playlist_data.get("description", ""),
-        poster=None,
+        poster=cover_path,  # Passa il path della copertina
     )
     new_tracks = [PlexTrack(title=t.get("title", ""), artist=t.get("artist", ""), album="", url="") for t in playlist_data["tracks"]]
     

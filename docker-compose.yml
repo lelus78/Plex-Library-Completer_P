@@ -11,6 +11,8 @@ services:
       - PGID=1000
       # Force Windows compatibility for volume mounts
       - DOCKER_HOST_OS=windows
+      # Force auto mode for AI testing
+      - AI_COVER_GENERATION=auto
     ports:
       - "5000:5000"
     volumes:
@@ -31,3 +33,11 @@ services:
       - /mnt/m/organizzata:/music  # Replace with your music library path
       - ./downloads:/downloads     # Local fallback directory
     restart: on-failure
+    # GPU Support for AI Cover Generation (NVIDIA only)
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]

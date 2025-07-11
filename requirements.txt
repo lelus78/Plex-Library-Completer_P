@@ -1,3 +1,4 @@
+# Core Dependencies
 plexapi==4.13.1
 spotipy==2.23.0
 python-dotenv==1.1.1
@@ -9,3 +10,10 @@ Flask==3.1.1
 pandas==2.3.0
 plotly==6.2.0
 beautifulsoup4==4.12.3
+
+# Image Processing (sempre richiesto per copertine semplici)
+Pillow>=9.0.0
+
+# AI Cover Generation (RIMOSSO - ora usa ComfyUI esterno)
+# Le dipendenze AI sono state rimosse per usare ComfyUI come servizio esterno
+# Configurazione ComfyUI tramite variabili d'ambiente COMFYUI_URL e COMFYUI_API_KEY

@@ -209,7 +209,10 @@ def update_or_create_plex_playlist(plex: PlexServer, playlist: Playlist, tracks:
                 logging.error(f"Failed to update description for playlist {playlist.name}: {e}")
         if playlist.poster and userInputs.add_playlist_poster:
             try:
-                created_playlist.uploadPoster(url=playlist.poster)
+                if playlist.poster.startswith(('http://', 'https://')):
+                    created_playlist.uploadPoster(url=playlist.poster)
+                else:
+                    created_playlist.uploadPoster(filepath=playlist.poster)
             except Exception as e:
                 logging.error(f"Failed to update poster for playlist {playlist.name}: {e}")
         logging.info(f"Updated playlist {playlist.name} with summary and poster.")

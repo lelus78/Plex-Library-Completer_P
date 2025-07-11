@@ -12,6 +12,7 @@ from plexapi.server import PlexServer
 from plexapi.exceptions import NotFound
 
 from .gemini_ai import configure_gemini, generate_playlist_prompt, get_gemini_playlist_data
+from .playlist_cover_generator import generate_playlist_cover_ai, extract_genres_from_playlist_data, is_cover_generation_enabled
 from .helperClasses import Playlist as PlexPlaylist, Track as PlexTrack, UserInputs
 from .plex import update_or_create_plex_playlist
 from .database import get_library_index_stats
@@ -231,12 +232,30 @@ def create_new_weekly_playlist(
         weekly_name = f"{original_name} - Settimana {current_week_info['week']}"
     playlist_data["playlist_name"] = weekly_name
     
+    # Genera copertina se abilitata
+    cover_path = None
+    if is_cover_generation_enabled():
+        try:
+            logger.info(f"🎨 Generando copertina per playlist settimanale: {weekly_name}")
+            genres = extract_genres_from_playlist_data(playlist_data)
+            cover_path = generate_playlist_cover_ai(
+                playlist_name=weekly_name,
+                description=playlist_data.get("description", ""),
+                genres=genres
+            )
+            if cover_path:
+                logger.info(f"✅ Copertina settimanale generata: {cover_path}")
+            else:
+                logger.warning("⚠️ Generazione copertina settimanale fallita")
+        except Exception as e:
+            logger.warning(f"⚠️ Errore generazione copertina settimanale: {e}")
+    
     # Create Plex objects
     playlist_obj = PlexPlaylist(
         id=None,
         name=weekly_name,
         description=playlist_data.get("description", ""),
-        poster=None,
+        poster=cover_path,  # Passa il path della copertina
     )
     
     tracks = []
