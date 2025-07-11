@@ -75,7 +75,7 @@
                         <div class="alert alert-warning d-flex align-items-center" role="alert">
                             <i data-lucide="alert-triangle" class="me-2" style="width: 16px; height: 16px;"></i>
                             <div>
-                                <strong>⚠️ Auto-scoperta non disponibile</strong><br>
+                                <strong>⚠️ {{ _('ui.autodiscovery_not_available') }}</strong><br>
                                 <small id="config-warning-text"></small>
                             </div>
                         </div>
@@ -222,7 +222,7 @@
         <div class="card text-center animate-slide-up" style="animation-delay: 0.25s;">
             <div class="card-body py-4">
                 <i data-lucide="list" class="mb-3" style="width: 32px; height: 32px; color: var(--accent-blue);"></i>
-                <h5 class="card-title mb-1" style="font-size: 0.9rem;">Playlist Selezionate</h5>
+                <h5 class="card-title mb-1" style="font-size: 0.9rem;">{{ _('playlist_management.selected_playlists') }}</h5>
                 <p class="fs-3 fw-bold text-info mb-0" id="selected-playlists-count" data-bs-toggle="tooltip" title="Click per dettagli" style="cursor: pointer;">-</p>
                 <small class="text-muted" id="selected-playlists-breakdown" style="font-size: 0.75rem;"></small>
             </div>

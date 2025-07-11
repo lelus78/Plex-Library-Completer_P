@@ -554,6 +554,136 @@
     "filter_macro_categories": "Filtra per Categoria",
     "filter_categories": "Categorie",
     "test_spotifyscraper": "Test SpotifyScraper",
-    "recalculate_categories": "Ricalcola Categorie"
+    "recalculate_categories": "Ricalcola Categorie",
+    "search_method": "Metodo di ricerca:",
+    "discovery_standard": "Discovery Standard",
+    "web_scraping_advanced": "Web Scraping Avanzato",
+    "web_scraping_info": "Web Scraping trova più playlist ma è più lento",
+    "add_public": "Aggiungi Pubblica",
+    "no_deezer_playlists": "Nessuna playlist Deezer trovata. Usa il pulsante \"Scopri\" per trovare le playlist.",
+    "url_or_id": "URL o ID Playlist",
+    "example_playlist": "Playlist di Esempio",
+    "suggestion": "Suggerimento:",
+    "enable_web_scraping": "Abilita Web Scraping Avanzato",
+    "playlist_must_be_public": "La playlist deve essere pubblica per poter essere aggiunta.",
+    "selected_playlists": "Playlist Selezionate"
+  },
+  "ui": {
+    "beta": "BETA",
+    "new": "NEW",
+    "language_changed": "Lingua cambiata con successo",
+    "language_change_failed": "Impossibile cambiare lingua",
+    "language_change_network_error": "Errore di rete durante il cambio lingua",
+    "close": "Chiudi",
+    "cancel": "Annulla",
+    "autodiscovery_not_available": "Auto-scoperta non disponibile"
+  },
+  "ai_lab": {
+    "title": "Laboratorio AI",
+    "subtitle": "Crea playlist intelligenti con l'AI",
+    "preset_title": "Preset Rapidi",
+    "custom_title": "Richiesta Personalizzata",
+    "suggestions": "Suggerimenti",
+    "chat": "Chat con AI",
+    "generate": "Genera Playlist",
+    "generate_for": "Genera playlist per",
+    "quick_presets_desc": "Scegli un preset veloce o descrivi la tua richiesta personalizzata",
+    "ai_generator": "Generatore AI",
+    "suggestion_pills": {
+      "high_energy": "alta energia",
+      "chill_vibes": "atmosfera rilassante",
+      "workout": "allenamento",
+      "focus": "concentrazione",
+      "party": "festa",
+      "relaxing": "rilassante",
+      "upbeat": "energico",
+      "ambient": "ambientale",
+      "rock": "rock",
+      "pop": "pop",
+      "electronic": "elettronica",
+      "jazz": "jazz",
+      "classical": "classica",
+      "indie": "indie",
+      "hip_hop": "hip-hop",
+      "country": "country",
+      "reggae": "reggae",
+      "blues": "blues",
+      "folk": "folk",
+      "punk": "punk",
+      "metal": "metal",
+      "dance": "dance",
+      "house": "house",
+      "techno": "techno",
+      "trance": "trance",
+      "dubstep": "dubstep",
+      "drum_and_bass": "drum & bass",
+      "eighties": "anni '80",
+      "nineties": "anni '90",
+      "two_thousands": "anni 2000",
+      "recent": "recente",
+      "classics": "classici",
+      "italian": "italiana",
+      "international": "internazionale",
+      "romantic": "romantica",
+      "nostalgic": "nostalgica",
+      "energetic": "energetica",
+      "melancholic": "malinconica",
+      "happy": "felice",
+      "sad": "triste",
+      "motivational": "motivazionale",
+      "dreamy": "sognante",
+      "aggressive": "aggressiva",
+      "peaceful": "pacifica"
+    },
+    "progress_messages": {
+      "step1": "Passo 1/6: Avvio processo AI...",
+      "step2": "Passo 2/6: Analisi richiesta...",
+      "step3": "Passo 3/6: Generazione playlist...",
+      "step4": "Passo 4/6: Download tracce mancanti...",
+      "step5": "Passo 5/6: Attesa scansione Plex...",
+      "step6": "Passo 6/6: Creazione playlist in Plex..."
+    },
+    "presets": {
+      "workout": {
+        "title": "Allenamento Energico",
+        "description": "Musica ad alta energia per i tuoi workout"
+      },
+      "chill": {
+        "title": "Relax Serale",
+        "description": "Brani rilassanti per momenti di pace"
+      },
+      "focus": {
+        "title": "Concentrazione",
+        "description": "Musica ambientale per studiare e lavorare"
+      },
+      "party": {
+        "title": "Festa",
+        "description": "Hit ballabili per animare la serata"
+      }
+    },
+    "genres": {
+      "rock_classic": "Rock Classico",
+      "rock_classic_desc": "I grandi classici del rock",
+      "italian_music": "Musica Italiana",
+      "italian_music_desc": "Il meglio della canzone italiana",
+      "electronic_edm": "Electronic & EDM",
+      "electronic_edm_desc": "Musica elettronica e dance"
+    },
+    "eras": {
+      "80s_90s": "Anni '80 - '90",
+      "80s_90s_desc": "Nostalgia musicale",
+      "2000s": "Anni 2000",
+      "2000s_desc": "I hits del nuovo millennio"
+    },
+    "preset_selected_user": "Ho selezionato il preset: {preset}",
+    "suggestion_selected": "Ottima scelta! Questa playlist sarà perfetta per le tue esigenze.",
+    "generating_playlist": "🎵 Perfetto! Sto generando la tua playlist personalizzata. Monitorerò il progresso...",
+    "waiting_scan": "⏳ Attendo 5 minuti per dare a Plex il tempo di scansionare i nuovi file scaricati...",
+    "playlist_success": "✅ Playlist creata e aggiornata con successo! Controlla i brani che erano mancanti - dovrebbero ora essere presenti nella playlist.",
+    "charts_preview_user": "Richiesta anteprima classifiche",
+    "charts_loading": "🔄 Caricamento dati musicali in corso...",
+    "charts_error": "❌ Errore nel caricamento anteprima classifiche: {error}",
+    "charts_test_error": "❌ Errore durante il test delle classifiche.",
+    "charts_data_error": "❌ Errore nel caricamento dati classifiche: {error}"
   }
 }

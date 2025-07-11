@@ -14,6 +14,13 @@
   "dashboard": {
     "title": "Dashboard - Plex Sync",
     "system_sync": "Synchronization System",
+    "sync_options": {
+      "title": "Sync Options",
+      "spotify": "Sync Spotify",
+      "deezer": "Sync Deezer",
+      "ai_playlists": "AI Playlists",
+      "auto_discovery": "Auto-discovery Playlists"
+    },
     "status": {
       "waiting": "Waiting",
       "running": "Operation in progress...",
@@ -257,7 +264,11 @@
     "stop_failed": "Failed to stop operation",
     "stop_error": "Error stopping operation",
     "realign_failed": "Database realignment failed",
-    "realign_error": "Error starting database realignment"
+    "realign_error": "Error starting database realignment",
+    "no_service_selected": "Select at least one service to sync",
+    "sync_failed": "Sync Failed",
+    "sync_error": "Sync Error",
+    "autodiscovery_missing_config": "Auto-discovery not available: {service} requires {config} configuration"
   },
   "messages": {
     "operation_completed": "Operation completed successfully",
@@ -412,7 +423,8 @@
     "tracks_indexed": "tracks indexed",
     "every_15s": "every 15s",
     "console_error": "Error updating dashboard:",
-    "operation_in_progress": "Operation ({trigger_type}) in progress..."
+    "operation_in_progress": "Operation ({trigger_type}) in progress...",
+    "starting": "Starting..."
   },
   "operation_types": {
     "automatic": "Automatic"
@@ -482,6 +494,136 @@
     "filter_macro_categories": "Filter by Category",
     "filter_categories": "Categories",
     "test_spotifyscraper": "Test SpotifyScraper",
-    "recalculate_categories": "Recalculate Categories"
+    "recalculate_categories": "Recalculate Categories",
+    "search_method": "Search Method:",
+    "discovery_standard": "Discovery Standard",
+    "web_scraping_advanced": "Advanced Web Scraping",
+    "web_scraping_info": "Web Scraping finds more playlists but is slower",
+    "add_public": "Add Public",
+    "no_deezer_playlists": "No Deezer playlists found...",
+    "url_or_id": "Playlist URL or ID",
+    "example_playlist": "Example Playlist",
+    "suggestion": "Suggestion:",
+    "enable_web_scraping": "Enable Advanced Web Scraping",
+    "playlist_must_be_public": "The playlist must be public...",
+    "selected_playlists": "Selected Playlists"
+  },
+  "ui": {
+    "beta": "BETA",
+    "new": "NEW",
+    "language_changed": "Language changed successfully",
+    "language_change_failed": "Failed to change language",
+    "language_change_network_error": "Network error while changing language",
+    "close": "Close",
+    "cancel": "Cancel",
+    "autodiscovery_not_available": "Auto-discovery not available"
+  },
+  "ai_lab": {
+    "title": "AI Laboratory",
+    "subtitle": "Create intelligent playlists with AI",
+    "preset_title": "Quick Presets",
+    "custom_title": "Custom Request",
+    "suggestions": "Suggestions",
+    "chat": "Chat with AI",
+    "generate": "Generate Playlist",
+    "generate_for": "Generate playlist for",
+    "quick_presets_desc": "Choose a quick preset or describe your custom request",
+    "ai_generator": "AI Generator",
+    "suggestion_pills": {
+      "high_energy": "high energy",
+      "chill_vibes": "chill vibes",
+      "workout": "workout",
+      "focus": "focus",
+      "party": "party",
+      "relaxing": "relaxing",
+      "upbeat": "upbeat",
+      "ambient": "ambient",
+      "rock": "rock",
+      "pop": "pop",
+      "electronic": "electronic",
+      "jazz": "jazz",
+      "classical": "classical",
+      "indie": "indie",
+      "hip_hop": "hip-hop",
+      "country": "country",
+      "reggae": "reggae",
+      "blues": "blues",
+      "folk": "folk",
+      "punk": "punk",
+      "metal": "metal",
+      "dance": "dance",
+      "house": "house",
+      "techno": "techno",
+      "trance": "trance",
+      "dubstep": "dubstep",
+      "drum_and_bass": "drum & bass",
+      "eighties": "80s",
+      "nineties": "90s",
+      "two_thousands": "2000s",
+      "recent": "recent",
+      "classics": "classics",
+      "italian": "italian",
+      "international": "international",
+      "romantic": "romantic",
+      "nostalgic": "nostalgic",
+      "energetic": "energetic",
+      "melancholic": "melancholic",
+      "happy": "happy",
+      "sad": "sad",
+      "motivational": "motivational",
+      "dreamy": "dreamy",
+      "aggressive": "aggressive",
+      "peaceful": "peaceful"
+    },
+    "progress_messages": {
+      "step1": "Step 1/6: Starting AI process...",
+      "step2": "Step 2/6: Analyzing request...",
+      "step3": "Step 3/6: Generating playlist...",
+      "step4": "Step 4/6: Downloading missing tracks...",
+      "step5": "Step 5/6: Waiting for Plex scan...",
+      "step6": "Step 6/6: Creating playlist in Plex..."
+    },
+    "presets": {
+      "workout": {
+        "title": "Energetic Workout",
+        "description": "High-energy music for your workouts"
+      },
+      "chill": {
+        "title": "Evening Relax",
+        "description": "Relaxing tracks for peaceful moments"
+      },
+      "focus": {
+        "title": "Focus",
+        "description": "Ambient music for studying and working"
+      },
+      "party": {
+        "title": "Party",
+        "description": "Danceable hits to liven up the evening"
+      }
+    },
+    "genres": {
+      "rock_classic": "Classic Rock",
+      "rock_classic_desc": "The great rock classics",
+      "italian_music": "Italian Music",
+      "italian_music_desc": "The best of Italian songs",
+      "electronic_edm": "Electronic & EDM",
+      "electronic_edm_desc": "Electronic and dance music"
+    },
+    "eras": {
+      "80s_90s": "'80s - '90s",
+      "80s_90s_desc": "Musical nostalgia",
+      "2000s": "2000s",
+      "2000s_desc": "Hits of the new millennium"
+    },
+    "preset_selected_user": "I selected the preset: {preset}",
+    "suggestion_selected": "Great choice! This playlist will be perfect for your needs.",
+    "generating_playlist": "🎵 Perfect! I'm generating your personalized playlist. I'll monitor the progress...",
+    "waiting_scan": "⏳ Waiting 5 minutes to give Plex time to scan the new downloaded files...",
+    "playlist_success": "✅ Playlist created and updated successfully! Check the tracks that were missing - they should now be in the playlist.",
+    "charts_preview_user": "Charts preview request",
+    "charts_loading": "🔄 Loading music data...",
+    "charts_error": "❌ Error loading charts preview: {error}",
+    "charts_test_error": "❌ Error during charts test.",
+    "charts_data_error": "❌ Error loading charts data: {error}"
   }
 }

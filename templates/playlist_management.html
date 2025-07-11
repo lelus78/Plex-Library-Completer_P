@@ -89,25 +89,25 @@
                                     {{ _('playlist_management.discover') }}
                                 </button>
                                 <ul class="dropdown-menu">
-                                    <li><h6 class="dropdown-header">Metodo di ricerca:</h6></li>
+                                    <li><h6 class="dropdown-header">{{ _('playlist_management.search_method') }}</h6></li>
                                     <li><a class="dropdown-item" href="#" onclick="discoverPlaylists('main', 'spotify')">
                                         <i data-lucide="search" class="me-2" style="width: 14px; height: 14px;"></i>
-                                        Discovery Standard
+                                        {{ _('playlist_management.discovery_standard') }}
                                     </a></li>
                                     <li><a class="dropdown-item" href="#" onclick="discoverPlaylistsWebScraping('main', 'spotify')">
                                         <i data-lucide="globe" class="me-2" style="width: 14px; height: 14px;"></i>
-                                        🌐 Web Scraping Avanzato
+                                        🌐 {{ _('playlist_management.web_scraping_advanced') }}
                                     </a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li><small class="dropdown-item-text text-muted">
                                         <i data-lucide="info" style="width: 12px; height: 12px;" class="me-1"></i>
-                                        Web Scraping trova più playlist ma è più lento
+                                        {{ _('playlist_management.web_scraping_info') }}
                                     </small></li>
                                 </ul>
                             </div>
                             <button class="btn btn-sm btn-outline-info" onclick="showAddPublicPlaylistModal('main')">
                                 <i data-lucide="link" class="me-1" style="width: 14px; height: 14px;"></i>
-                                Aggiungi Pubblica
+                                {{ _('playlist_management.add_public') }}
                             </button>
                             <button class="btn btn-sm btn-outline-success" onclick="selectAll('main', 'spotify', true)">
                                 {{ _('playlist_management.select_all') }}
@@ -168,7 +168,7 @@
                                 <div class="ms-auto d-flex gap-2">
                                     <button class="btn btn-sm btn-outline-warning" onclick="updateMacroCategories()">
                                         <i data-lucide="refresh-cw" style="width: 14px; height: 14px;" class="me-1"></i>
-                                        Ricalcola Categorie
+                                        {{ _('playlist_management.recalculate_categories') }}
                                     </button>
                                     <button class="btn btn-sm btn-link text-decoration-none" onclick="loadMacroCategoryStats()">
                                         <i data-lucide="bar-chart-3" style="width: 14px; height: 14px;" class="me-1"></i>
@@ -507,7 +507,7 @@
                             {% else %}
                                 <div class="text-center text-secondary py-4">
                                     <i data-lucide="search" style="width: 48px; height: 48px; opacity: 0.5;"></i>
-                                    <p class="mt-2">Nessuna playlist Deezer trovata. Usa il pulsante "Scopri" per trovare le playlist.</p>
+                                    <p class="mt-2">{{ _('playlist_management.no_deezer_playlists') }}</p>
                                 </div>
                             {% endif %}
                         </div>
@@ -540,25 +540,25 @@
                                     {{ _('playlist_management.discover') }}
                                 </button>
                                 <ul class="dropdown-menu">
-                                    <li><h6 class="dropdown-header">Metodo di ricerca:</h6></li>
+                                    <li><h6 class="dropdown-header">{{ _('playlist_management.search_method') }}</h6></li>
                                     <li><a class="dropdown-item" href="#" onclick="discoverPlaylists('secondary', 'spotify')">
                                         <i data-lucide="search" class="me-2" style="width: 14px; height: 14px;"></i>
-                                        Discovery Standard
+                                        {{ _('playlist_management.discovery_standard') }}
                                     </a></li>
                                     <li><a class="dropdown-item" href="#" onclick="discoverPlaylistsWebScraping('secondary', 'spotify')">
                                         <i data-lucide="globe" class="me-2" style="width: 14px; height: 14px;"></i>
-                                        🌐 Web Scraping Avanzato
+                                        🌐 {{ _('playlist_management.web_scraping_advanced') }}
                                     </a></li>
                                     <li><hr class="dropdown-divider"></li>
                                     <li><small class="dropdown-item-text text-muted">
                                         <i data-lucide="info" style="width: 12px; height: 12px;" class="me-1"></i>
-                                        Web Scraping trova più playlist ma è più lento
+                                        {{ _('playlist_management.web_scraping_info') }}
                                     </small></li>
                                 </ul>
                             </div>
                             <button class="btn btn-sm btn-outline-info" onclick="showAddPublicPlaylistModal('secondary')">
                                 <i data-lucide="link" class="me-1" style="width: 14px; height: 14px;"></i>
-                                Aggiungi Pubblica
+                                {{ _('playlist_management.add_public') }}
                             </button>
                             <button class="btn btn-sm btn-outline-success" onclick="selectAll('secondary', 'spotify', true)">
                                 {{ _('playlist_management.select_all') }}
@@ -876,7 +876,7 @@
                             {% else %}
                                 <div class="text-center text-secondary py-4">
                                     <i data-lucide="search" style="width: 48px; height: 48px; opacity: 0.5;"></i>
-                                    <p class="mt-2">Nessuna playlist Deezer trovata. Usa il pulsante "Scopri" per trovare le playlist.</p>
+                                    <p class="mt-2">{{ _('playlist_management.no_deezer_playlists') }}</p>
                                 </div>
                             {% endif %}
                         </div>
@@ -917,7 +917,7 @@
             </div>
             <div class="modal-body">
                 <div class="mb-3">
-                    <label for="playlistUrl" class="form-label">URL o ID Playlist</label>
+                    <label for="playlistUrl" class="form-label">{{ _('playlist_management.url_or_id') }}</label>
                     <input type="text" class="form-control" id="playlistUrl" 
                            placeholder="https://open.spotify.com/playlist/57EG9lWmdn7HHofXuQVsow">
                     <div class="form-text">
@@ -935,13 +935,13 @@
                         <div class="col-12">
                             <button type="button" class="btn btn-outline-success btn-sm w-100 text-start suggested-playlist" 
                                     data-url="https://open.spotify.com/playlist/6LyxrNMgOeHUDKoMGa2Goe">
-                                <strong>✅ Playlist di Esempio</strong> - Playlist verificata che funziona perfettamente
+                                <strong>✅ {{ _('playlist_management.example_playlist') }}</strong> - Playlist verificata che funziona perfettamente
                             </button>
                         </div>
                         <div class="col-12">
                             <div class="alert alert-info py-2 mb-2">
                                 <i data-lucide="search" style="width: 14px; height: 14px;" class="me-1"></i>
-                                <small><strong>Suggerimento:</strong> Usa il pulsante "Scopri" sopra per trovare automaticamente 
+                                <small><strong>{{ _('playlist_management.suggestion') }}</strong> Usa il pulsante "Scopri" sopra per trovare automaticamente 
                                 playlist pubbliche popolari, oppure incolla manualmente l'URL di qualsiasi playlist pubblica qui sopra.</small>
                             </div>
                         </div>
@@ -957,7 +957,7 @@
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="enableWebscraping">
                         <label class="form-check-label" for="enableWebscraping">
-                            <strong>🌐 Abilita Web Scraping Avanzato</strong>
+                            <strong>🌐 {{ _('playlist_management.enable_web_scraping') }}</strong>
                         </label>
                     </div>
                     <div class="form-text">
@@ -969,11 +969,11 @@
                 
                 <div class="alert alert-info">
                     <i data-lucide="info" class="me-2" style="width: 16px; height: 16px;"></i>
-                    La playlist deve essere <strong>pubblica</strong> per poter essere aggiunta.
+                    {{ _('playlist_management.playlist_must_be_public') }}
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Annulla</button>
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('ui.cancel') }}</button>
                 <button type="button" class="btn btn-primary" onclick="addPublicPlaylist()">
                     <i data-lucide="plus" class="me-1" style="width: 16px; height: 16px;"></i>
                     Aggiungi Playlist
@@ -1216,7 +1216,7 @@ function showMacroCategoryStatsModal(stats) {
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">{{ _('ui.close') }}</button>
                     </div>
                 </div>
             </div>

@@ -415,7 +415,7 @@
                         <a class="nav-link d-flex align-items-center" href="{{ url_for('playlist_management') }}">
                             <i data-lucide="list-music" class="me-2" style="width: 18px; height: 18px;"></i>
                             {{ _('navigation.playlist_management') }}
-                            <span class="badge bg-warning ms-2">BETA</span>
+                            <span class="badge bg-warning ms-2">{{ _('ui.beta') }}</span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -428,7 +428,7 @@
                         <a class="nav-link d-flex align-items-center" href="{{ url_for('ai_lab') }}">
                             <i data-lucide="brain" class="me-2" style="width: 18px; height: 18px;"></i>
                             {{ _('navigation.ai_lab') }}
-                            <span id="newPlaylistBadge" class="badge bg-success ms-2" style="display: none;">NEW</span>
+                            <span id="newPlaylistBadge" class="badge bg-success ms-2" style="display: none;">{{ _('ui.new') }}</span>
                             <span id="geminiStatusBadge" class="badge ms-2" style="display: none;"></span>
                         </a>
                     </li>
@@ -612,17 +612,17 @@
             .then(data => {
                 if (data.success) {
                     // Show success message and reload page
-                    showToast(data.message || 'Language changed successfully', 'success');
+                    showToast(data.message || '{{ _('ui.language_changed') }}', 'success');
                     setTimeout(() => {
                         window.location.reload();
                     }, 1000);
                 } else {
-                    showToast(data.error || 'Failed to change language', 'error');
+                    showToast(data.error || '{{ _('ui.language_change_failed') }}', 'error');
                 }
             })
             .catch(error => {
                 console.error('Error changing language:', error);
-                showToast('Network error while changing language', 'error');
+                showToast('{{ _('ui.language_change_network_error') }}', 'error');
             });
         };
 
