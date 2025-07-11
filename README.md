@@ -51,6 +51,7 @@ A comprehensive Python application, executed via Docker, that keeps your Plex mu
 ## 🆕 What's New
 
 ### ⚡ Latest Improvements (July 2025)
+- **🎨 AI PLAYLIST COVER GENERATION**: Revolutionary SwarmUI integration with Fluxmania Legacy model for professional-quality covers with perfect text rendering and 40+ genre-specific styles
 - **🎵 UNIFIED MUSIC DIRECTORY SETUP**: Revolutionary simplified configuration - only change TWO things to set up music downloads for any OS (Windows/Linux/macOS/NAS)
 - **🔧 Direct Download Fixes**: Fixed JavaScript errors in download functionality and URL handling
 - **🧹 Unicode Character Cleaning**: Automatically removes invisible Unicode characters from URLs (frontend + backend)
