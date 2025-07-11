@@ -84,10 +84,13 @@ A comprehensive Python application, executed via Docker, that keeps your Plex mu
 - **Visual Interface**: Playlist cards with covers, metadata, and type indicators
 
 ### 🤖 Enhanced AI Features
+- **SwarmUI Integration**: Revolutionary AI cover generation using SwarmUI with Fluxmania Legacy model for professional-quality covers
+- **Advanced Text Generation**: AI-generated covers with perfect text rendering and genre-specific styling (40+ music genres)
 - **Automatic Updates**: AI-generated playlists now automatically refresh with new content from your library
 - **Smart Regeneration**: Maintains original theme while adding fresh tracks
 - **Dual AI System**: Google Gemini with Ollama local fallback for unlimited AI playlist generation
 - **Weekly Management**: Weekly AI playlists are separately managed with their own persistence system
+- **AI Cover Pipeline**: SwarmUI → ComfyUI → Simple covers fallback system with automatic capability detection
 
 ### 🔧 Technical Improvements
 - **Unified Library Checking**: Both Spotify and Deezer search results now use the same `check_album_in_library()` and `check_track_in_index_smart()` functions
@@ -132,6 +135,36 @@ You'll need to obtain several API keys and tokens:
 1. Visit [Google AI Studio](https://aistudio.google.com/)
 2. Click "Get API Key" and create a new project
 3. Generate and copy your API key
+
+#### 🎨 SwarmUI (Optional for AI cover generation)
+**SwarmUI** is the preferred AI system for generating professional playlist covers with text.
+
+**Setup SwarmUI:**
+1. Install SwarmUI: [https://github.com/Stability-AI/StabilityMatrix](https://github.com/Stability-AI/StabilityMatrix)
+2. Download Fluxmania Legacy model from [Civitai](https://civitai.com/models/778691)
+3. Configure SwarmUI with:
+   - **Model**: Fluxmania Legacy
+   - **Sampler**: dpmpp_2m
+   - **Scheduler**: sgm_uniform
+   - **Steps**: 25
+   - **Guidance**: 3.5
+4. Start SwarmUI on port 7801
+5. Configure in `.env`:
+   ```bash
+   SWARMUI_URL=http://localhost:7801
+   SWARMUI_MODEL=Fluxmania_Legacy.safetensors
+   SWARMUI_STEPS=25
+   SWARMUI_GUIDANCE=3.5
+   SWARMUI_CFG_SCALE=3.5
+   SWARMUI_SAMPLER=dpmpp_2m
+   SWARMUI_SCHEDULER=sgm_uniform
+   ```
+
+**Benefits:**
+- ✅ Professional-quality covers
+- ✅ Perfect text rendering
+- ✅ 40+ genre-specific styles
+- ✅ Automatic fallback to ComfyUI/Simple covers
 
 #### 🤖 Ollama AI (Optional fallback for AI playlists)
 **Ollama** serves as a local AI fallback when Gemini reaches rate limits or is unavailable.
@@ -947,6 +980,15 @@ This is the complete list of variables to configure in the `.env` file.
 | `RUN_GEMINI_PLAYLIST_CREATION`  | Set to `1` to enable weekly AI playlist creation                                                     | `1` (enabled)                                 | ❌ |
 | `AUTO_DELETE_AI_PLAYLIST`       | Set to `1` to auto-delete old AI playlists                                                           | `1` (enabled)                                 | ❌ |
 | `TEST_MODE_RUN_ONCE`            | Set to `1` to run only one sync cycle (for testing)                                                  | `0` (disabled)                                | ❌ |
+| `SWARMUI_URL`                   | URL of your SwarmUI server for AI cover generation                                                   | `http://localhost:7801`                       | ❌ |
+| `SWARMUI_MODEL`                 | Model name for SwarmUI AI cover generation                                                           | `Fluxmania_Legacy.safetensors`                | ❌ |
+| `SWARMUI_STEPS`                 | Number of generation steps for SwarmUI                                                               | `25`                                          | ❌ |
+| `SWARMUI_GUIDANCE`              | Flux guidance value for SwarmUI (Flux.1 Dev parameter)                                              | `3.5`                                         | ❌ |
+| `SWARMUI_CFG_SCALE`             | CFG scale value for SwarmUI (additional control parameter)                                          | `3.5`                                         | ❌ |
+| `SWARMUI_SAMPLER`               | Sampler type for SwarmUI generation                                                                  | `dpmpp_2m`                                    | ❌ |
+| `SWARMUI_SCHEDULER`             | Scheduler type for SwarmUI generation                                                                | `sgm_uniform`                                 | ❌ |
+| `ENABLE_PLAYLIST_COVERS`        | Set to `1` to enable AI playlist cover generation                                                    | `1` (enabled)                                 | ❌ |
+| `AI_COVER_GENERATION`           | AI cover generation mode: 'auto', 'swarmui', 'comfyui', 'simple', 'disabled'                      | `auto`                                        | ❌ |
 
 ## 🔧 Troubleshooting
 
@@ -1042,6 +1084,23 @@ docker-compose config
 - **Fixed in latest version**: Both Spotify and Deezer now use the same library checking logic
 - Auto-sync functionality works for both services
 - Search results now show accurate library status consistently
+
+#### ❌ AI cover generation not working
+**Cause**: SwarmUI/ComfyUI not available or misconfigured
+**Solution**:
+- **Check SwarmUI connection**: Ensure SwarmUI is running on the configured URL
+- **Verify model**: Confirm Fluxmania Legacy model is downloaded and available
+- **Check parameters**: Ensure all SwarmUI environment variables are set correctly
+- **Test capability detection**: Check logs for "SwarmUI disponibile" or "ComfyUI disponibile"
+- **Fallback behavior**: System automatically falls back to ComfyUI → Simple covers if SwarmUI unavailable
+
+#### ❌ SwarmUI generates blank or corrupted covers
+**Cause**: Incorrect model parameters or unsupported settings
+**Solution**:
+- **Use recommended settings**: Steps=25, Guidance=3.5, CFG Scale=3.5, Sampler=dpmpp_2m, Scheduler=sgm_uniform
+- **Check model compatibility**: Ensure using Fluxmania Legacy model specifically
+- **Verify prompt structure**: Text should be at beginning of prompt for best results
+- **Monitor generation logs**: Check for parameter errors or model loading issues
 
 ### Configuration Validation
 
