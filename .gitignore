@@ -89,3 +89,6 @@ test_full_webscraping.py
 test_spotifyscraper_methods.py
 test_spotifyscraper.py
 test_track_limits.py
+
+# AI tests directory
+tests/ai_tests/
