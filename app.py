@@ -3011,7 +3011,8 @@ def generate_playlist_description_route(playlist_id):
                 genres=playlist['genres'],
                 track_count=playlist['track_count'],
                 style=style,
-                language=language
+                language=language,
+                original_description=playlist.get('description', '')
             )
         
         # Esegui la generazione con timeout di 30 secondi
@@ -3130,7 +3131,8 @@ def bulk_playlist_actions():
                             genres=playlist['genres'],
                             track_count=playlist['track_count'],
                             style=data.get('style', 'casual'),
-                            language=data.get('language', 'en')
+                            language=data.get('language', 'en'),
+                            original_description=playlist.get('description', '')
                         )
                         if description:
                             update_playlist_ai_description(playlist_id, description)

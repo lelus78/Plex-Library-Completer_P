@@ -961,7 +961,8 @@ def test_music_charts_integration() -> bool:
         return False
 
 def generate_playlist_description(playlist_name: str, genres: List[str], track_count: int, 
-                                 style: str = "casual", language: str = "en") -> Optional[str]:
+                                 style: str = "casual", language: str = "en", 
+                                 original_description: str = None) -> Optional[str]:
     """
     Genera una descrizione AI per una playlist esistente.
     
@@ -971,6 +972,7 @@ def generate_playlist_description(playlist_name: str, genres: List[str], track_c
         track_count: Numero di tracce nella playlist
         style: Stile della descrizione ('casual', 'formal', 'poetic', 'energetic')
         language: Lingua della descrizione ('en', 'it')
+        original_description: Descrizione originale della playlist (opzionale)
     
     Returns:
         Descrizione generata o None se fallisce
@@ -1036,7 +1038,11 @@ def generate_playlist_description(playlist_name: str, genres: List[str], track_c
         
         chosen_starter = random.choice(variation_prompts[language])
         
-        # Costruisci il prompt
+        # Costruisci il prompt con descrizione originale se disponibile
+        original_context = ""
+        if original_description and original_description.strip():
+            original_context = f"\n- Descrizione originale: \"{original_description.strip()}\""
+        
         if language == "it":
             prompt = f"""
 {chosen_starter} per una playlist musicale chiamata "{playlist_name}".
@@ -1047,7 +1053,12 @@ Dettagli della playlist:
 - Nome: {playlist_name}
 - Generi musicali: {', '.join(genres) if genres else 'Vari'}
 - Numero di tracce: {track_count}
-- Stile descrizione: {style_desc}
+- Stile descrizione: {style_desc}{original_context}
+
+Istruzioni speciali:
+{'- Se presente una descrizione originale, usala come ispirazione mantenendone il tema e lo spirito' if original_description else ''}
+{'- Migliora e arricchisci il contenuto originale senza stravolgerne il significato' if original_description else ''}
+{'- Il titolo della playlist contiene indizi importanti sul tema e mood desiderato' if playlist_name else ''}
 
 Requisiti:
 1. Lunghezza: 2-3 frasi (massimo 150 caratteri)
@@ -1055,13 +1066,14 @@ Requisiti:
 3. Linguaggio: italiano naturale
 4. Evita elenchi o punti
 5. Concentrati sull'atmosfera e sul mood della playlist
-6. Non ripetere il nome della playlist
+6. Non ripetere esattamente il nome della playlist
 7. Usa termini musicali appropriati per i generi
+8. {'Mantieni coerenza con la descrizione originale se presente' if original_description else 'Ispirati al titolo per comprendere il tema'}
 
 Esempio di output desiderato:
 "Una selezione di brani che cattura l'essenza del rock moderno con sfumature alternative. Perfetta per accompagnare momenti di concentrazione o per energizzare le tue giornate."
 
-Genera solo la descrizione, senza prefissi o spiegazioni aggiuntive.
+Genera solo la descrizione migliorata, senza prefissi o spiegazioni aggiuntive.
 """
         else:
             prompt = f"""
@@ -1073,7 +1085,12 @@ Playlist details:
 - Name: {playlist_name}
 - Music genres: {', '.join(genres) if genres else 'Various'}
 - Track count: {track_count}
-- Description style: {style_desc}
+- Description style: {style_desc}{original_context}
+
+Special instructions:
+{'- If an original description exists, use it as inspiration while maintaining its theme and spirit' if original_description else ''}
+{'- Enhance and enrich the original content without completely changing its meaning' if original_description else ''}
+{'- The playlist title contains important clues about the desired theme and mood' if playlist_name else ''}
 
 Requirements:
 1. Length: 2-3 sentences (max 150 characters)
@@ -1081,13 +1098,14 @@ Requirements:
 3. Language: natural English
 4. Avoid lists or bullet points
 5. Focus on atmosphere and mood of the playlist
-6. Don't repeat the playlist name
+6. Don't repeat the playlist name exactly
 7. Use appropriate musical terminology for the genres
+8. {'Maintain consistency with the original description if present' if original_description else 'Draw inspiration from the title to understand the theme'}
 
 Example desired output:
 "A selection of tracks that captures the essence of modern rock with alternative nuances. Perfect for focusing moments or energizing your days."
 
-Generate only the description, without prefixes or additional explanations.
+Generate only the enhanced description, without prefixes or additional explanations.
 """
         
         # Inizializza il modello
@@ -1106,7 +1124,8 @@ Generate only the description, without prefixes or additional explanations.
             if len(description) > 180:
                 description = description[:177] + "..."
             
-            logger.info(f"Descrizione generata per playlist '{playlist_name}': {description}")
+            context_info = " (considerando descrizione originale)" if original_description else " (basata su titolo e generi)"
+            logger.info(f"Descrizione generata per playlist '{playlist_name}'{context_info}: {description}")
             return description
         else:
             logger.error("Risposta vuota da Gemini")
