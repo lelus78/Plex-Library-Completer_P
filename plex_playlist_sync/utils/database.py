@@ -8,6 +8,7 @@ import threading
 import time
 from contextlib import contextmanager
 from typing import List, Dict, Any, Optional
+from datetime import datetime
 from plexapi.server import PlexServer
 from plexapi.exceptions import NotFound
 from plexapi.audio import Track
@@ -395,8 +396,11 @@ def initialize_db():
             # Verifica dimensione database
             db_size = os.path.getsize(DB_PATH) if os.path.exists(DB_PATH) else 0
             
+        # Inizializza la tabella per Plex Playlist Manager
+        create_plex_playlists_table()
+            
         logging.info(f"✅ Database inizializzato con successo: {table_count} tabelle, {db_size} bytes")
-        logging.info(f"📊 Tabelle: missing_tracks, plex_library_index, managed_ai_playlists, user_playlist_selections")
+        logging.info(f"📊 Tabelle: missing_tracks, plex_library_index, managed_ai_playlists, user_playlist_selections, plex_playlists")
         
     except Exception as e:
         logging.error(f"❌ Errore critico nell'inizializzazione del database: {e}", exc_info=True)
@@ -2668,3 +2672,320 @@ def get_album_completion_percentage(album_title: str, artist_name: str) -> int:
 def check_album_in_index(artist: str, album_title: str) -> bool:
     """Funzione di compatibilità per il controllo album nell'indice."""
     return check_album_in_library(album_title, artist)
+
+# =====================================
+# PLEX PLAYLIST MANAGER FUNCTIONS
+# =====================================
+
+def create_plex_playlists_table():
+    """Crea la tabella per gestire le playlist Plex."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS plex_playlists (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_type TEXT NOT NULL,
+                plex_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                description TEXT,
+                track_count INTEGER DEFAULT 0,
+                original_cover_url TEXT,
+                ai_cover_path TEXT,
+                ai_cover_generated BOOLEAN DEFAULT 0,
+                ai_description TEXT,
+                genres TEXT,
+                created_date TIMESTAMP,
+                updated_date TIMESTAMP,
+                last_sync TIMESTAMP,
+                UNIQUE(user_type, plex_id)
+            )
+        """)
+        conn.commit()
+        
+        # Aggiungi il campo ai_cover_generated se non esiste
+        try:
+            cursor.execute("ALTER TABLE plex_playlists ADD COLUMN ai_cover_generated BOOLEAN DEFAULT 0")
+            conn.commit()
+            logging.info("Campo ai_cover_generated aggiunto alla tabella plex_playlists")
+        except Exception:
+            # Campo già esistente
+            pass
+        
+        # Aggiungi il campo current_cover_source se non esiste
+        try:
+            cursor.execute("ALTER TABLE plex_playlists ADD COLUMN current_cover_source TEXT DEFAULT 'original'")
+            conn.commit()
+            logging.info("Campo current_cover_source aggiunto alla tabella plex_playlists")
+        except Exception:
+            # Campo già esistente
+            pass
+        
+        logging.info("Tabella plex_playlists creata o già esistente")
+
+def get_plex_playlists_for_user(user_type: str):
+    """Ottiene tutte le playlist Plex per un utente."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, plex_id, name, description, track_count, original_cover_url, 
+                   ai_cover_path, ai_cover_generated, ai_description, genres, created_date, updated_date, last_sync, current_cover_source
+            FROM plex_playlists 
+            WHERE user_type = ?
+            ORDER BY name
+        """, (user_type,))
+        
+        playlists = []
+        for row in cursor.fetchall():
+            playlist = {
+                'id': row[0],
+                'plex_id': row[1],
+                'name': row[2],
+                'description': row[3],
+                'track_count': row[4],
+                'original_cover_url': row[5],
+                'ai_cover_path': row[6],
+                'ai_cover_generated': bool(row[7]),
+                'ai_description': row[8],
+                'genres': json.loads(row[9]) if row[9] else [],
+                'created_date': row[10],
+                'updated_date': row[11],
+                'last_sync': row[12],
+                'current_cover_source': row[13] if len(row) > 13 else 'original'
+            }
+            playlists.append(playlist)
+        
+        return playlists
+
+def save_plex_playlist(user_type: str, plex_id: str, name: str, description: str = None, 
+                       track_count: int = 0, cover_url: str = None, genres: list = None):
+    """Salva o aggiorna una playlist Plex nel database."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Controlla se la playlist esiste già
+        cursor.execute("""
+            SELECT id FROM plex_playlists 
+            WHERE user_type = ? AND plex_id = ?
+        """, (user_type, plex_id))
+        
+        exists = cursor.fetchone()
+        now = datetime.now()
+        
+        if exists:
+            # Aggiorna playlist esistente
+            cursor.execute("""
+                UPDATE plex_playlists 
+                SET name = ?, description = ?, track_count = ?, original_cover_url = ?, 
+                    genres = ?, updated_date = ?
+                WHERE user_type = ? AND plex_id = ?
+            """, (name, description, track_count, cover_url, 
+                  json.dumps(genres) if genres else None, now, user_type, plex_id))
+        else:
+            # Inserisci nuova playlist
+            cursor.execute("""
+                INSERT INTO plex_playlists 
+                (user_type, plex_id, name, description, track_count, original_cover_url, 
+                 genres, created_date, updated_date)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (user_type, plex_id, name, description, track_count, cover_url, 
+                  json.dumps(genres) if genres else None, now, now))
+        
+        conn.commit()
+        logging.info(f"Playlist Plex salvata: {name} per utente {user_type}")
+
+def update_playlist_ai_cover(playlist_id: int, ai_cover_path: str, ai_generated: bool = True):
+    """Aggiorna il path della cover AI per una playlist."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE plex_playlists 
+            SET ai_cover_path = ?, ai_cover_generated = ?, updated_date = ?
+            WHERE id = ?
+        """, (ai_cover_path, ai_generated, datetime.now(), playlist_id))
+        conn.commit()
+
+def update_playlist_ai_description(playlist_id: int, ai_description: str):
+    """Aggiorna la descrizione AI per una playlist."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE plex_playlists 
+            SET ai_description = ?, updated_date = ?
+            WHERE id = ?
+        """, (ai_description, datetime.now(), playlist_id))
+        conn.commit()
+
+def mark_playlist_synced(playlist_id: int, cover_applied: str = None):
+    """Marca una playlist come sincronizzata con Plex.
+    
+    Args:
+        playlist_id (int): ID della playlist
+        cover_applied (str): Tipo di cover applicata a Plex ('ai' o 'original'). 
+                           Se None, determina automaticamente basato su ai_cover_path.
+    """
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        # Se cover_applied non è specificato, determina automaticamente
+        if cover_applied is None:
+            cursor.execute("SELECT ai_cover_path FROM plex_playlists WHERE id = ?", (playlist_id,))
+            row = cursor.fetchone()
+            cover_applied = 'ai' if row and row[0] else 'original'
+        
+        cursor.execute("""
+            UPDATE plex_playlists 
+            SET last_sync = ?,
+                description = COALESCE(ai_description, description),
+                current_cover_source = ?
+            WHERE id = ?
+        """, (datetime.now(), cover_applied, playlist_id))
+        conn.commit()
+
+def update_current_cover_source(playlist_id: int, cover_source: str):
+    """Aggiorna il tipo di cover attualmente applicata alla playlist in Plex.
+    
+    Args:
+        playlist_id (int): ID della playlist
+        cover_source (str): 'ai' o 'original'
+    """
+    if cover_source not in ['ai', 'original']:
+        raise ValueError("cover_source deve essere 'ai' o 'original'")
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            UPDATE plex_playlists 
+            SET current_cover_source = ?, updated_date = ?
+            WHERE id = ?
+        """, (cover_source, datetime.now(), playlist_id))
+        conn.commit()
+
+def get_playlist_by_id(playlist_id: int):
+    """Ottiene una playlist specifica per ID."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT id, user_type, plex_id, name, description, track_count, 
+                   original_cover_url, ai_cover_path, ai_description, genres, 
+                   created_date, updated_date, last_sync, current_cover_source
+            FROM plex_playlists 
+            WHERE id = ?
+        """, (playlist_id,))
+        
+        row = cursor.fetchone()
+        if row:
+            return {
+                'id': row[0],
+                'user_type': row[1],
+                'plex_id': row[2],
+                'name': row[3],
+                'description': row[4],
+                'track_count': row[5],
+                'original_cover_url': row[6],
+                'ai_cover_path': row[7],
+                'ai_description': row[8],
+                'genres': json.loads(row[9]) if row[9] else [],
+                'created_date': row[10],
+                'updated_date': row[11],
+                'last_sync': row[12],
+                'current_cover_source': row[13] if len(row) > 13 else 'original'
+            }
+        return None
+
+def get_plex_playlist_stats(user_type: str = None):
+    """Ottiene statistiche delle playlist Plex."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        
+        where_clause = "WHERE user_type = ?" if user_type else ""
+        params = (user_type,) if user_type else ()
+        
+        cursor.execute(f"""
+            SELECT 
+                COUNT(*) as total_playlists,
+                COUNT(CASE WHEN ai_cover_path IS NOT NULL THEN 1 END) as with_ai_covers,
+                COUNT(CASE WHEN original_cover_url IS NOT NULL THEN 1 END) as with_original_covers,
+                COUNT(CASE WHEN ai_description IS NOT NULL THEN 1 END) as with_ai_descriptions,
+                SUM(track_count) as total_tracks
+            FROM plex_playlists {where_clause}
+        """, params)
+        
+        row = cursor.fetchone()
+        return {
+            'total_playlists': row[0],
+            'with_ai_covers': row[1],
+            'with_original_covers': row[2],
+            'with_ai_descriptions': row[3],
+            'total_tracks': row[4] or 0
+        }
+
+def delete_plex_playlist(playlist_id: int):
+    """Elimina una playlist dal database."""
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM plex_playlists WHERE id = ?", (playlist_id,))
+        conn.commit()
+
+def get_correct_playlist_cover_url(playlist):
+    """Ottieni la cover corretta per una playlist (personalizzata se disponibile, altrimenti composite)."""
+    try:
+        # Prima controlla se ha poster personalizzati
+        posters = playlist.posters()
+        
+        # Cerca poster personalizzati (non composite)
+        for poster in posters:
+            if poster.selected and 'composite' not in poster.key:
+                return poster.key
+        
+        # Se non ha poster personalizzati, cerca nelle art
+        arts = playlist.arts()
+        for art in arts:
+            if art.selected and 'composite' not in art.key:
+                return art.key
+        
+        # Fallback al thumb se non ci sono cover personalizzate
+        return playlist.thumb if hasattr(playlist, 'thumb') else None
+    except Exception as e:
+        logging.error(f"Error getting playlist cover: {e}")
+        return playlist.thumb if hasattr(playlist, 'thumb') else None
+
+def sync_plex_playlists_from_server(user_type: str, plex_server, music_library):
+    """Sincronizza le playlist dal server Plex al database."""
+    try:
+        playlists = plex_server.playlists()
+        synced_count = 0
+        
+        for playlist in playlists:
+            # Filtra solo le playlist musicali
+            if hasattr(playlist, 'items') and playlist.items():
+                first_item = playlist.items()[0]
+                if hasattr(first_item, 'type') and first_item.type == 'track':
+                    # Analizza i generi delle tracce
+                    genres = []
+                    for item in playlist.items()[:10]:  # Analizza solo i primi 10 per performance
+                        if hasattr(item, 'genre') and item.genre:
+                            for genre in item.genre:
+                                if genre.tag not in genres:
+                                    genres.append(genre.tag)
+                    
+                    # Ottieni la cover corretta (personalizzata se disponibile)
+                    cover_url = get_correct_playlist_cover_url(playlist)
+                    
+                    # Salva la playlist
+                    save_plex_playlist(
+                        user_type=user_type,
+                        plex_id=str(playlist.ratingKey),
+                        name=playlist.title,
+                        description=playlist.summary or "",
+                        track_count=len(playlist.items()),
+                        cover_url=cover_url,
+                        genres=genres[:5]  # Limita a 5 generi
+                    )
+                    synced_count += 1
+        
+        logging.info(f"Sincronizzate {synced_count} playlist Plex per utente {user_type}")
+        return synced_count
+        
+    except Exception as e:
+        logging.error(f"Errore sincronizzazione playlist Plex: {e}")
+        return 0

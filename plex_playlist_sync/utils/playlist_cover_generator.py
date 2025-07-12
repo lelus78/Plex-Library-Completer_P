@@ -16,6 +16,18 @@ import io
 
 logger = logging.getLogger(__name__)
 
+# Import Gemini AI function for creative prompts
+def _get_gemini_prompt_function():
+    try:
+        from .gemini_ai import generate_creative_cover_prompt
+        return generate_creative_cover_prompt
+    except ImportError:
+        return None
+
+def _is_gemini_available():
+    """Check if Gemini is available dynamically"""
+    return _get_gemini_prompt_function() is not None
+
 # Global pipeline cache (FaceSwapApp style)
 _cached_pipeline = None
 _cached_model_name = None
@@ -1868,16 +1880,38 @@ def generate_ai_cover_swarmui(
             return None
         
         # Genera prompt per SwarmUI
-        mood_prompt = get_mood_prompt_from_genres(genres, description) if genres else ""
+        use_gemini_prompts = os.getenv("USE_GEMINI_PROMPTS", "true").lower() == "true"
         
-        # Costruisce prompt base con testo all'inizio
-        if playlist_name:
-            # Sceglie la struttura del testo basata sul genere
-            text_style = get_text_prompt_style(genres)
-            title_text = text_style.format(playlist_name=playlist_name)
-            base_prompt = f'{title_text}, album cover artwork with {mood_prompt}, professional layout'
+        if use_gemini_prompts and _is_gemini_available() and playlist_name:
+            # Usa Gemini per generare un prompt creativo
+            logger.info("🎨 Usando Gemini per generare prompt creativo")
+            gemini_func = _get_gemini_prompt_function()
+            if gemini_func:
+                base_prompt = gemini_func(
+                    playlist_name=playlist_name,
+                    description=description or "",
+                    genres=genres or [],
+                    language='en'
+                )
+            else:
+                logger.warning("Gemini non disponibile, usando prompt tradizionale")
+                # Fallback al metodo tradizionale
+                mood_prompt = get_mood_prompt_from_genres(genres, description) if genres else ""
+                text_style = get_text_prompt_style(genres)
+                title_text = text_style.format(playlist_name=playlist_name)
+                base_prompt = f'{title_text}, album cover artwork with {mood_prompt}, professional layout'
         else:
-            base_prompt = f'album cover, {mood_prompt}, professional design, clean layout'
+            # Metodo tradizionale
+            mood_prompt = get_mood_prompt_from_genres(genres, description) if genres else ""
+            
+            # Costruisce prompt base con testo all'inizio
+            if playlist_name:
+                # Sceglie la struttura del testo basata sul genere
+                text_style = get_text_prompt_style(genres)
+                title_text = text_style.format(playlist_name=playlist_name)
+                base_prompt = f'{title_text}, album cover artwork with {mood_prompt}, professional layout'
+            else:
+                base_prompt = f'album cover, {mood_prompt}, professional design, clean layout'
         
         # Prompt negativo per migliorare la qualità (rimosso text artifacts perché vogliamo il testo)
         negative_prompt = "blurry, low quality, watermark, copyright, signature, username, bad composition, distorted, malformed, unreadable text"

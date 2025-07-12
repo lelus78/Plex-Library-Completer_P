@@ -8,6 +8,7 @@
     "missing_tracks": "Tracce Mancanti",
     "playlist_management": "Gestione Playlist",
     "ai_lab": "Laboratorio AI",
+    "plex_playlist_manager": "Playlist Plex",
     "stats": "Statistiche",
     "settings": "Impostazioni"
   },
@@ -685,5 +686,97 @@
     "charts_error": "❌ Errore nel caricamento anteprima classifiche: {error}",
     "charts_test_error": "❌ Errore durante il test delle classifiche.",
     "charts_data_error": "❌ Errore nel caricamento dati classifiche: {error}"
+  },
+  "plex_playlist_manager": {
+    "title": "Gestione Playlist Plex",
+    "subtitle": "Gestisci le tue playlist Plex con cover e descrizioni generate dall'AI",
+    "my_playlists": "Le Mie Playlist",
+    "total_playlists": "Playlist Totali",
+    "with_ai_covers": "Con Cover AI",
+    "with_ai_descriptions": "Con Descrizioni AI",
+    "playlist_name": "Nome Playlist",
+    "description": "Descrizione",
+    "tracks": "tracce",
+    "track_count": "Numero Tracce",
+    "last_updated": "Ultimo Aggiornamento",
+    "actions": "Azioni",
+    "generate_cover": "Genera Cover AI",
+    "generate_description": "Rigenera Descrizione",
+    "sync_to_plex": "Sincronizza con Plex",
+    "view_details": "Vedi Dettagli",
+    "bulk_actions": "Azioni Multiple",
+    "selected_playlists": "Playlist Selezionate",
+    "generate_covers_bulk": "Genera Cover AI",
+    "generate_descriptions_bulk": "Genera Descrizioni AI",
+    "sync_all": "Sincronizza Tutto",
+    "select_all": "Seleziona Tutto",
+    "deselect_all": "Deseleziona Tutto",
+    "no_playlists": "Nessuna playlist trovata",
+    "no_playlists_desc": "Crea alcune playlist in Plex prima, poi aggiorna questa pagina.",
+    "refresh_playlists": "Aggiorna Playlist",
+    "cover_generation": {
+      "title": "Generazione Cover AI",
+      "analyzing": "Analizzando il contenuto della playlist...",
+      "generating": "Generando cover AI...",
+      "success": "Cover generata con successo!",
+      "error": "Errore nella generazione della cover: {error}",
+      "preview": "Anteprima",
+      "current_cover": "Cover Attuale",
+      "new_cover": "Nuova Cover AI",
+      "apply": "Applica Cover",
+      "applied": "Cover applicata con successo!",
+      "cancel": "Annulla"
+    },
+    "description_generation": {
+      "title": "Generazione Descrizione AI",
+      "analyzing": "Analizzando le tracce della playlist...",
+      "generating": "Generando descrizione...",
+      "success": "Descrizione generata con successo!",
+      "error": "Errore nella generazione della descrizione: {error}",
+      "style": "Stile Descrizione",
+      "styles": {
+        "casual": "Casual",
+        "formal": "Formale",
+        "poetic": "Poetico",
+        "energetic": "Energico"
+      },
+      "current_description": "Descrizione Attuale",
+      "new_description": "Nuova Descrizione AI",
+      "apply": "Applica Descrizione",
+      "applied": "Descrizione applicata con successo!",
+      "cancel": "Annulla"
+    },
+    "sync": {
+      "title": "Sincronizza con Plex",
+      "syncing": "Sincronizzando con Plex...",
+      "success": "Sincronizzato con successo!",
+      "error": "Errore durante la sincronizzazione: {error}",
+      "confirm": "Sei sicuro di voler sincronizzare queste modifiche con Plex?",
+      "changes_summary": "Riepilogo Modifiche",
+      "covers_to_update": "Cover da aggiornare",
+      "descriptions_to_update": "Descrizioni da aggiornare"
+    },
+    "filters": {
+      "all": "Tutte",
+      "with_covers": "Con Cover AI",
+      "without_covers": "Senza Cover AI",
+      "with_descriptions": "Con Descrizioni AI",
+      "without_descriptions": "Senza Descrizioni AI",
+      "recently_updated": "Aggiornate di Recente"
+    },
+    "sort": {
+      "name": "Nome",
+      "track_count": "Numero Tracce",
+      "last_updated": "Ultimo Aggiornamento",
+      "created_date": "Data Creazione"
+    },
+    "status": {
+      "ai_cover_ready": "Cover AI Pronta",
+      "needs_description": "Serve Descrizione",
+      "complete": "Completa",
+      "needs_cover": "Serve Cover",
+      "syncing": "Sincronizzazione...",
+      "error": "Errore"
+    }
   }
 }

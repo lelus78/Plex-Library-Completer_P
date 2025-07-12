@@ -13,6 +13,8 @@ services:
       - DOCKER_HOST_OS=windows
       # Force auto mode for AI testing
       - AI_COVER_GENERATION=auto
+      # Enable Gemini creative prompts
+      - USE_GEMINI_PROMPTS=true
     ports:
       - "5000:5000"
     volumes:

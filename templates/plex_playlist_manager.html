@@ -1,0 +1,1325 @@
+{% extends 'base.html' %}
+{% block title %}{{ _('plex_playlist_manager.title') }}{% endblock %}
+
+{% block extra_css %}
+<style>
+/* Cover hover effects */
+.cover-image:hover {
+    transform: scale(1.02);
+    transition: transform 0.2s ease;
+}
+
+.cover-container:hover .cover-toggle-btn {
+    opacity: 1;
+    transition: opacity 0.2s ease;
+}
+
+.cover-toggle-btn {
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
+}
+
+.cover-container::before {
+    content: "";
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0,0,0,0.1);
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    pointer-events: none;
+    z-index: 1;
+}
+
+.cover-container:hover::before {
+    opacity: 1;
+}
+
+.cover-toggle-btn {
+    z-index: 2;
+}
+
+/* Preview modal enhancements */
+#cover-preview-nav .btn {
+    min-width: 100px;
+}
+
+#apply-preview-cover-btn {
+    min-width: 140px;
+}
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex align-items-center justify-content-between">
+                <div>
+                    <h1 class="h3 mb-1">
+                        <i data-lucide="list-music" class="me-2" style="width: 28px; height: 28px; color: var(--accent-purple);"></i>
+                        {{ _('plex_playlist_manager.title') }}
+                    </h1>
+                    <p class="text-muted mb-0">{{ _('plex_playlist_manager.subtitle') }}</p>
+                </div>
+                <div>
+                    <button class="btn btn-primary" onclick="refreshPlaylists()">
+                        <i data-lucide="refresh-cw" class="me-1" style="width: 16px; height: 16px;"></i>
+                        {{ _('plex_playlist_manager.refresh_playlists') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- User Tabs -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <ul class="nav nav-pills" id="userTabs" role="tablist">
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link active" id="main-tab" data-bs-toggle="pill" data-bs-target="#main-pane" 
+                            type="button" role="tab" onclick="switchUser('main')">
+                        <i data-lucide="user" class="me-2" style="width: 16px; height: 16px;"></i>
+                        {{ aliases.main }}
+                    </button>
+                </li>
+                <li class="nav-item" role="presentation">
+                    <button class="nav-link" id="secondary-tab" data-bs-toggle="pill" data-bs-target="#secondary-pane" 
+                            type="button" role="tab" onclick="switchUser('secondary')">
+                        <i data-lucide="users" class="me-2" style="width: 16px; height: 16px;"></i>
+                        {{ aliases.secondary }}
+                    </button>
+                </li>
+            </ul>
+        </div>
+    </div>
+
+    <!-- Statistics Cards -->
+    <div class="row mb-4">
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i data-lucide="list" class="mb-2" style="width: 24px; height: 24px; color: var(--accent-blue);"></i>
+                    <h5 class="card-title">{{ _('plex_playlist_manager.total_playlists') }}</h5>
+                    <p class="fs-4 fw-bold text-primary mb-0" id="total-playlists">-</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i data-lucide="image" class="mb-2" style="width: 24px; height: 24px; color: var(--accent-blue);"></i>
+                    <h5 class="card-title">Original Covers</h5>
+                    <p class="fs-4 fw-bold text-primary mb-0" id="with-original-covers">-</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i data-lucide="image" class="mb-2" style="width: 24px; height: 24px; color: var(--spotify-green);"></i>
+                    <h5 class="card-title">{{ _('plex_playlist_manager.with_ai_covers') }}</h5>
+                    <p class="fs-4 fw-bold text-success mb-0" id="with-ai-covers">-</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i data-lucide="file-text" class="mb-2" style="width: 24px; height: 24px; color: var(--accent-purple);"></i>
+                    <h5 class="card-title">{{ _('plex_playlist_manager.with_ai_descriptions') }}</h5>
+                    <p class="fs-4 fw-bold text-info mb-0" id="with-ai-descriptions">-</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i data-lucide="music" class="mb-2" style="width: 24px; height: 24px; color: var(--accent-red);"></i>
+                    <h5 class="card-title">{{ _('plex_playlist_manager.tracks') }}</h5>
+                    <p class="fs-4 fw-bold text-warning mb-0" id="total-tracks">-</p>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-2 col-sm-4 mb-3">
+            <div class="card text-center">
+                <div class="card-body">
+                    <i data-lucide="monitor" class="mb-2" style="width: 24px; height: 24px; color: var(--accent-green);"></i>
+                    <h5 class="card-title">Total Covers</h5>
+                    <p class="fs-4 fw-bold text-success mb-0" id="total-covers">-</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filters and Controls -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="card">
+                <div class="card-body">
+                    <div class="row align-items-center">
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center">
+                                <i data-lucide="filter" class="me-2" style="width: 16px; height: 16px;"></i>
+                                <strong>{{ _('common.filter') }}:</strong>
+                            </div>
+                            <div class="btn-group btn-group-sm mt-2" role="group">
+                                <button class="btn btn-outline-primary active" data-filter="all">
+                                    <i data-lucide="list" class="me-1" style="width: 12px; height: 12px;"></i>
+                                    {{ _('plex_playlist_manager.filters.all') }}
+                                </button>
+                                <button class="btn btn-outline-success" data-filter="with_covers">
+                                    <i data-lucide="image" class="me-1" style="width: 12px; height: 12px;"></i>
+                                    {{ _('plex_playlist_manager.filters.with_covers') }}
+                                </button>
+                                <button class="btn btn-outline-info" data-filter="with_descriptions">
+                                    <i data-lucide="file-text" class="me-1" style="width: 12px; height: 12px;"></i>
+                                    {{ _('plex_playlist_manager.filters.with_descriptions') }}
+                                </button>
+                                <button class="btn btn-outline-warning" data-filter="without_covers">
+                                    <i data-lucide="image-off" class="me-1" style="width: 12px; height: 12px;"></i>
+                                    {{ _('plex_playlist_manager.filters.without_covers') }}
+                                </button>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center">
+                                <i data-lucide="arrow-up-down" class="me-2" style="width: 16px; height: 16px;"></i>
+                                <strong>{{ _('common.sort') }}:</strong>
+                            </div>
+                            <select class="form-select mt-2" id="sort-select">
+                                <option value="name">{{ _('plex_playlist_manager.sort.name') }}</option>
+                                <option value="track_count">{{ _('plex_playlist_manager.sort.track_count') }}</option>
+                                <option value="last_updated">{{ _('plex_playlist_manager.sort.last_updated') }}</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="d-flex align-items-center">
+                                <i data-lucide="layers" class="me-2" style="width: 16px; height: 16px;"></i>
+                                <strong>{{ _('plex_playlist_manager.bulk_actions') }}:</strong>
+                            </div>
+                            <div class="btn-group mt-2" role="group">
+                                <button class="btn btn-outline-primary" onclick="selectAll()">
+                                    {{ _('plex_playlist_manager.select_all') }}
+                                </button>
+                                <button class="btn btn-outline-secondary" onclick="deselectAll()">
+                                    {{ _('plex_playlist_manager.deselect_all') }}
+                                </button>
+                                <button class="btn btn-outline-warning" onclick="showBulkActionsModal()">
+                                    {{ _('plex_playlist_manager.bulk_actions') }}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="tab-content" id="userTabContent">
+        <!-- Main User Tab -->
+        <div class="tab-pane fade show active" id="main-pane" role="tabpanel">
+            <div class="row" id="main-playlists">
+                <!-- Playlist cards will be inserted here -->
+            </div>
+        </div>
+
+        <!-- Secondary User Tab -->
+        <div class="tab-pane fade" id="secondary-pane" role="tabpanel">
+            <div class="row" id="secondary-playlists">
+                <!-- Playlist cards will be inserted here -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Empty State -->
+    <div class="row" id="empty-state" style="display: none;">
+        <div class="col-12">
+            <div class="text-center py-5">
+                <i data-lucide="music" style="width: 64px; height: 64px; opacity: 0.3;"></i>
+                <h3 class="mt-3 text-muted">{{ _('plex_playlist_manager.no_playlists') }}</h3>
+                <p class="text-muted">{{ _('plex_playlist_manager.no_playlists_desc') }}</p>
+                <button class="btn btn-primary" onclick="refreshPlaylists()">
+                    <i data-lucide="refresh-cw" class="me-1" style="width: 16px; height: 16px;"></i>
+                    {{ _('plex_playlist_manager.refresh_playlists') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cover Generation Modal -->
+<div class="modal fade" id="coverGenerationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i data-lucide="image" class="me-2" style="width: 20px; height: 20px;"></i>
+                    {{ _('plex_playlist_manager.cover_generation.title') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="cover-generation-progress" class="text-center" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{{ _('common.loading') }}</span>
+                    </div>
+                    <p class="mt-3" id="cover-generation-status">{{ _('plex_playlist_manager.cover_generation.analyzing') }}</p>
+                </div>
+                <div id="cover-generation-preview" style="display: none;">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6>{{ _('plex_playlist_manager.cover_generation.current_cover') }}</h6>
+                            <img id="current-cover" class="img-fluid rounded" style="max-height: 200px; cursor: pointer;" alt="Current cover" onclick="enlargeCover(this)">
+                        </div>
+                        <div class="col-md-6">
+                            <h6>{{ _('plex_playlist_manager.cover_generation.new_cover') }}</h6>
+                            <img id="new-cover" class="img-fluid rounded" style="max-height: 200px; cursor: pointer;" alt="New AI cover" onclick="enlargeCover(this)">
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {{ _('plex_playlist_manager.cover_generation.cancel') }}
+                </button>
+                <button type="button" class="btn btn-primary" id="apply-cover-btn" onclick="applyCover()" style="display: none;">
+                    {{ _('plex_playlist_manager.cover_generation.apply') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Description Generation Modal -->
+<div class="modal fade" id="descriptionGenerationModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i data-lucide="file-text" class="me-2" style="width: 20px; height: 20px;"></i>
+                    {{ _('plex_playlist_manager.description_generation.title') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label class="form-label">{{ _('plex_playlist_manager.description_generation.style') }}</label>
+                    <select class="form-select" id="description-style">
+                        <option value="casual">{{ _('plex_playlist_manager.description_generation.styles.casual') }}</option>
+                        <option value="formal">{{ _('plex_playlist_manager.description_generation.styles.formal') }}</option>
+                        <option value="poetic">{{ _('plex_playlist_manager.description_generation.styles.poetic') }}</option>
+                        <option value="energetic">{{ _('plex_playlist_manager.description_generation.styles.energetic') }}</option>
+                    </select>
+                </div>
+                <div id="description-generation-progress" class="text-center" style="display: none;">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">{{ _('common.loading') }}</span>
+                    </div>
+                    <p class="mt-3" id="description-generation-status">{{ _('plex_playlist_manager.description_generation.analyzing') }}</p>
+                </div>
+                <div id="description-generation-preview" style="display: none;">
+                    <div class="row">
+                        <div class="col-12">
+                            <h6>{{ _('plex_playlist_manager.description_generation.current_description') }}</h6>
+                            <div class="border rounded p-3 bg-light text-dark" id="current-description">
+                                <!-- Current description will be shown here -->
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row mt-3">
+                        <div class="col-12">
+                            <h6>{{ _('plex_playlist_manager.description_generation.new_description') }}</h6>
+                            <div class="border rounded p-3 bg-primary-subtle" id="new-description">
+                                <!-- New description will be shown here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
+                    {{ _('plex_playlist_manager.description_generation.cancel') }}
+                </button>
+                <button type="button" class="btn btn-primary" onclick="generateDescription()">
+                    {{ _('plex_playlist_manager.generate_description') }}
+                </button>
+                <button type="button" class="btn btn-success" id="apply-description-btn" onclick="applyDescription()" style="display: none;">
+                    {{ _('plex_playlist_manager.description_generation.apply') }}
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Cover Preview Modal (Fixed/Reusable) -->
+<div class="modal fade" id="coverPreviewModal" tabindex="-1">
+    <div class="modal-dialog modal-xl modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="cover-preview-title">Cover Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body text-center">
+                <img id="cover-preview-image" class="img-fluid" alt="Cover Preview" style="max-height: 70vh; max-width: 100%;">
+            </div>
+            <div class="modal-footer justify-content-between">
+                <div class="btn-group" id="cover-preview-nav">
+                    <!-- Navigation buttons will be populated dynamically -->
+                </div>
+                <div>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Chiudi</button>
+                    <button type="button" class="btn btn-success" id="apply-preview-cover-btn" style="display: none;" onclick="applyPreviewCover()">
+                        <i class="fas fa-upload me-1"></i>Applica a Plex
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Bulk Actions Modal -->
+<div class="modal fade" id="bulkActionsModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i data-lucide="layers" class="me-2" style="width: 20px; height: 20px;"></i>
+                    {{ _('plex_playlist_manager.bulk_actions') }}
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p><strong><span id="selected-count">0</span> {{ _('plex_playlist_manager.selected_playlists') }}</strong></p>
+                <div class="d-grid gap-2">
+                    <button class="btn btn-primary" onclick="bulkGenerateCovers()">
+                        <i data-lucide="image" class="me-2" style="width: 16px; height: 16px;"></i>
+                        {{ _('plex_playlist_manager.generate_covers_bulk') }}
+                    </button>
+                    <button class="btn btn-info" onclick="bulkGenerateDescriptions()">
+                        <i data-lucide="file-text" class="me-2" style="width: 16px; height: 16px;"></i>
+                        {{ _('plex_playlist_manager.generate_descriptions_bulk') }}
+                    </button>
+                    <button class="btn btn-success" onclick="bulkSyncToPlex()">
+                        <i data-lucide="upload" class="me-2" style="width: 16px; height: 16px;"></i>
+                        {{ _('plex_playlist_manager.sync_all') }}
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// Global variables
+let currentUser = 'main';
+let allPlaylists = [];
+let selectedPlaylists = [];
+let currentPlaylistId = null;
+
+// Initialize page
+document.addEventListener('DOMContentLoaded', function() {
+    loadPlaylists();
+    setupEventListeners();
+    lucide.createIcons();
+});
+
+function setupEventListeners() {
+    // Filter buttons
+    document.querySelectorAll('[data-filter]').forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Update active state
+            document.querySelectorAll('[data-filter]').forEach(b => b.classList.remove('active'));
+            this.classList.add('active');
+            
+            // Apply filter
+            filterPlaylists(this.dataset.filter);
+        });
+    });
+    
+    // Sort select
+    document.getElementById('sort-select').addEventListener('change', function() {
+        sortPlaylists(this.value);
+    });
+}
+
+function switchUser(user) {
+    currentUser = user;
+    loadPlaylists();
+}
+
+function loadPlaylists() {
+    console.log('LoadPlaylists: Starting to load playlists for user:', currentUser);
+    return fetch(`/api/plex_playlists/${currentUser}`)
+        .then(response => {
+            console.log('LoadPlaylists: Response status:', response.status);
+            return response.json();
+        })
+        .then(data => {
+            console.log('LoadPlaylists: Response data:', data);
+            if (data.success) {
+                allPlaylists = data.playlists;
+                console.log('LoadPlaylists: Successfully loaded', allPlaylists.length, 'playlists');
+                displayPlaylists(allPlaylists);
+                updateStatistics();
+            } else {
+                console.error('LoadPlaylists: API returned error:', data.error);
+                showToast('Error loading playlists: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('LoadPlaylists: Network error:', error);
+            showToast('Network error while loading playlists', 'error');
+        });
+}
+
+function displayPlaylists(playlists) {
+    console.log('DisplayPlaylists: Starting to display', playlists.length, 'playlists');
+    const container = document.getElementById(`${currentUser}-playlists`);
+    const emptyState = document.getElementById('empty-state');
+    
+    if (playlists.length === 0) {
+        console.log('DisplayPlaylists: No playlists to display');
+        container.innerHTML = '';
+        emptyState.style.display = 'block';
+        return;
+    }
+    
+    emptyState.style.display = 'none';
+    
+    // Debug: Log first playlist to check cover URL
+    if (playlists.length > 0) {
+        console.log('DisplayPlaylists: First playlist:', playlists[0]);
+        console.log('DisplayPlaylists: Original cover URL:', playlists[0].original_cover_url);
+        console.log('DisplayPlaylists: Expected proxy URL:', `/plex_cover?path=${encodeURIComponent(playlists[0].original_cover_url)}`);
+    }
+    
+    // Debug force refresh browser cache
+    const cacheBreaker = Date.now();
+    console.log('DisplayPlaylists: Rendering playlists with cache breaker:', cacheBreaker);
+    
+    try {
+        console.log('DisplayPlaylists: Generating HTML template...');
+        container.innerHTML = playlists.map(playlist => `
+        <div class="col-md-6 col-lg-4 mb-4 playlist-card" data-playlist-id="${playlist.id}">
+            <div class="card h-100">
+                <div class="cover-container position-relative" style="height: 250px; overflow: hidden;">
+                    ${((playlist.current_cover_source === 'ai' && playlist.ai_cover_path) || (!playlist.original_cover_url && playlist.ai_cover_path)) ? `
+                        <img src="/covers/playlist_${playlist.id}.png?t=${Date.now()}" class="card-img-top cover-image" alt="${playlist.name} AI cover" 
+                             style="width: 100%; height: 100%; object-fit: contain; background: #f8f9fa; cursor: pointer;" 
+                             onclick="previewCover(${playlist.id}, 'ai')" onerror="this.style.display='none'">
+                        <div class="position-absolute top-0 start-0 m-2">
+                            <span class="badge bg-success bg-gradient" style="font-size: 0.7rem;">
+                                <i class="fas fa-robot" style="font-size: 0.6rem;"></i> AI Applied
+                            </span>
+                        </div>
+                        ${playlist.original_cover_url ? `
+                            <div class="cover-toggle-btn position-absolute top-0 end-0 m-2">
+                                <button class="btn btn-sm btn-outline-light" onclick="toggleCover(${playlist.id})" title="Mostra Cover Originale">
+                                    <i class="fas fa-image"></i>
+                                </button>
+                            </div>
+                        ` : ''}
+                    ` : playlist.original_cover_url ? `
+                        <img src="/plex_cover?path=${encodeURIComponent(playlist.original_cover_url)}" class="card-img-top cover-image" alt="${playlist.name} cover" 
+                             style="width: 100%; height: 100%; object-fit: contain; background: #f8f9fa; cursor: pointer;" 
+                             onclick="previewCover(${playlist.id}, 'original')" onerror="this.style.display='none'">
+                        ${playlist.ai_cover_path ? `
+                            <div class="cover-toggle-btn position-absolute top-0 end-0 m-2">
+                                <button class="btn btn-sm btn-success" onclick="toggleCover(${playlist.id})" title="Mostra Cover AI">
+                                    <i class="fas fa-robot"></i>
+                                </button>
+                            </div>
+                        ` : ''}
+                    ` : `
+                        <div class="no-cover d-flex align-items-center justify-content-center" style="height: 100%; background: #e9ecef;">
+                            <i class="fas fa-music text-muted" style="font-size: 3rem;"></i>
+                        </div>
+                    `}
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-start mb-2">
+                        <h5 class="card-title">${playlist.name}</h5>
+                        <div class="form-check">
+                            <input class="form-check-input playlist-checkbox" type="checkbox" 
+                                   value="${playlist.id}" onchange="updateSelectedPlaylists()">
+                        </div>
+                    </div>
+                    <p class="card-text text-muted small">${playlist.description || 'No description'}</p>
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <small class="text-muted">
+                            <i data-lucide="music" style="width: 14px; height: 14px;"></i>
+                            ${playlist.track_count} {{ _('plex_playlist_manager.tracks') }}
+                        </small>
+                        <div class="badges">
+                            ${playlist.original_cover_url ? '<span class="badge bg-primary">Original Cover</span>' : ''}
+                            ${playlist.ai_cover_path ? 
+                                `<span class="badge ${playlist.ai_cover_generated ? 'bg-success' : 'bg-info'}">
+                                    <i class="fas fa-${playlist.ai_cover_generated ? 'robot' : 'image'}" style="margin-right: 4px;"></i>
+                                    ${playlist.ai_cover_generated ? 'AI Generated' : 'AI Cover'}
+                                </span>` : ''}
+                            ${playlist.ai_description ? '<span class="badge bg-info">AI Description</span>' : ''}
+                        </div>
+                    </div>
+                    <div class="d-flex justify-content-between">
+                        <div class="btn-group" role="group">
+                            <button class="btn btn-sm btn-outline-primary" onclick="generateCover(${playlist.id})">
+                                <i data-lucide="image" style="width: 14px; height: 14px;"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-info" onclick="generateDescription(${playlist.id})">
+                                <i data-lucide="file-text" style="width: 14px; height: 14px;"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-success" onclick="syncToPlex(${playlist.id})">
+                                <i data-lucide="upload" style="width: 14px; height: 14px;"></i>
+                            </button>
+                        </div>
+                        <small class="text-muted">${formatDate(playlist.updated_date)}</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+        console.log('DisplayPlaylists: HTML template generated successfully');
+        
+        // Recreate icons
+        lucide.createIcons();
+        console.log('DisplayPlaylists: Icons recreated successfully');
+    } catch (error) {
+        console.error('DisplayPlaylists: Error during template generation:', error);
+        showToast('Errore durante la visualizzazione delle playlist', 'error');
+        throw error; // Re-throw per propagare l'errore
+    }
+}
+
+function updateStatistics() {
+    fetch(`/api/playlist_stats/${currentUser}`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                document.getElementById('total-playlists').textContent = data.stats.total_playlists;
+                document.getElementById('with-original-covers').textContent = data.stats.with_original_covers;
+                document.getElementById('with-ai-covers').textContent = data.stats.with_ai_covers;
+                document.getElementById('with-ai-descriptions').textContent = data.stats.with_ai_descriptions;
+                document.getElementById('total-tracks').textContent = data.stats.total_tracks;
+                document.getElementById('total-covers').textContent = data.stats.with_original_covers + data.stats.with_ai_covers;
+            }
+        })
+        .catch(error => console.error('Error loading stats:', error));
+}
+
+function refreshPlaylists() {
+    showToast('{{ _('plex_playlist_manager.refresh_playlists') }}...', 'info');
+    
+    fetch(`/api/sync_plex_playlists/${currentUser}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        console.log('Sync response:', data); // Debug log
+        if (data.success) {
+            showToast(data.message, 'success');
+            // Wait a moment for the database to be updated, then reload playlists
+            setTimeout(() => {
+                loadPlaylists();
+            }, 1500);
+        } else {
+            console.error('Sync error:', data.error); // Debug log
+            showToast('Error syncing playlists: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error syncing playlists:', error);
+        showToast('Network error while syncing playlists', 'error');
+    });
+}
+
+function generateCover(playlistId) {
+    currentPlaylistId = playlistId;
+    const modal = new bootstrap.Modal(document.getElementById('coverGenerationModal'));
+    modal.show();
+    
+    // Reset modal state
+    document.getElementById('cover-generation-progress').style.display = 'block';
+    document.getElementById('cover-generation-preview').style.display = 'none';
+    document.getElementById('apply-cover-btn').style.display = 'none';
+    
+    // Reset apply button state
+    const applyBtn = document.getElementById('apply-cover-btn');
+    applyBtn.disabled = false;
+    applyBtn.innerHTML = '{{ _('plex_playlist_manager.cover_generation.apply') }}';
+    
+    // Set current cover
+    const playlist = allPlaylists.find(p => p.id === playlistId);
+    if (playlist && playlist.original_cover_url) {
+        document.getElementById('current-cover').src = `/plex_cover?path=${encodeURIComponent(playlist.original_cover_url)}`;
+    } else {
+        document.getElementById('current-cover').src = '/static/images/no-cover.png';
+    }
+    
+    // Generate cover
+    fetch(`/api/generate_playlist_cover/${playlistId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        }
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('cover-generation-progress').style.display = 'none';
+        
+        if (data.success) {
+            document.getElementById('new-cover').src = data.cover_path + '?t=' + Date.now();
+            document.getElementById('cover-generation-preview').style.display = 'block';
+            document.getElementById('apply-cover-btn').style.display = 'block';
+            showToast('{{ _('plex_playlist_manager.cover_generation.success') }}', 'success');
+            // Non ricaricare automaticamente - lascia che l'utente decida se applicare
+            
+            // Debug log
+            console.log('Cover generated successfully:', data.cover_path);
+        } else {
+            showToast('{{ _('plex_playlist_manager.cover_generation.error') }}'.replace('{error}', data.error), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error generating cover:', error);
+        document.getElementById('cover-generation-progress').style.display = 'none';
+        showToast('Network error while generating cover', 'error');
+    });
+}
+
+function generateDescription(playlistId) {
+    if (!playlistId) {
+        playlistId = currentPlaylistId;
+    }
+    
+    if (!playlistId) {
+        showToast('No playlist selected', 'error');
+        return;
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('descriptionGenerationModal'));
+    modal.show();
+    
+    currentPlaylistId = playlistId;
+    
+    // Reset modal state
+    document.getElementById('description-generation-progress').style.display = 'block';
+    document.getElementById('description-generation-preview').style.display = 'none';
+    document.getElementById('apply-description-btn').style.display = 'none';
+    
+    // Reset apply button state
+    const applyBtn = document.getElementById('apply-description-btn');
+    applyBtn.disabled = false;
+    applyBtn.innerHTML = '{{ _('plex_playlist_manager.description_generation.apply') }}';
+    
+    // Set current description
+    const playlist = allPlaylists.find(p => p.id === playlistId);
+    const currentDescElement = document.getElementById('current-description');
+    if (playlist && playlist.description && playlist.description.trim()) {
+        currentDescElement.textContent = playlist.description;
+        currentDescElement.style.fontStyle = 'normal';
+        currentDescElement.classList.remove('text-muted');
+        currentDescElement.classList.add('text-dark');
+    } else {
+        currentDescElement.textContent = 'No description set';
+        currentDescElement.style.fontStyle = 'italic';
+        currentDescElement.classList.remove('text-dark');
+        currentDescElement.classList.add('text-muted');
+    }
+    
+    const style = document.getElementById('description-style').value;
+    const language = '{{ current_language }}';
+    
+    fetch(`/api/generate_playlist_description/${playlistId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            style: style,
+            language: language
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        document.getElementById('description-generation-progress').style.display = 'none';
+        
+        if (data.success) {
+            document.getElementById('new-description').textContent = data.description;
+            document.getElementById('description-generation-preview').style.display = 'block';
+            document.getElementById('apply-description-btn').style.display = 'block';
+            showToast('{{ _('plex_playlist_manager.description_generation.success') }}', 'success');
+            // Non ricaricare automaticamente - lascia che l'utente decida se applicare
+        } else {
+            showToast('{{ _('plex_playlist_manager.description_generation.error') }}'.replace('{error}', data.error), 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error generating description:', error);
+        document.getElementById('description-generation-progress').style.display = 'none';
+        showToast('Network error while generating description', 'error');
+    });
+}
+
+function syncToPlex(playlistId) {
+    if (confirm('{{ _('plex_playlist_manager.sync.confirm') }}')) {
+        showToast('{{ _('plex_playlist_manager.sync.syncing') }}', 'info');
+        
+        fetch(`/api/sync_playlist_to_plex/${playlistId}`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                sync_cover: true,
+                sync_description: true
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast('{{ _('plex_playlist_manager.sync.success') }}', 'success');
+                // Wait a moment for processing to complete, then reload playlists
+                setTimeout(() => {
+                    loadPlaylists();
+                }, 1500);
+            } else {
+                showToast('{{ _('plex_playlist_manager.sync.error') }}'.replace('{error}', data.error), 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error syncing to Plex:', error);
+            showToast('Network error while syncing to Plex', 'error');
+        });
+    }
+}
+
+function updateSelectedPlaylists() {
+    selectedPlaylists = Array.from(document.querySelectorAll('.playlist-checkbox:checked'))
+        .map(checkbox => parseInt(checkbox.value));
+    
+    document.getElementById('selected-count').textContent = selectedPlaylists.length;
+}
+
+function selectAll() {
+    document.querySelectorAll('.playlist-checkbox').forEach(checkbox => {
+        checkbox.checked = true;
+    });
+    updateSelectedPlaylists();
+}
+
+function deselectAll() {
+    document.querySelectorAll('.playlist-checkbox').forEach(checkbox => {
+        checkbox.checked = false;
+    });
+    updateSelectedPlaylists();
+}
+
+function showBulkActionsModal() {
+    if (selectedPlaylists.length === 0) {
+        showToast('No playlists selected', 'warning');
+        return;
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('bulkActionsModal'));
+    modal.show();
+}
+
+function bulkGenerateCovers() {
+    if (selectedPlaylists.length === 0) return;
+    
+    const modal = bootstrap.Modal.getInstance(document.getElementById('bulkActionsModal'));
+    modal.hide();
+    
+    showToast(`Generating covers for ${selectedPlaylists.length} playlists...`, 'info');
+    
+    fetch('/api/bulk_playlist_actions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            action: 'generate_covers',
+            playlist_ids: selectedPlaylists
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message, 'success');
+            // Wait a moment for processing to complete, then reload playlists
+            setTimeout(() => {
+                loadPlaylists();
+            }, 2000);
+        } else {
+            showToast('Error in bulk cover generation: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error in bulk cover generation:', error);
+        showToast('Network error during bulk cover generation', 'error');
+    });
+}
+
+function bulkGenerateDescriptions() {
+    if (selectedPlaylists.length === 0) return;
+    
+    const modal = bootstrap.Modal.getInstance(document.getElementById('bulkActionsModal'));
+    modal.hide();
+    
+    showToast(`Generating descriptions for ${selectedPlaylists.length} playlists...`, 'info');
+    
+    fetch('/api/bulk_playlist_actions', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            action: 'generate_descriptions',
+            playlist_ids: selectedPlaylists,
+            style: 'casual',
+            language: '{{ current_language }}'
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            showToast(data.message, 'success');
+            // Wait a moment for processing to complete, then reload playlists
+            setTimeout(() => {
+                loadPlaylists();
+            }, 2000);
+        } else {
+            showToast('Error in bulk description generation: ' + data.error, 'error');
+        }
+    })
+    .catch(error => {
+        console.error('Error in bulk description generation:', error);
+        showToast('Network error during bulk description generation', 'error');
+    });
+}
+
+function bulkSyncToPlex() {
+    if (selectedPlaylists.length === 0) return;
+    
+    const modal = bootstrap.Modal.getInstance(document.getElementById('bulkActionsModal'));
+    modal.hide();
+    
+    if (confirm(`Are you sure you want to sync ${selectedPlaylists.length} playlists to Plex?`)) {
+        showToast(`Syncing ${selectedPlaylists.length} playlists to Plex...`, 'info');
+        
+        fetch('/api/bulk_playlist_actions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                action: 'sync_to_plex',
+                playlist_ids: selectedPlaylists
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showToast(data.message, 'success');
+                // Wait a moment for processing to complete, then reload playlists
+                setTimeout(() => {
+                    loadPlaylists();
+                }, 2000);
+            } else {
+                showToast('Error in bulk sync: ' + data.error, 'error');
+            }
+        })
+        .catch(error => {
+            console.error('Error in bulk sync:', error);
+            showToast('Network error during bulk sync', 'error');
+        });
+    }
+}
+
+function filterPlaylists(filter) {
+    let filteredPlaylists = allPlaylists;
+    
+    switch (filter) {
+        case 'with_covers':
+            filteredPlaylists = allPlaylists.filter(p => p.ai_cover_path);
+            break;
+        case 'with_descriptions':
+            filteredPlaylists = allPlaylists.filter(p => p.ai_description);
+            break;
+        case 'without_covers':
+            filteredPlaylists = allPlaylists.filter(p => !p.ai_cover_path && !p.original_cover_url);
+            break;
+        default:
+            filteredPlaylists = allPlaylists;
+    }
+    
+    displayPlaylists(filteredPlaylists);
+}
+
+function sortPlaylists(sortBy) {
+    let sortedPlaylists = [...allPlaylists];
+    
+    switch (sortBy) {
+        case 'name':
+            sortedPlaylists.sort((a, b) => a.name.localeCompare(b.name));
+            break;
+        case 'track_count':
+            sortedPlaylists.sort((a, b) => b.track_count - a.track_count);
+            break;
+        case 'last_updated':
+            sortedPlaylists.sort((a, b) => new Date(b.updated_date) - new Date(a.updated_date));
+            break;
+    }
+    
+    displayPlaylists(sortedPlaylists);
+}
+
+function formatDate(dateString) {
+    if (!dateString) return 'Never';
+    const date = new Date(dateString);
+    return date.toLocaleDateString();
+}
+
+// Toast notification function
+function showToast(message, type = 'info') {
+    // Create toast element
+    const toast = document.createElement('div');
+    toast.className = `toast align-items-center text-white bg-${type === 'error' ? 'danger' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : 'primary'} border-0`;
+    toast.setAttribute('role', 'alert');
+    toast.innerHTML = `
+        <div class="d-flex">
+            <div class="toast-body">${message}</div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+        </div>
+    `;
+    
+    // Add to page
+    let toastContainer = document.getElementById('toast-container');
+    if (!toastContainer) {
+        toastContainer = document.createElement('div');
+        toastContainer.id = 'toast-container';
+        toastContainer.className = 'position-fixed top-0 end-0 p-3';
+        toastContainer.style.zIndex = '9999';
+        document.body.appendChild(toastContainer);
+    }
+    
+    toastContainer.appendChild(toast);
+    
+    // Show toast
+    const bsToast = new bootstrap.Toast(toast);
+    bsToast.show();
+    
+    // Remove from DOM after hiding
+    toast.addEventListener('hidden.bs.toast', () => {
+        toast.remove();
+    });
+}
+
+// Apply Cover functionality
+function applyCover() {
+    if (!currentPlaylistId) {
+        showToast('Errore: ID playlist non trovato', 'error');
+        return;
+    }
+    
+    // Nasconde il pulsante Apply per evitare click multipli
+    const applyBtn = document.getElementById('apply-cover-btn');
+    applyBtn.disabled = true;
+    applyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Applicando...';
+    
+    // Sincronizza solo la cover con Plex
+    fetch(`/api/sync_playlist_to_plex/${currentPlaylistId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            sync_cover: true,
+            sync_description: false
+        })
+    })
+    .then(response => {
+        console.log('Apply cover response status:', response.status);
+        console.log('Apply cover response headers:', response.headers);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Apply cover response data:', data);
+        if (data.success) {
+            console.log('Cover apply successful, reloading playlists...');
+            // Ricarica le playlist per mostrare gli aggiornamenti
+            loadPlaylists().then(() => {
+                console.log('Playlists reloaded after cover apply');
+                // Ripristina il pulsante prima di chiudere il modal
+                applyBtn.disabled = false;
+                applyBtn.innerHTML = '{{ _('plex_playlist_manager.cover_generation.apply') }}';
+                
+                // Chiudi il modal di generazione cover
+                const modal = bootstrap.Modal.getInstance(document.getElementById('coverGenerationModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                showToast('{{ _('plex_playlist_manager.cover_generation.applied') }}', 'success');
+            }).catch(loadError => {
+                console.error('Error reloading playlists after cover apply:', loadError);
+                // Ripristina il pulsante anche in caso di errore nel reload
+                applyBtn.disabled = false;
+                applyBtn.innerHTML = '{{ _('plex_playlist_manager.cover_generation.apply') }}';
+                showToast('Cover applicata ma errore ricaricamento interfaccia', 'warning');
+            });
+        } else {
+            console.error('Cover apply failed:', data.error);
+            showToast(`Errore: ${data.error}`, 'error');
+            // Ripristina il pulsante in caso di errore
+            applyBtn.disabled = false;
+            applyBtn.innerHTML = '{{ _('plex_playlist_manager.cover_generation.apply') }}';
+        }
+    })
+    .catch(error => {
+        console.error('Error applying cover to Plex:', error);
+        showToast('Errore durante l\'applicazione della cover', 'error');
+        
+        // Ripristina il pulsante in caso di errore
+        applyBtn.disabled = false;
+        applyBtn.innerHTML = '{{ _('plex_playlist_manager.cover_generation.apply') }}';
+    });
+}
+
+// Apply Description functionality
+function applyDescription() {
+    if (!currentPlaylistId) {
+        showToast('Errore: ID playlist non trovato', 'error');
+        return;
+    }
+    
+    // Nasconde il pulsante Apply per evitare click multipli
+    const applyBtn = document.getElementById('apply-description-btn');
+    applyBtn.disabled = true;
+    applyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Applicando...';
+    
+    // Sincronizza solo la descrizione con Plex
+    fetch(`/api/sync_playlist_to_plex/${currentPlaylistId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            sync_cover: false,
+            sync_description: true
+        })
+    })
+    .then(response => {
+        console.log('Apply description response status:', response.status);
+        console.log('Apply description response headers:', response.headers);
+        return response.json();
+    })
+    .then(data => {
+        console.log('Apply description response data:', data);
+        if (data.success) {
+            console.log('Description apply successful, reloading playlists...');
+            // Ricarica le playlist per mostrare gli aggiornamenti
+            loadPlaylists().then(() => {
+                console.log('Playlists reloaded after description apply');
+                // Ripristina il pulsante prima di chiudere il modal
+                applyBtn.disabled = false;
+                applyBtn.innerHTML = '{{ _('plex_playlist_manager.description_generation.apply') }}';
+                
+                // Chiudi il modal di generazione descrizione
+                const modal = bootstrap.Modal.getInstance(document.getElementById('descriptionGenerationModal'));
+                if (modal) {
+                    modal.hide();
+                }
+                
+                showToast('{{ _('plex_playlist_manager.description_generation.applied') }}', 'success');
+            }).catch(loadError => {
+                console.error('Error reloading playlists after description apply:', loadError);
+                // Ripristina il pulsante anche in caso di errore nel reload
+                applyBtn.disabled = false;
+                applyBtn.innerHTML = '{{ _('plex_playlist_manager.description_generation.apply') }}';
+                showToast('Descrizione applicata ma errore ricaricamento interfaccia', 'warning');
+            });
+        } else {
+            console.error('Description apply failed:', data.error);
+            showToast(`Errore: ${data.error}`, 'error');
+            // Ripristina il pulsante in caso di errore
+            applyBtn.disabled = false;
+            applyBtn.innerHTML = '{{ _('plex_playlist_manager.description_generation.apply') }}';
+        }
+    })
+    .catch(error => {
+        console.error('Error applying description to Plex:', error);
+        showToast('Errore durante l\'applicazione della descrizione', 'error');
+        
+        // Ripristina il pulsante in caso di errore
+        applyBtn.disabled = false;
+        applyBtn.innerHTML = '{{ _('plex_playlist_manager.description_generation.apply') }}';
+    });
+}
+
+// Cover toggle functionality
+function toggleCover(playlistId) {
+    const coverContainer = document.querySelector(`[data-playlist-id="${playlistId}"] .cover-container`);
+    const coverImage = coverContainer.querySelector('.cover-image');
+    const toggleBtn = coverContainer.querySelector('.cover-toggle-btn button');
+    
+    if (!coverImage || !toggleBtn) return;
+    
+    const isShowingAI = coverImage.src.includes('/covers/');
+    
+    if (isShowingAI) {
+        // Switch to original cover
+        const playlist = allPlaylists.find(p => p.id === playlistId);
+        if (playlist && playlist.original_cover_url) {
+            coverImage.src = `/plex_cover?path=${encodeURIComponent(playlist.original_cover_url)}`;
+            toggleBtn.innerHTML = '<i class="fas fa-robot"></i>';
+            toggleBtn.title = 'Mostra Cover AI';
+        }
+    } else {
+        // Switch to AI cover
+        coverImage.src = `/covers/playlist_${playlistId}.png?t=${Date.now()}`;
+        toggleBtn.innerHTML = '<i class="fas fa-image"></i>';
+        toggleBtn.title = 'Mostra Cover Originale';
+    }
+}
+
+// Global variable for current preview playlist
+let currentPreviewPlaylistId = null;
+let currentPreviewCoverType = 'original';
+
+// Cover preview modal (uses fixed modal)
+function previewCover(playlistId, coverType = 'original') {
+    const playlist = allPlaylists.find(p => p.id === playlistId);
+    if (!playlist) return;
+    
+    // Set global variables
+    currentPreviewPlaylistId = playlistId;
+    currentPreviewCoverType = coverType;
+    
+    // Update modal content
+    updateCoverPreviewModal(playlist, coverType);
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('coverPreviewModal'));
+    modal.show();
+}
+
+function updateCoverPreviewModal(playlist, coverType) {
+    let coverUrl = '';
+    let title = '';
+    
+    if (coverType === 'ai' && playlist.ai_cover_path) {
+        coverUrl = `/covers/playlist_${playlist.id}.png?t=${Date.now()}`;
+        title = `${playlist.name} - Cover AI`;
+    } else if (playlist.original_cover_url) {
+        coverUrl = `/plex_cover?path=${encodeURIComponent(playlist.original_cover_url)}`;
+        title = `${playlist.name} - Cover Originale`;
+    }
+    
+    // Update modal elements
+    document.getElementById('cover-preview-title').textContent = title;
+    document.getElementById('cover-preview-image').src = coverUrl;
+    
+    // Update navigation buttons
+    const navContainer = document.getElementById('cover-preview-nav');
+    if (playlist.ai_cover_path && playlist.original_cover_url) {
+        navContainer.innerHTML = `
+            <button class="btn ${coverType === 'original' ? 'btn-primary' : 'btn-outline-primary'}" onclick="switchPreviewCover('original')">
+                <i class="fas fa-image"></i> Originale
+            </button>
+            <button class="btn ${coverType === 'ai' ? 'btn-success' : 'btn-outline-success'}" onclick="switchPreviewCover('ai')">
+                <i class="fas fa-robot"></i> AI
+            </button>
+        `;
+    } else {
+        navContainer.innerHTML = '';
+    }
+    
+    // Show/hide apply button for AI covers
+    const applyBtn = document.getElementById('apply-preview-cover-btn');
+    if (coverType === 'ai' && playlist.ai_cover_path) {
+        applyBtn.style.display = 'inline-block';
+    } else {
+        applyBtn.style.display = 'none';
+    }
+}
+
+function switchPreviewCover(coverType) {
+    if (!currentPreviewPlaylistId) return;
+    
+    const playlist = allPlaylists.find(p => p.id === currentPreviewPlaylistId);
+    if (!playlist) return;
+    
+    currentPreviewCoverType = coverType;
+    updateCoverPreviewModal(playlist, coverType);
+}
+
+function applyPreviewCover() {
+    if (!currentPreviewPlaylistId || currentPreviewCoverType !== 'ai') return;
+    
+    const applyBtn = document.getElementById('apply-preview-cover-btn');
+    applyBtn.disabled = true;
+    applyBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Applicando...';
+    
+    // Use the same sync API as the generation modal
+    fetch(`/api/sync_playlist_to_plex/${currentPreviewPlaylistId}`, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            sync_cover: true,
+            sync_description: false
+        })
+    })
+    .then(response => response.json())
+    .then(data => {
+        if (data.success) {
+            // Close modal and reload playlists
+            const modal = bootstrap.Modal.getInstance(document.getElementById('coverPreviewModal'));
+            if (modal) {
+                modal.hide();
+            }
+            
+            loadPlaylists().then(() => {
+                showToast('Cover applicata con successo a Plex!', 'success');
+            });
+        } else {
+            showToast(`Errore: ${data.error}`, 'error');
+            applyBtn.disabled = false;
+            applyBtn.innerHTML = '<i class="fas fa-upload me-1"></i>Applica a Plex';
+        }
+    })
+    .catch(error => {
+        console.error('Error applying cover:', error);
+        showToast('Errore durante l\'applicazione della cover', 'error');
+        applyBtn.disabled = false;
+        applyBtn.innerHTML = '<i class="fas fa-upload me-1"></i>Applica a Plex';
+    });
+}
+
+// Enlarge cover function for generation modal
+function enlargeCover(img) {
+    // Use the same fixed modal
+    document.getElementById('cover-preview-title').textContent = img.alt;
+    document.getElementById('cover-preview-image').src = img.src;
+    
+    // Clear navigation and apply button for simple enlargement
+    document.getElementById('cover-preview-nav').innerHTML = '';
+    document.getElementById('apply-preview-cover-btn').style.display = 'none';
+    
+    // Show the modal
+    const modal = new bootstrap.Modal(document.getElementById('coverPreviewModal'));
+    modal.show();
+}
+</script>
+{% endblock %}

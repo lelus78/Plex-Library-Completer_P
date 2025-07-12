@@ -432,6 +432,13 @@
                             <span id="geminiStatusBadge" class="badge ms-2" style="display: none;"></span>
                         </a>
                     </li>
+                    <li class="nav-item">
+                        <a class="nav-link d-flex align-items-center" href="{{ url_for('plex_playlist_manager') }}">
+                            <i data-lucide="list-music" class="me-2" style="width: 18px; height: 18px;"></i>
+                            {{ _('navigation.plex_playlist_manager') }}
+                            <span class="badge bg-info ms-2">{{ _('ui.new') }}</span>
+                        </a>
+                    </li>
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="languageDropdown" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i data-lucide="globe" class="me-2" style="width: 18px; height: 18px;"></i>

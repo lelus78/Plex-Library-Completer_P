@@ -34,6 +34,7 @@ A comprehensive Python application, executed via Docker, that keeps your Plex mu
 
 - **🎵 Multi-Platform Synchronization**: Automatically syncs playlists from **Spotify** and **Deezer** to your Plex library
 - **🎛️ Interactive Playlist Management**: NEW! Web-based interface for discovering, selecting, and managing playlists with real-time statistics
+- **🆕 Plex Playlist Manager**: NEW! Dedicated interface for enhancing existing Plex playlists with AI-generated covers and descriptions
 - **🔍 Enhanced Universal Search**: Intelligent search across Spotify and Deezer with consistent library status detection
 - **🧹 Smart URL Processing**: Automatic cleaning of URLs with invisible Unicode character removal
 - **👥 Multi-User Management**: Supports multiple Plex users with individual configurations and playlists
@@ -53,6 +54,7 @@ A comprehensive Python application, executed via Docker, that keeps your Plex mu
 ### ⚡ Latest Improvements (July 2025)
 - **🎨 AI PLAYLIST COVER GENERATION**: Revolutionary SwarmUI integration with Fluxmania Legacy model for professional-quality covers with perfect text rendering and 40+ genre-specific styles
 - **🎵 UNIFIED MUSIC DIRECTORY SETUP**: Revolutionary simplified configuration - only change TWO things to set up music downloads for any OS (Windows/Linux/macOS/NAS)
+- **🆕 PLEX PLAYLIST MANAGER**: Brand new dedicated interface for managing existing Plex playlists with AI cover generation, description creation, and bidirectional sync capabilities
 - **🔧 Direct Download Fixes**: Fixed JavaScript errors in download functionality and URL handling
 - **🧹 Unicode Character Cleaning**: Automatically removes invisible Unicode characters from URLs (frontend + backend)
 - **📚 Consistent Library Checking**: Spotify and Deezer search results now show accurate "In Libreria" status
@@ -74,6 +76,34 @@ A comprehensive Python application, executed via Docker, that keeps your Plex mu
 - **Manual Spotify Playlist Addition**: Add any public Spotify playlist by URL or ID directly through the web interface
 - **Physical Copy Architecture**: Each user maintains independent selection states for shared playlists
 - **Cross-User Synchronization**: Shared playlists appear in both user sections with separate controls
+
+### 🆕 Plex Playlist Manager - New Dedicated Interface
+A completely new section that revolutionizes how you manage your existing Plex playlists:
+
+#### 🎯 Core Functionality
+- **Direct Plex Integration**: Import and manage playlists that already exist in your Plex Media Server
+- **Bidirectional Sync**: Changes made in the interface sync directly back to Plex
+- **Real-Time Updates**: Live synchronization between the web interface and your Plex server
+- **Multi-User Support**: Separate management for main and secondary Plex users
+
+#### 🤖 AI Enhancement Features
+- **AI Cover Generation**: Create professional playlist covers using SwarmUI/ComfyUI with 40+ genre-specific styles
+- **Smart Description Creation**: Generate engaging playlist descriptions using Google Gemini AI with multiple style options
+- **Preview Before Apply**: See generated covers and descriptions before applying them to Plex
+- **Selective Sync**: Choose to apply only covers, only descriptions, or both
+
+#### 🎨 Interface Features
+- **Playlist Cards**: Visual grid layout showing covers, metadata, and enhancement status
+- **Smart Filtering**: Essential filters - "Tutte", "Con Cover AI", "Con Descrizioni AI", "Senza Cover"
+- **Bulk Operations**: Generate covers or descriptions for multiple playlists simultaneously
+- **Statistics Dashboard**: Real-time counters showing enhancement progress and playlist status
+
+#### 🔄 How It Works
+1. **Import from Plex**: Click "Refresh Playlists" to sync existing playlists from your Plex server
+2. **Browse & Filter**: Use the visual interface to browse your playlists and filter by enhancement status
+3. **Generate AI Content**: Create covers and descriptions for individual playlists or in bulk
+4. **Preview & Apply**: Review AI-generated content before applying it to your Plex server
+5. **Track Progress**: Monitor enhancement status with real-time statistics and visual indicators
 
 ### 🎛️ Interactive Web Interface
 - **Web-Based Discovery**: Automatically discover playlists from Spotify and Deezer with one-click
@@ -340,11 +370,16 @@ Open your browser and go to:
 1. **Index Your Library**: Click "Index Library" to scan your music collection
 2. **Wait for Completion**: This may take 10-30 minutes depending on library size
 3. **NEW! Interactive Playlist Management**: 
-   - Navigate to "Gestione Playlist" (Playlist Management) in the top menu
+   - Navigate to "Gestione Playlist" (Playlist Management) in the top menu for Spotify/Deezer playlist discovery
    - Use the discovery buttons to automatically find playlists from Spotify and Deezer
    - Select the playlists you want to sync using the interactive interface
    - Alternatively, migrate existing playlist IDs from your `.env` file to the database
-4. **Test Sync**: Click "Start Full Sync" to test the synchronization
+4. **NEW! Plex Playlist Manager**:
+   - Navigate to "Playlist Plex" in the top menu to manage your existing Plex playlists
+   - Click "Refresh Playlists" to import playlists from your Plex server
+   - Generate AI covers and descriptions for your existing playlists
+   - Use bulk operations to enhance multiple playlists at once
+5. **Test Sync**: Click "Start Full Sync" to test the synchronization
 
 ### Quick Test Configuration
 
@@ -905,6 +940,14 @@ Once running, access the web interface at:
 - **Real-Time Selection**: Instant visual feedback with live track counts
 - **Playlist Sharing**: Share playlists between users with independent controls
 - **Manual Addition**: Add any public Spotify playlist by URL or ID
+
+#### 🆕 Plex Playlist Manager (NEW!)
+- **Dedicated Interface**: Brand new section specifically for managing existing Plex playlists
+- **AI Enhancement Tools**: Generate professional covers and descriptions for your Plex playlists
+- **Visual Management**: Grid layout with playlist cards showing covers and metadata
+- **Bidirectional Sync**: Changes sync directly between the web interface and Plex server
+- **Bulk Operations**: Process multiple playlists simultaneously for efficient management
+- **Smart Filtering**: Filter by enhancement status with multilingual support
 
 #### 🎵 Missing Tracks Management
 - **Track Detection**: Advanced algorithms identify missing songs

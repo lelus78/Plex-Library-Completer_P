@@ -959,3 +959,273 @@ def test_music_charts_integration() -> bool:
     except Exception as e:
         logger.error(f"Errore nel test integrazione classifiche: {e}")
         return False
+
+def generate_playlist_description(playlist_name: str, genres: List[str], track_count: int, 
+                                 style: str = "casual", language: str = "en") -> Optional[str]:
+    """
+    Genera una descrizione AI per una playlist esistente.
+    
+    Args:
+        playlist_name: Nome della playlist
+        genres: Lista dei generi musicali presenti
+        track_count: Numero di tracce nella playlist
+        style: Stile della descrizione ('casual', 'formal', 'poetic', 'energetic')
+        language: Lingua della descrizione ('en', 'it')
+    
+    Returns:
+        Descrizione generata o None se fallisce
+    """
+    try:
+        # Configura Gemini
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            logger.error("GEMINI_API_KEY non configurata")
+            return None
+        
+        genai.configure(api_key=api_key)
+        
+        # Controllo stato globale
+        global_state = GeminiStateManager()
+        if global_state.is_blocked:
+            logger.warning("Gemini attualmente bloccato")
+            return None
+        
+        # Mappa degli stili
+        style_descriptions = {
+            "casual": {
+                "en": "casual and friendly",
+                "it": "casual e amichevole"
+            },
+            "formal": {
+                "en": "formal and professional",
+                "it": "formale e professionale"
+            },
+            "poetic": {
+                "en": "poetic and artistic",
+                "it": "poetico e artistico"
+            },
+            "energetic": {
+                "en": "energetic and exciting",
+                "it": "energico ed entusiasmante"
+            }
+        }
+        
+        style_desc = style_descriptions.get(style, style_descriptions["casual"])[language]
+        
+        # Aggiungi variabilità per evitare descrizioni ripetitive
+        import random
+        import time
+        variability_seed = int(time.time()) % 1000
+        
+        variation_prompts = {
+            "en": [
+                "Create a compelling description",
+                "Write an engaging summary", 
+                "Generate an attractive description",
+                "Craft an appealing overview",
+                "Compose an enticing description"
+            ],
+            "it": [
+                "Crea una descrizione accattivante",
+                "Scrivi un riassunto coinvolgente",
+                "Genera una descrizione attraente", 
+                "Componi una panoramica allettante",
+                "Crea una descrizione invitante"
+            ]
+        }
+        
+        chosen_starter = random.choice(variation_prompts[language])
+        
+        # Costruisci il prompt
+        if language == "it":
+            prompt = f"""
+{chosen_starter} per una playlist musicale chiamata "{playlist_name}".
+
+Seed variabilità: {variability_seed}
+
+Dettagli della playlist:
+- Nome: {playlist_name}
+- Generi musicali: {', '.join(genres) if genres else 'Vari'}
+- Numero di tracce: {track_count}
+- Stile descrizione: {style_desc}
+
+Requisiti:
+1. Lunghezza: 2-3 frasi (massimo 150 caratteri)
+2. Stile: {style_desc}
+3. Linguaggio: italiano naturale
+4. Evita elenchi o punti
+5. Concentrati sull'atmosfera e sul mood della playlist
+6. Non ripetere il nome della playlist
+7. Usa termini musicali appropriati per i generi
+
+Esempio di output desiderato:
+"Una selezione di brani che cattura l'essenza del rock moderno con sfumature alternative. Perfetta per accompagnare momenti di concentrazione o per energizzare le tue giornate."
+
+Genera solo la descrizione, senza prefissi o spiegazioni aggiuntive.
+"""
+        else:
+            prompt = f"""
+{chosen_starter} for a music playlist called "{playlist_name}".
+
+Variability seed: {variability_seed}
+
+Playlist details:
+- Name: {playlist_name}
+- Music genres: {', '.join(genres) if genres else 'Various'}
+- Track count: {track_count}
+- Description style: {style_desc}
+
+Requirements:
+1. Length: 2-3 sentences (max 150 characters)
+2. Style: {style_desc}
+3. Language: natural English
+4. Avoid lists or bullet points
+5. Focus on atmosphere and mood of the playlist
+6. Don't repeat the playlist name
+7. Use appropriate musical terminology for the genres
+
+Example desired output:
+"A selection of tracks that captures the essence of modern rock with alternative nuances. Perfect for focusing moments or energizing your days."
+
+Generate only the description, without prefixes or additional explanations.
+"""
+        
+        # Inizializza il modello
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        
+        # Genera la descrizione
+        response = model.generate_content(prompt)
+        
+        if response and response.text:
+            description = response.text.strip()
+            
+            # Pulisci la descrizione
+            description = description.replace('"', '').replace("'", "")
+            
+            # Tronca se troppo lunga
+            if len(description) > 180:
+                description = description[:177] + "..."
+            
+            logger.info(f"Descrizione generata per playlist '{playlist_name}': {description}")
+            return description
+        else:
+            logger.error("Risposta vuota da Gemini")
+            return None
+            
+    except Exception as e:
+        logger.error(f"Errore generazione descrizione playlist: {e}")
+        return None
+
+def analyze_playlist_genres(plex_server, playlist_id: str) -> List[str]:
+    """
+    Analizza i generi di una playlist Plex.
+    
+    Args:
+        plex_server: Istanza del server Plex
+        playlist_id: ID della playlist
+    
+    Returns:
+        Lista dei generi più frequenti
+    """
+    try:
+        playlist = plex_server.playlist(playlist_id)
+        
+        genre_count = {}
+        
+        # Analizza i generi delle tracce
+        for track in playlist.items():
+            if hasattr(track, 'genres'):
+                for genre in track.genres:
+                    genre_name = genre.tag.lower()
+                    genre_count[genre_name] = genre_count.get(genre_name, 0) + 1
+        
+        # Ordina per frequenza e prendi i primi 5
+        sorted_genres = sorted(genre_count.items(), key=lambda x: x[1], reverse=True)
+        top_genres = [genre[0] for genre in sorted_genres[:5]]
+        
+        logger.info(f"Generi analizzati per playlist {playlist_id}: {top_genres}")
+        return top_genres
+        
+    except Exception as e:
+        logger.error(f"Errore analisi generi playlist: {e}")
+        return []
+
+def generate_creative_cover_prompt(playlist_name: str, description: str, genres: List[str], language: str = 'en') -> str:
+    """
+    Genera un prompt creativo per la cover usando Gemini AI
+    
+    Args:
+        playlist_name: Nome della playlist
+        description: Descrizione della playlist
+        genres: Lista dei generi musicali
+        language: Lingua per il prompt
+    
+    Returns:
+        Prompt creativo per la generazione della cover
+    """
+    try:
+        # Configura l'API Gemini
+        api_key = os.getenv("GEMINI_API_KEY")
+        if not api_key:
+            logger.warning("GEMINI_API_KEY non configurata - usando prompt base")
+            return f'album cover artwork with text: "{playlist_name}", {", ".join(genres)} style, professional design'
+        
+        genai.configure(api_key=api_key)
+        
+        # Importa la funzione per lo stile del testo
+        from .playlist_cover_generator import get_text_prompt_style
+        
+        # Ottieni lo stile del testo basato sui generi
+        text_style = get_text_prompt_style(genres)
+        title_text = text_style.format(playlist_name=playlist_name)
+        
+        # Costruisci il prompt per Gemini
+        system_prompt = f"""
+        You are a creative AI expert specialized in generating prompts for album cover artwork.
+        
+        Your task is to create a detailed, artistic prompt for generating a music playlist cover.
+        
+        Guidelines:
+        1. Create a visual concept that captures the essence of the music
+        2. Include artistic style, colors, mood, and composition details
+        3. ALWAYS start the prompt with the specific text format: "{title_text}"
+        4. Make it professional and eye-catching
+        5. Consider the music genres and playlist theme
+        6. Be creative and descriptive but concise
+        7. Focus on visual elements that work well for album covers
+        8. Use modern, professional design language
+        
+        Playlist Information:
+        - Name: "{playlist_name}"
+        - Description: "{description}"
+        - Genres: {", ".join(genres) if genres else "mixed"}
+        
+        Create a detailed prompt for generating this playlist cover artwork. 
+        The prompt MUST start with: "{title_text}"
+        The prompt should be in English and ready to use with AI image generation tools.
+        """
+        
+        # Usa il modello Gemini 1.5 Flash per velocità
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        logger.info(f"🎨 Generando prompt creativo per playlist: {playlist_name}")
+        
+        response = model.generate_content(system_prompt)
+        
+        if response and response.text:
+            creative_prompt = response.text.strip()
+            logger.info(f"✅ Prompt creativo generato: {creative_prompt[:100]}...")
+            
+            # Assicurati che il prompt includa sempre il nome della playlist
+            if playlist_name not in creative_prompt:
+                creative_prompt = f'album cover artwork with text: "{playlist_name}", {creative_prompt}'
+            
+            return creative_prompt
+        else:
+            logger.warning("Gemini non ha restituito un prompt valido")
+            return f'album cover artwork with text: "{playlist_name}", {", ".join(genres)} style, professional design'
+            
+    except Exception as e:
+        logger.error(f"Errore generazione prompt creativo: {e}")
+        # Fallback al prompt base
+        return f'album cover artwork with text: "{playlist_name}", {", ".join(genres)} style, professional design'

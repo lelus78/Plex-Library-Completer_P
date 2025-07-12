@@ -8,6 +8,7 @@
     "missing_tracks": "Missing Tracks",
     "playlist_management": "Playlist Management",
     "ai_lab": "AI Lab",
+    "plex_playlist_manager": "Plex Playlists",
     "stats": "Statistics",
     "settings": "Settings"
   },
@@ -625,5 +626,97 @@
     "charts_error": "❌ Error loading charts preview: {error}",
     "charts_test_error": "❌ Error during charts test.",
     "charts_data_error": "❌ Error loading charts data: {error}"
+  },
+  "plex_playlist_manager": {
+    "title": "Plex Playlist Manager",
+    "subtitle": "Manage your Plex playlists with AI-powered covers and descriptions",
+    "my_playlists": "My Playlists",
+    "total_playlists": "Total Playlists",
+    "with_ai_covers": "With AI Covers",
+    "with_ai_descriptions": "With AI Descriptions",
+    "playlist_name": "Playlist Name",
+    "description": "Description",
+    "tracks": "tracks",
+    "track_count": "Track Count",
+    "last_updated": "Last Updated",
+    "actions": "Actions",
+    "generate_cover": "Generate AI Cover",
+    "generate_description": "Regenerate Description",
+    "sync_to_plex": "Sync to Plex",
+    "view_details": "View Details",
+    "bulk_actions": "Bulk Actions",
+    "selected_playlists": "Selected Playlists",
+    "generate_covers_bulk": "Generate AI Covers",
+    "generate_descriptions_bulk": "Generate AI Descriptions",
+    "sync_all": "Sync All Changes",
+    "select_all": "Select All",
+    "deselect_all": "Deselect All",
+    "no_playlists": "No playlists found",
+    "no_playlists_desc": "Create some playlists in Plex first, then refresh this page.",
+    "refresh_playlists": "Refresh Playlists",
+    "cover_generation": {
+      "title": "AI Cover Generation",
+      "analyzing": "Analyzing playlist content...",
+      "generating": "Generating AI cover...",
+      "success": "Cover generated successfully!",
+      "error": "Error generating cover: {error}",
+      "preview": "Preview",
+      "current_cover": "Current Cover",
+      "new_cover": "New AI Cover",
+      "apply": "Apply Cover",
+      "applied": "Cover applied successfully!",
+      "cancel": "Cancel"
+    },
+    "description_generation": {
+      "title": "AI Description Generation",
+      "analyzing": "Analyzing playlist tracks...",
+      "generating": "Generating description...",
+      "success": "Description generated successfully!",
+      "error": "Error generating description: {error}",
+      "style": "Description Style",
+      "styles": {
+        "casual": "Casual",
+        "formal": "Formal",
+        "poetic": "Poetic",
+        "energetic": "Energetic"
+      },
+      "current_description": "Current Description",
+      "new_description": "New AI Description",
+      "apply": "Apply Description",
+      "applied": "Description applied successfully!",
+      "cancel": "Cancel"
+    },
+    "sync": {
+      "title": "Sync to Plex",
+      "syncing": "Syncing to Plex...",
+      "success": "Synced successfully!",
+      "error": "Error syncing: {error}",
+      "confirm": "Are you sure you want to sync these changes to Plex?",
+      "changes_summary": "Changes Summary",
+      "covers_to_update": "Covers to update",
+      "descriptions_to_update": "Descriptions to update"
+    },
+    "filters": {
+      "all": "All",
+      "with_covers": "With AI Covers",
+      "without_covers": "Without AI Covers",
+      "with_descriptions": "With AI Descriptions",
+      "without_descriptions": "Without AI Descriptions",
+      "recently_updated": "Recently Updated"
+    },
+    "sort": {
+      "name": "Name",
+      "track_count": "Track Count",
+      "last_updated": "Last Updated",
+      "created_date": "Created Date"
+    },
+    "status": {
+      "ai_cover_ready": "AI Cover Ready",
+      "needs_description": "Needs Description",
+      "complete": "Complete",
+      "needs_cover": "Needs Cover",
+      "syncing": "Syncing...",
+      "error": "Error"
+    }
   }
 }

@@ -7,7 +7,7 @@ import sys
 import concurrent.futures
 import queue
 from datetime import datetime
-from flask import Flask, render_template, redirect, url_for, flash, jsonify, request
+from flask import Flask, render_template, redirect, url_for, flash, jsonify, request, send_from_directory
 from dotenv import load_dotenv
 from plexapi.server import PlexServer
 from plexapi.exceptions import NotFound
@@ -39,7 +39,7 @@ from plex_playlist_sync.stats_generator import (
     generate_top_artists_chart, generate_duration_distribution, generate_year_trend_chart,
     get_library_statistics
 )
-from plex_playlist_sync.utils.gemini_ai import list_ai_playlists, generate_on_demand_playlist, test_ai_services, get_gemini_status
+from plex_playlist_sync.utils.gemini_ai import list_ai_playlists, generate_on_demand_playlist, test_ai_services, get_gemini_status, generate_playlist_description, analyze_playlist_genres
 from plex_playlist_sync.utils.helperClasses import UserInputs
 from plex_playlist_sync.utils.database import (
     initialize_db, get_missing_tracks, update_track_status, get_missing_track_by_id, 
@@ -47,7 +47,9 @@ from plex_playlist_sync.utils.database import (
     delete_all_missing_tracks, delete_missing_track, check_track_in_index_smart, comprehensive_track_verification, get_library_index_stats,
     clean_tv_content_from_missing_tracks, clean_resolved_missing_tracks, add_missing_track_if_not_exists,
     get_total_selected_playlists_count, share_playlist_with_user, get_shared_playlists, get_user_playlist_selections_with_sharing,
-    check_album_in_library
+    check_album_in_library, check_album_in_index, get_plex_playlists_for_user, save_plex_playlist, get_playlist_by_id,
+    update_playlist_ai_cover, update_playlist_ai_description, mark_playlist_synced, get_plex_playlist_stats,
+    sync_plex_playlists_from_server
 )
 from plex_playlist_sync.utils.downloader import DeezerLinkFinder, download_single_track_with_streamrip, find_potential_tracks, find_tracks_free_search
 from plex_playlist_sync.utils.i18n import init_i18n_for_app, translate_status
@@ -230,6 +232,60 @@ def index():
     # Controlla stato indice libreria per avvisi
     index_stats = get_library_index_stats()
     return render_template('index.html', aliases=get_user_aliases(), index_stats=index_stats)
+
+@app.route('/covers/<path:filename>')
+def serve_cover(filename):
+    """Serve AI-generated playlist covers from the covers directory."""
+    return send_from_directory('/app/state_data/covers', filename)
+
+@app.route('/plex_cover')
+def serve_plex_cover():
+    """Proxy per servire le cover originali da Plex con autenticazione."""
+    try:
+        import requests
+        from flask import Response, request
+        from urllib.parse import unquote
+        
+        # Ottieni configurazione Plex
+        plex_url = os.getenv("PLEX_URL")
+        plex_token = os.getenv("PLEX_TOKEN")
+        
+        if not plex_url or not plex_token:
+            return "Plex configuration missing", 404
+        
+        # Ottieni il path dalla query string
+        cover_path = request.args.get('path', '')
+        if not cover_path:
+            return "Missing cover path", 400
+        
+        # Decodifica il path per gestire URL encoding
+        decoded_path = unquote(cover_path)
+        
+        # Costruisci URL completo
+        full_url = f"{plex_url.rstrip('/')}{decoded_path}"
+        
+        # Aggiungi token di autenticazione
+        params = {'X-Plex-Token': plex_token}
+        
+        # Fetch immagine da Plex
+        response = requests.get(full_url, params=params, timeout=10)
+        
+        if response.status_code == 200:
+            # Restituisci l'immagine con il giusto content-type
+            return Response(
+                response.content,
+                content_type=response.headers.get('Content-Type', 'image/jpeg'),
+                headers={
+                    'Cache-Control': 'public, max-age=3600',  # Cache per 1 ora
+                    'Content-Length': str(len(response.content))
+                }
+            )
+        else:
+            return f"Error fetching cover: {response.status_code}", response.status_code
+            
+    except Exception as e:
+        log.error(f"Error serving Plex cover: {e}")
+        return "Error loading cover", 500
 
 @app.route('/missing_tracks')
 def missing_tracks():
@@ -2823,6 +2879,312 @@ def api_database_realign():
             'success': False,
             'error': str(e)
         }), 500
+
+# =====================================
+# PLEX PLAYLIST MANAGER ROUTES
+# =====================================
+
+@app.route('/plex_playlist_manager')
+def plex_playlist_manager():
+    """Pagina principale del Plex Playlist Manager."""
+    return render_template('plex_playlist_manager.html', aliases=get_user_aliases())
+
+@app.route('/api/plex_playlists/<user_type>')
+def get_plex_playlists(user_type):
+    """API per ottenere le playlist Plex di un utente."""
+    try:
+        playlists = get_plex_playlists_for_user(user_type)
+        return jsonify({"success": True, "playlists": playlists})
+    except Exception as e:
+        log.error(f"Errore ottenimento playlist Plex: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/sync_plex_playlists/<user_type>', methods=['POST'])
+def sync_plex_playlists(user_type):
+    """Sincronizza le playlist dal server Plex."""
+    try:
+        # Ottieni configurazione Plex
+        plex_url = os.getenv("PLEX_URL")
+        plex_token = os.getenv("PLEX_TOKEN")
+        
+        if not plex_url or not plex_token:
+            return jsonify({"success": False, "error": "Configurazione Plex mancante"}), 400
+        
+        # Connessione a Plex
+        plex = PlexServer(plex_url, plex_token)
+        
+        # Trova la sezione musicale automaticamente
+        music_library = None
+        available_sections = []
+        
+        for section in plex.library.sections():
+            available_sections.append(f"{section.title} (type: {section.type})")
+            if section.type == 'artist':  # Le librerie musicali hanno type 'artist'
+                music_library = section
+                break
+        
+        if not music_library:
+            sections_info = ", ".join(available_sections)
+            log.error(f"Sezioni disponibili in Plex: {sections_info}")
+            return jsonify({
+                "success": False, 
+                "error": f"Nessuna libreria musicale trovata in Plex. Sezioni disponibili: {sections_info}"
+            }), 400
+        
+        # Sincronizza playlist
+        synced_count = sync_plex_playlists_from_server(user_type, plex, music_library)
+        
+        return jsonify({
+            "success": True, 
+            "message": f"Sincronizzate {synced_count} playlist",
+            "synced_count": synced_count
+        })
+        
+    except Exception as e:
+        log.error(f"Errore sincronizzazione playlist Plex: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/generate_playlist_cover/<int:playlist_id>', methods=['POST'])
+def generate_playlist_cover_route(playlist_id):
+    """Genera una cover AI per una playlist."""
+    try:
+        # Ottieni la playlist
+        playlist = get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({"success": False, "error": "Playlist non trovata"}), 404
+        
+        # Aggiungi timeout e background task per la generazione
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError
+        from plex_playlist_sync.utils.playlist_cover_generator import generate_playlist_cover_ai
+        
+        def generate_cover_with_timeout():
+            """Genera la cover con timeout controllato."""
+            return generate_playlist_cover_ai(
+                playlist_name=playlist['name'],
+                description=playlist['description'] or "",
+                genres=playlist['genres'],
+                save_path=f"/app/state_data/covers/playlist_{playlist_id}.png"
+            )
+        
+        # Esegui la generazione con timeout di 120 secondi (AI cover può richiedere più tempo)
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(generate_cover_with_timeout)
+            try:
+                cover_path = future.result(timeout=120)  # 2 minuti timeout
+            except TimeoutError:
+                log.warning(f"Timeout generazione cover per playlist {playlist_id}")
+                return jsonify({"success": False, "error": "Timeout generazione cover"}), 408
+        
+        if cover_path:
+            # Aggiorna il database
+            update_playlist_ai_cover(playlist_id, cover_path, ai_generated=True)
+            # Restituisce il path relativo per il frontend
+            relative_path = f"/covers/playlist_{playlist_id}.png"
+            return jsonify({"success": True, "cover_path": relative_path})
+        else:
+            return jsonify({"success": False, "error": "Generazione cover fallita"}), 500
+        
+    except Exception as e:
+        log.error(f"Errore generazione cover playlist: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/generate_playlist_description/<int:playlist_id>', methods=['POST'])
+def generate_playlist_description_route(playlist_id):
+    """Genera una descrizione AI per una playlist."""
+    try:
+        data = request.get_json()
+        style = data.get('style', 'casual')
+        language = data.get('language', 'en')
+        
+        # Ottieni la playlist
+        playlist = get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({"success": False, "error": "Playlist non trovata"}), 404
+        
+        # Aggiungi timeout e background task per la generazione
+        from concurrent.futures import ThreadPoolExecutor, TimeoutError
+        
+        def generate_with_timeout():
+            """Genera la descrizione con timeout controllato."""
+            return generate_playlist_description(
+                playlist_name=playlist['name'],
+                genres=playlist['genres'],
+                track_count=playlist['track_count'],
+                style=style,
+                language=language
+            )
+        
+        # Esegui la generazione con timeout di 30 secondi
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(generate_with_timeout)
+            try:
+                description = future.result(timeout=30)  # 30 secondi timeout
+            except TimeoutError:
+                log.warning(f"Timeout generazione descrizione per playlist {playlist_id}")
+                return jsonify({"success": False, "error": "Timeout generazione descrizione"}), 408
+        
+        if description:
+            # Aggiorna il database
+            update_playlist_ai_description(playlist_id, description)
+            return jsonify({"success": True, "description": description})
+        else:
+            return jsonify({"success": False, "error": "Generazione descrizione fallita"}), 500
+        
+    except Exception as e:
+        log.error(f"Errore generazione descrizione playlist: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/sync_playlist_to_plex/<int:playlist_id>', methods=['POST'])
+def sync_playlist_to_plex(playlist_id):
+    """Sincronizza una playlist con Plex (aggiorna cover e/o descrizione)."""
+    try:
+        # Parse dei parametri per specificare cosa sincronizzare
+        data = request.get_json() or {}
+        sync_description = data.get('sync_description', True)
+        sync_cover = data.get('sync_cover', True)
+        
+        # Ottieni la playlist
+        playlist = get_playlist_by_id(playlist_id)
+        if not playlist:
+            return jsonify({"success": False, "error": "Playlist non trovata"}), 404
+        
+        # Connessione a Plex
+        plex_url = os.getenv("PLEX_URL")
+        plex_token = os.getenv("PLEX_TOKEN")
+        
+        if not plex_url or not plex_token:
+            return jsonify({"success": False, "error": "Configurazione Plex mancante"}), 400
+        
+        plex = PlexServer(plex_url, plex_token)
+        
+        # Trova la playlist in Plex usando fetchItem con plex_id convertito a int
+        plex_playlist = plex.fetchItem(int(playlist['plex_id']))
+        
+        # Aggiorna descrizione se richiesto e presente
+        if sync_description and playlist['ai_description']:
+            plex_playlist.edit(summary=playlist['ai_description'])
+        
+        # Aggiorna cover se richiesto e presente
+        cover_applied = None
+        if sync_cover and playlist['ai_cover_path'] and os.path.exists(playlist['ai_cover_path']):
+            plex_playlist.uploadPoster(filepath=playlist['ai_cover_path'])
+            cover_applied = 'ai'
+        
+        # Marca come sincronizzata con il tipo di cover applicata (solo se cover è stata applicata)
+        mark_playlist_synced(playlist_id, cover_applied if sync_cover else None)
+        
+        # Messaggio dinamico basato su cosa è stato sincronizzato
+        if sync_description and sync_cover:
+            message = "Playlist sincronizzata con Plex"
+        elif sync_description:
+            message = "Descrizione sincronizzata con Plex"
+        elif sync_cover:
+            message = "Cover sincronizzata con Plex"
+        else:
+            message = "Nessuna modifica da sincronizzare"
+        
+        return jsonify({"success": True, "message": message})
+        
+    except Exception as e:
+        log.error(f"Errore sincronizzazione playlist con Plex: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/bulk_playlist_actions', methods=['POST'])
+def bulk_playlist_actions():
+    """Esegue azioni multiple su playlist selezionate."""
+    try:
+        data = request.get_json()
+        action = data.get('action')
+        playlist_ids = data.get('playlist_ids', [])
+        
+        if not action or not playlist_ids:
+            return jsonify({"success": False, "error": "Azione o playlist mancanti"}), 400
+        
+        results = []
+        
+        for playlist_id in playlist_ids:
+            try:
+                if action == 'generate_covers':
+                    # Genera cover per ogni playlist
+                    playlist = get_playlist_by_id(playlist_id)
+                    if playlist:
+                        from plex_playlist_sync.utils.playlist_cover_generator import generate_playlist_cover_ai
+                        cover_path = generate_playlist_cover_ai(
+                            playlist_name=playlist['name'],
+                            description=playlist['description'] or "",
+                            genres=playlist['genres'],
+                            save_path=f"/app/state_data/covers/playlist_{playlist_id}.png"
+                        )
+                        if cover_path:
+                            update_playlist_ai_cover(playlist_id, cover_path, ai_generated=True)
+                            results.append({"playlist_id": playlist_id, "success": True})
+                        else:
+                            results.append({"playlist_id": playlist_id, "success": False, "error": "Cover generation failed"})
+                    
+                elif action == 'generate_descriptions':
+                    # Genera descrizione per ogni playlist
+                    playlist = get_playlist_by_id(playlist_id)
+                    if playlist:
+                        description = generate_playlist_description(
+                            playlist_name=playlist['name'],
+                            genres=playlist['genres'],
+                            track_count=playlist['track_count'],
+                            style=data.get('style', 'casual'),
+                            language=data.get('language', 'en')
+                        )
+                        if description:
+                            update_playlist_ai_description(playlist_id, description)
+                            results.append({"playlist_id": playlist_id, "success": True})
+                        else:
+                            results.append({"playlist_id": playlist_id, "success": False, "error": "Description generation failed"})
+                    
+                elif action == 'sync_to_plex':
+                    # Sincronizza con Plex
+                    playlist = get_playlist_by_id(playlist_id)
+                    if playlist:
+                        plex_url = os.getenv("PLEX_URL")
+                        plex_token = os.getenv("PLEX_TOKEN")
+                        
+                        if plex_url and plex_token:
+                            plex = PlexServer(plex_url, plex_token)
+                            plex_playlist = plex.playlist(playlist['plex_id'])
+                            
+                            if playlist['ai_description']:
+                                plex_playlist.edit(summary=playlist['ai_description'])
+                            
+                            if playlist['ai_cover_path'] and os.path.exists(playlist['ai_cover_path']):
+                                plex_playlist.uploadPoster(filepath=playlist['ai_cover_path'])
+                            
+                            mark_playlist_synced(playlist_id)
+                            results.append({"playlist_id": playlist_id, "success": True})
+                        else:
+                            results.append({"playlist_id": playlist_id, "success": False, "error": "Plex configuration missing"})
+                    
+            except Exception as e:
+                results.append({"playlist_id": playlist_id, "success": False, "error": str(e)})
+        
+        successful = sum(1 for r in results if r['success'])
+        total = len(results)
+        
+        return jsonify({
+            "success": True,
+            "message": f"Completate {successful}/{total} operazioni",
+            "results": results
+        })
+        
+    except Exception as e:
+        log.error(f"Errore azioni multiple playlist: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
+
+@app.route('/api/playlist_stats/<user_type>')
+def get_playlist_stats(user_type):
+    """Ottiene statistiche delle playlist Plex."""
+    try:
+        stats = get_plex_playlist_stats(user_type)
+        return jsonify({"success": True, "stats": stats})
+    except Exception as e:
+        log.error(f"Errore ottenimento statistiche playlist: {e}")
+        return jsonify({"success": False, "error": str(e)}), 500
 
 if __name__ == '__main__':
     log.info("Avvio dell'applicazione Flask...")
